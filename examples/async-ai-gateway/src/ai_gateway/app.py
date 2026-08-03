@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import StreamingResponse
 
 from .gateway import AsyncAIGateway, GatewayOverloadedError
 from .models import GenerateRequest, GenerateResponse
+from .observability import REDMetrics, log_event, new_request_id
 from .providers import DemoProvider
 from .rate_limit import AsyncTokenBucket, RateLimitExceededError
 
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+metrics = REDMetrics()
 
 gateway = AsyncAIGateway(
     {
@@ -27,12 +31,35 @@ async def lifespan(_: FastAPI):
     gateway.begin_shutdown()
 
 
-app = FastAPI(title="Async AI Gateway Lab", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="Async AI Gateway Lab", version="0.2.0", lifespan=lifespan)
+
+
+@app.middleware("http")
+async def request_telemetry(request: Request, call_next) -> Response:
+    request_id = new_request_id(request.headers.get("x-request-id"))
+    operation = f"{request.method} {request.url.path}"
+    log_event("request.started", method=request.method, path=request.url.path)
+
+    with metrics.observe(operation):
+        try:
+            response = await call_next(request)
+        except Exception as exc:
+            log_event("request.failed", error=type(exc).__name__)
+            raise
+
+    response.headers["x-request-id"] = request_id
+    log_event("request.completed", status_code=response.status_code)
+    return response
 
 
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def read_metrics() -> dict[str, object]:
+    return metrics.snapshot()
 
 
 @app.post("/v1/generate", response_model=GenerateResponse)
