@@ -6,6 +6,7 @@ import time
 from collections.abc import AsyncIterator, Mapping
 
 from .models import AIProvider, GenerateResponse
+from .rate_limit import AsyncTokenBucket
 
 
 class GatewayOverloadedError(RuntimeError):
@@ -21,6 +22,7 @@ class AsyncAIGateway:
         max_queue_wait_seconds: float = 0.25,
         max_attempts: int = 3,
         base_backoff_seconds: float = 0.05,
+        rate_limiter: AsyncTokenBucket | None = None,
     ) -> None:
         if not providers:
             raise ValueError("At least one provider is required")
@@ -29,6 +31,7 @@ class AsyncAIGateway:
         self._max_queue_wait_seconds = max_queue_wait_seconds
         self._max_attempts = max_attempts
         self._base_backoff_seconds = base_backoff_seconds
+        self._rate_limiter = rate_limiter
         self._closing = False
 
     def _select(self, requested: str | None) -> AIProvider:
@@ -39,6 +42,18 @@ class AsyncAIGateway:
                 raise ValueError(f"Unknown provider: {requested}") from exc
         return next(iter(self._providers.values()))
 
+    async def _admit(self) -> None:
+        if self._closing:
+            raise RuntimeError("Gateway is shutting down")
+        if self._rate_limiter is not None:
+            await self._rate_limiter.acquire()
+        try:
+            await asyncio.wait_for(
+                self._capacity.acquire(), timeout=self._max_queue_wait_seconds
+            )
+        except TimeoutError as exc:
+            raise GatewayOverloadedError("Gateway concurrency limit reached") from exc
+
     async def generate(
         self,
         prompt: str,
@@ -46,18 +61,9 @@ class AsyncAIGateway:
         provider_name: str | None = None,
         timeout_seconds: float = 15.0,
     ) -> GenerateResponse:
-        if self._closing:
-            raise RuntimeError("Gateway is shutting down")
-
         provider = self._select(provider_name)
         started = time.perf_counter()
-
-        try:
-            await asyncio.wait_for(
-                self._capacity.acquire(), timeout=self._max_queue_wait_seconds
-            )
-        except TimeoutError as exc:
-            raise GatewayOverloadedError("Gateway concurrency limit reached") from exc
+        await self._admit()
 
         try:
             async with asyncio.timeout(timeout_seconds):
@@ -86,15 +92,8 @@ class AsyncAIGateway:
         *,
         provider_name: str | None = None,
     ) -> AsyncIterator[str]:
-        if self._closing:
-            raise RuntimeError("Gateway is shutting down")
         provider = self._select(provider_name)
-        try:
-            await asyncio.wait_for(
-                self._capacity.acquire(), timeout=self._max_queue_wait_seconds
-            )
-        except TimeoutError as exc:
-            raise GatewayOverloadedError("Gateway concurrency limit reached") from exc
+        await self._admit()
 
         try:
             async for chunk in provider.stream(prompt):
