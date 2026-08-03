@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 from .gateway import AsyncAIGateway, GatewayOverloadedError
 from .models import GenerateRequest, GenerateResponse
 from .providers import DemoProvider
+from .rate_limit import AsyncTokenBucket, RateLimitExceededError
 
 
 gateway = AsyncAIGateway(
@@ -16,6 +17,7 @@ gateway = AsyncAIGateway(
         "secondary": DemoProvider("secondary", delay_seconds=0.04),
     },
     max_concurrency=32,
+    rate_limiter=AsyncTokenBucket(capacity=60, refill_per_second=10),
 )
 
 
@@ -41,6 +43,8 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
             provider_name=request.provider,
             timeout_seconds=request.timeout_seconds,
         )
+    except RateLimitExceededError as exc:
+        raise HTTPException(status_code=429, detail=str(exc)) from exc
     except GatewayOverloadedError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except ValueError as exc:
