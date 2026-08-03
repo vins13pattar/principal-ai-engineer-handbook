@@ -8,14 +8,15 @@ A production-oriented Python 3.12+ lab for learning how an AI gateway protects i
 - bounded concurrency and queue-wait limits;
 - request deadlines and cancellation;
 - transient-failure retries with exponential backoff and jitter;
-- provider selection;
+- circuit breaking and ordered provider fallback;
+- a reusable `httpx.AsyncClient` adapter for OpenAI-compatible JSON and SSE APIs;
 - streaming responses;
-- in-process token-bucket rate limiting;
+- global and per-tenant token-bucket rate limiting;
 - graceful shutdown admission control;
 - typed request and response models;
 - automated async tests.
 
-The included providers are deterministic fakes so the lab runs without API keys. Replace `DemoProvider` with adapters built on `httpx.AsyncClient` for real providers.
+The default application still uses deterministic fake providers so the lab runs without API keys. `HTTPJSONProvider` shows how to connect a real OpenAI-compatible endpoint while preserving connection pooling, explicit timeouts, and streaming.
 
 ## Run locally
 
@@ -57,7 +58,7 @@ mypy src
 Client
   |
 FastAPI admission layer
-  |-- token bucket -> 429 when quota is exhausted
+  |-- tenant token bucket -> 429 when quota is exhausted
   |-- semaphore wait -> 503 when concurrency is saturated
   |
 AsyncAIGateway
@@ -66,22 +67,49 @@ AsyncAIGateway
   |-- provider routing
   |-- streaming lifecycle
   |
-Provider adapter
+FallbackProvider
+  |-- circuit breaker per provider
+  |-- ordered fallback policy
+  |
+HTTPJSONProvider / DemoProvider
 ```
 
 ## Principal-level discussion points
 
-1. The semaphore limits concurrent work; it does not control request rate. The token bucket controls request rate; it does not bound in-flight latency or memory. Production systems commonly need both.
-2. The local token bucket is process-scoped. Multi-replica deployments require shared or edge-enforced quotas.
+1. The semaphore limits concurrent work; it does not control request rate. Token buckets control rate; they do not bound in-flight latency or memory. Production systems commonly need both.
+2. The in-memory tenant limiter is process-scoped. Multi-replica deployments need Redis, an API gateway, or another shared enforcement point.
 3. Retrying inside the request deadline prevents retries from extending latency indefinitely.
-4. Streaming holds a concurrency permit for the stream lifetime. Separate limits may be required for streaming and non-streaming traffic.
-5. A production gateway should add identity-aware quotas, circuit breakers, provider health scores, metrics, tracing, structured logs, and idempotency where side effects exist.
+4. A circuit breaker protects a failing dependency from continued traffic and gives it time to recover. It should be scoped by provider, model, region, or endpoint rather than globally.
+5. Fallback is safe only when providers are semantically compatible. Differences in model behavior, safety policy, latency, cost, context limits, and data residency must be explicit.
+6. Streaming fallback becomes dangerous after partial output is emitted because retrying can duplicate or contradict content. Select a healthy provider before the stream begins, or surface a terminal stream error.
+7. HTTP clients should be long-lived and closed during application shutdown so connection pools are reused and sockets are released predictably.
+8. A production gateway should add OpenTelemetry spans, RED metrics, structured logs, request IDs, provider health scores, idempotency where side effects exist, and distributed quota enforcement.
 
-## Exercises
+## Real provider example
 
-- Add an `httpx.AsyncClient` provider adapter with connection pooling.
-- Add per-tenant limits rather than one global bucket.
-- Add a circuit breaker and provider fallback policy.
-- Emit OpenTelemetry spans and RED metrics.
+```python
+from ai_gateway.http_provider import HTTPJSONProvider
+
+provider = HTTPJSONProvider(
+    name="local-model",
+    base_url="http://localhost:11434",
+    model="my-model",
+)
+```
+
+Wrap multiple compatible providers with circuit-aware fallback:
+
+```python
+from ai_gateway.fallback import FallbackProvider
+
+resilient_provider = FallbackProvider([primary, secondary])
+```
+
+## Remaining exercises
+
+- Wire `TenantRateLimiter` into the FastAPI dependency layer using an authenticated tenant ID.
+- Replace local rate-limit state with Redis and document atomicity and fail-open/fail-closed choices.
+- Add OpenTelemetry spans and RED metrics.
 - Add SSE framing and client-disconnect cancellation.
-- Move rate-limit state to Redis and discuss consistency trade-offs.
+- Add provider health scoring and latency-aware routing.
+- Add contract tests for multiple OpenAI-compatible providers.
