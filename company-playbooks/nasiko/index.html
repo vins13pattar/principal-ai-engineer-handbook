@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Interview preparation playbook for the Principal or Senior AI Engineer Python role at Nasiko.">
+  <title>Nasiko Interview Playbook · Principal AI Engineer Handbook</title>
+  <link rel="stylesheet" href="../../assets/css/main.css">
+  <script src="../../assets/js/main.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="../../index.html"><span class="brand-mark">PAI</span><span>Principal AI Engineer Handbook</span></a>
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+      <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
+        <a href="../../index.html">Home</a>
+        <a href="../../roadmap.html">Roadmap</a>
+        <a href="#preparation">Preparation</a>
+        <a href="#questions">Questions</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content">
+    <section class="page-hero">
+      <div class="shell prose">
+        <p class="eyebrow">Company playbook · v0.1</p>
+        <h1>Nasiko Principal / Senior AI Engineer</h1>
+        <p>A focused preparation track for a Python-first role at the intersection of distributed systems, AI-agent infrastructure, MCP, RAG, model serving, Kubernetes, and production engineering.</p>
+        <ul class="tag-list">
+          <li>Python</li><li>Asyncio</li><li>Distributed Systems</li><li>AI Agents</li><li>MCP</li><li>RAG</li><li>Model Serving</li><li>Kubernetes</li><li>AWS</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section shell">
+      <div class="prose">
+        <p class="eyebrow">Positioning</p>
+        <h2>Your strongest interview narrative</h2>
+        <p>Present yourself as a Principal Engineer who combines production platform ownership with modern GenAI engineering. The core story is not a transition from software engineering into AI; it is an expansion of proven architecture, cloud, security, observability, and delivery experience into AI platforms and agentic systems.</p>
+      </div>
+      <div class="topic-grid">
+        <article class="topic"><h3>Production architecture</h3><p>Use EldersAbode and EldersIndia to demonstrate end-to-end architecture ownership, secure platform design, cloud deployment, CI/CD, access control, observability, and operational maturity.</p></article>
+        <article class="topic"><h3>Applied GenAI</h3><p>Discuss LangGraph, LangChain, RAG, vector retrieval, MCP, structured outputs, multi-agent workflows, evaluation, and practical teaching experience.</p></article>
+        <article class="topic"><h3>Cloud and reliability</h3><p>Highlight AWS infrastructure, serverless and container deployments, health checks, Sentry, security hardening, deployment automation, and reliability targets.</p></article>
+        <article class="topic"><h3>Technical leadership</h3><p>Show how you convert product requirements into architecture, establish engineering standards, mentor engineers, manage trade-offs, and own delivery outcomes.</p></article>
+      </div>
+    </section>
+
+    <section class="section contrast" id="preparation">
+      <div class="shell">
+        <div class="section-heading">
+          <p class="eyebrow">Preparation sequence</p>
+          <h2>Seven focused interview modules</h2>
+          <p>Prioritize the gaps most likely to be probed while using your existing platform experience as the foundation.</p>
+        </div>
+        <ol class="method-list">
+          <li><strong>1. Python runtime</strong><span>Asyncio, event loop, tasks, cancellation, async queues, thread pools, process pools, GIL, typing, profiling, and FastAPI internals.</span></li>
+          <li><strong>2. Distributed systems</strong><span>Retries, idempotency, delivery guarantees, backpressure, partitioning, leader election, consistency, queues, caching, and failure recovery.</span></li>
+          <li><strong>3. Agent control plane</strong><span>Registry, discovery, identity, capabilities, routing, lifecycle, policy, scheduling, execution, tenancy, and observability.</span></li>
+          <li><strong>4. MCP platform</strong><span>Server and client architecture, tools, resources, transports, authentication, authorization, isolation, discovery, and enterprise governance.</span></li>
+          <li><strong>5. RAG and evaluation</strong><span>Chunking, hybrid search, reranking, vector databases, groundedness, retrieval metrics, failure analysis, and production monitoring.</span></li>
+          <li><strong>6. Model serving</strong><span>Triton, Ray Serve, ONNX Runtime, dynamic batching, model versions, GPU utilization, autoscaling, latency, and rollout strategies.</span></li>
+          <li><strong>7. Principal leadership</strong><span>Architecture decisions, ambiguity, platform roadmaps, technical debt, incident leadership, mentoring, stakeholder communication, and founding-team expectations.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section shell" id="questions">
+      <div class="section-heading">
+        <p class="eyebrow">Likely interview questions</p>
+        <h2>Questions to answer at Principal depth</h2>
+      </div>
+      <div class="topic-grid">
+        <article class="topic"><h3>Design an agent registry</h3><p>Cover identity, capability schemas, health, versions, discovery, policy, tenancy, persistence, consistency, caching, and failure handling.</p></article>
+        <article class="topic"><h3>How would agents communicate?</h3><p>Compare synchronous RPC, asynchronous messaging, event streams, shared state, workflow orchestration, and protocol-level interoperability.</p></article>
+        <article class="topic"><h3>Scale an MCP platform</h3><p>Discuss connection management, transport gateways, authorization, tool isolation, quotas, schema validation, audit trails, and observability.</p></article>
+        <article class="topic"><h3>Build a real-time inference API</h3><p>Address admission control, batching, queues, model routing, autoscaling, timeouts, fallbacks, GPU scheduling, and SLOs.</p></article>
+        <article class="topic"><h3>Handle agent failures</h3><p>Explain retries, idempotency, checkpoints, dead-letter queues, compensation, circuit breakers, partial progress, and human escalation.</p></article>
+        <article class="topic"><h3>Evaluate multi-agent systems</h3><p>Separate task success, tool correctness, coordination quality, latency, cost, safety, recovery, and regression evaluation.</p></article>
+        <article class="topic"><h3>Asyncio under load</h3><p>Explain cooperative scheduling, blocking calls, bounded concurrency, cancellation, backpressure, timeouts, and graceful shutdown.</p></article>
+        <article class="topic"><h3>Principal-level trade-off</h3><p>Show how you frame context, constraints, options, decision criteria, risk, reversibility, migration, and measurable outcomes.</p></article>
+      </div>
+    </section>
+
+    <section class="section shell">
+      <div class="prose">
+        <p class="eyebrow">Story bank</p>
+        <h2>Experience examples to prepare</h2>
+        <ul class="checklist">
+          <li>Bootstrapping EldersAbode from PRD to a working platform and defining the architecture.</li>
+          <li>Securing the Razorpay flow by deriving plan and amount from trusted server-side order data.</li>
+          <li>Designing stage-based access control and testable gate logic.</li>
+          <li>Shipping SST-based AWS infrastructure, migrations, CI/CD, CloudFront, and DNS changes.</li>
+          <li>Improving security through CVE remediation, secrets hygiene, CI scanning, and private storage policies.</li>
+          <li>Building or teaching LangGraph, RAG, MCP, structured output, tool calling, and multi-agent systems.</li>
+          <li>Winning the AWS LLM League and explaining the technical decisions behind the solution.</li>
+          <li>Handling an architecture disagreement, production issue, or delivery constraint with measurable results.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section class="section shell">
+      <div class="callout">
+        <div>
+          <p class="eyebrow">Next release</p>
+          <h2>Production Python and asyncio</h2>
+          <p>The next module will add conceptual notes, executable examples, interview questions, and a small asynchronous agent-routing service.</p>
+        </div>
+        <a class="button secondary" href="../../roadmap.html">See roadmap</a>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div class="shell footer-wrap"><p>Nasiko Interview Playbook</p><p>Principal AI Engineer Interview Handbook · v0.1</p></div></footer>
+</body>
+</html>
