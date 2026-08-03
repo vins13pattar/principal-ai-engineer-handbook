@@ -6,17 +6,17 @@ A production-oriented Python 3.12+ lab for learning how an AI gateway protects i
 
 - asynchronous provider interfaces;
 - bounded concurrency and queue-wait limits;
-- request deadlines and cancellation;
-- transient-failure retries with exponential backoff and jitter;
+- request deadlines, cancellation, retries, and jitter;
 - circuit breaking and ordered provider fallback;
-- a reusable `httpx.AsyncClient` adapter for OpenAI-compatible JSON and SSE APIs;
-- streaming responses;
-- global and per-tenant token-bucket rate limiting;
+- reusable `httpx.AsyncClient` adapters for OpenAI-compatible JSON and SSE APIs;
+- global, per-tenant, and Redis-backed token-bucket rate limiting;
+- provider health scoring, temporary ejection, and latency-aware routing;
+- correlated structured logs and request IDs;
+- in-process RED metrics plus optional OpenTelemetry span hooks;
 - graceful shutdown admission control;
-- typed request and response models;
-- automated async tests.
+- typed models and automated async tests.
 
-The default application still uses deterministic fake providers so the lab runs without API keys. `HTTPJSONProvider` shows how to connect a real OpenAI-compatible endpoint while preserving connection pooling, explicit timeouts, and streaming.
+The default app uses deterministic fake providers so it runs without API keys. The production-oriented adapters remain vendor-neutral.
 
 ## Run locally
 
@@ -28,20 +28,25 @@ pip install -e '.[dev]'
 uvicorn ai_gateway.app:app --reload
 ```
 
+Install optional production integrations:
+
+```bash
+pip install -e '.[dev,observability,redis]'
+```
+
 Generate a response:
 
 ```bash
 curl -s http://127.0.0.1:8000/v1/generate \
   -H 'content-type: application/json' \
+  -H 'x-request-id: demo-123' \
   -d '{"prompt":"Explain bounded concurrency","provider":"primary"}'
 ```
 
-Stream a response:
+Inspect RED metrics:
 
 ```bash
-curl -N http://127.0.0.1:8000/v1/stream \
-  -H 'content-type: application/json' \
-  -d '{"prompt":"Stream this response","provider":"secondary"}'
+curl -s http://127.0.0.1:8000/metrics
 ```
 
 ## Verify quality
@@ -55,61 +60,81 @@ mypy src
 ## Architecture
 
 ```text
-Client
+Client / API Gateway
   |
-FastAPI admission layer
-  |-- tenant token bucket -> 429 when quota is exhausted
-  |-- semaphore wait -> 503 when concurrency is saturated
+Identity + tenant resolution
+  |-- Redis atomic quota -> 429
+  |-- admission control -> 503
+  |
+FastAPI request telemetry
+  |-- request ID + structured logs
+  |-- RED metrics + OpenTelemetry span hook
   |
 AsyncAIGateway
-  |-- request deadline
-  |-- retry policy with jitter
-  |-- provider routing
-  |-- streaming lifecycle
+  |-- deadline + bounded concurrency
+  |-- retry budget + jitter
+  |-- health-aware provider routing
   |
 FallbackProvider
   |-- circuit breaker per provider
-  |-- ordered fallback policy
+  |-- ordered compatible fallback
   |
 HTTPJSONProvider / DemoProvider
 ```
 
+## Distributed rate limiting
+
+`RedisTenantRateLimiter` executes the refill and consume operation inside one Lua script. This keeps the decision atomic across gateway replicas.
+
+Production decisions still matter:
+
+- **Fail closed:** protect spend and abuse limits, but Redis failure blocks traffic.
+- **Fail open:** preserve availability, but quota and cost controls may be bypassed.
+- **Local emergency bucket:** allow a small degraded allowance while Redis is unavailable.
+- **Edge enforcement:** reject excessive traffic before it consumes application capacity.
+
+Do not use tenant IDs supplied directly by an untrusted client. Resolve them from verified authentication claims.
+
+## Observability
+
+The lab includes three layers:
+
+1. `ContextVar` request correlation and JSON event logs.
+2. A small in-process RED collector for learning and tests.
+3. Optional OpenTelemetry span hooks that degrade to no-ops when the package is absent.
+
+In production, export counters and histograms rather than aggregating unbounded latency samples in process. Recommended dimensions include operation, provider, model, region, tenant tier, outcome, retry count, and stream/non-stream traffic. Avoid high-cardinality identifiers such as raw user IDs or request IDs in metric labels.
+
+## Health-aware routing
+
+`HealthAwareRouter` combines success rate, consecutive failures, and an exponential moving average of latency. Repeatedly failing providers are temporarily ejected.
+
+This is intentionally educational. Production routing should also consider:
+
+- model capability and context window;
+- cost and tenant policy;
+- region and data residency;
+- provider quota headroom;
+- streaming compatibility;
+- minimum sample size and stale health data;
+- active probes versus passive request observations.
+
 ## Principal-level discussion points
 
-1. The semaphore limits concurrent work; it does not control request rate. Token buckets control rate; they do not bound in-flight latency or memory. Production systems commonly need both.
-2. The in-memory tenant limiter is process-scoped. Multi-replica deployments need Redis, an API gateway, or another shared enforcement point.
-3. Retrying inside the request deadline prevents retries from extending latency indefinitely.
-4. A circuit breaker protects a failing dependency from continued traffic and gives it time to recover. It should be scoped by provider, model, region, or endpoint rather than globally.
-5. Fallback is safe only when providers are semantically compatible. Differences in model behavior, safety policy, latency, cost, context limits, and data residency must be explicit.
-6. Streaming fallback becomes dangerous after partial output is emitted because retrying can duplicate or contradict content. Select a healthy provider before the stream begins, or surface a terminal stream error.
-7. HTTP clients should be long-lived and closed during application shutdown so connection pools are reused and sockets are released predictably.
-8. A production gateway should add OpenTelemetry spans, RED metrics, structured logs, request IDs, provider health scores, idempotency where side effects exist, and distributed quota enforcement.
-
-## Real provider example
-
-```python
-from ai_gateway.http_provider import HTTPJSONProvider
-
-provider = HTTPJSONProvider(
-    name="local-model",
-    base_url="http://localhost:11434",
-    model="my-model",
-)
-```
-
-Wrap multiple compatible providers with circuit-aware fallback:
-
-```python
-from ai_gateway.fallback import FallbackProvider
-
-resilient_provider = FallbackProvider([primary, secondary])
-```
+1. Semaphores bound concurrent work; token buckets bound arrival rate. Most production gateways require both.
+2. A distributed quota decision needs atomic state mutation. A naive Redis `GET` followed by `SET` oversubscribes under concurrency.
+3. Observability must distinguish queue wait, provider latency, retries, serialization, and stream duration.
+4. Circuit breakers and health scores should be scoped by provider, model, endpoint, and sometimes region—not one global flag.
+5. Streaming fallback is unsafe after partial output has reached the client.
+6. Health-based routing can create feedback loops. Use bounded adjustments, minimum traffic probes, and explicit recovery behaviour.
+7. Metric labels must be controlled to prevent cardinality-driven cost and reliability problems.
 
 ## Remaining exercises
 
-- Wire `TenantRateLimiter` into the FastAPI dependency layer using an authenticated tenant ID.
-- Replace local rate-limit state with Redis and document atomicity and fail-open/fail-closed choices.
-- Add OpenTelemetry spans and RED metrics.
+- Wire authenticated tenant resolution into the FastAPI dependency layer.
+- Connect `RedisTenantRateLimiter` to `redis.asyncio.Redis` and test against a real Redis container.
+- Configure an OTLP exporter and instrument outbound `httpx` calls.
+- Export Prometheus-compatible counters and histograms.
 - Add SSE framing and client-disconnect cancellation.
-- Add provider health scoring and latency-aware routing.
+- Add a latency-aware router integration inside `AsyncAIGateway`.
 - Add contract tests for multiple OpenAI-compatible providers.
