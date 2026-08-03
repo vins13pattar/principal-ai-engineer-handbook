@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Module 0 of the Principal AI Engineer Interview Handbook: how to think like a Principal AI Engineer.">
+  <title>Module 0 — How to Think Like a Principal AI Engineer</title>
+  <link rel="stylesheet" href="../../assets/css/main.css">
+  <script src="../../assets/js/main.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main-content">Skip to content</a>
+  <header class="site-header">
+    <div class="shell nav-wrap">
+      <a class="brand" href="../../index.html" aria-label="Handbook home">
+        <span class="brand-mark">PAI</span>
+        <span>Principal AI Engineer Handbook</span>
+      </a>
+      <button class="menu-button" type="button" aria-expanded="false" aria-controls="site-nav">Menu</button>
+      <nav id="site-nav" class="site-nav" aria-label="Primary navigation">
+        <a href="../../index.html#curriculum">Curriculum</a>
+        <a href="../../roadmap.html">Roadmap</a>
+        <a href="../../playbooks/ai-infrastructure-interview/index.html">Interview Track</a>
+        <a href="https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main-content" class="section shell">
+    <header class="section-heading">
+      <p class="eyebrow">Module 0 · Engineering mindset</p>
+      <h1>How to Think Like a Principal AI Engineer</h1>
+      <p>Senior engineers solve today's problems. Principal engineers design systems that continue solving tomorrow's problems.</p>
+    </header>
+
+    <section class="callout">
+      <div>
+        <p class="eyebrow">Why this module exists</p>
+        <h2>Technologies are tools. Judgment is the role.</h2>
+        <p>Python, Kubernetes, LangGraph, MCP, RAG, and vector databases matter, but Principal-level work is defined by the ability to make high-quality decisions under uncertainty. This module establishes the decision-making framework used throughout the handbook.</p>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The evolution of engineering scope</h2>
+      <div class="card-grid">
+        <article class="card"><span>01</span><h3>Junior Engineer</h3><p>Focuses on implementation and asks, “How do I build this correctly?”</p></article>
+        <article class="card"><span>02</span><h3>Mid-Level Engineer</h3><p>Owns features and asks, “How do I deliver this reliably?”</p></article>
+        <article class="card"><span>03</span><h3>Senior Engineer</h3><p>Designs components and asks, “How should this service behave?”</p></article>
+        <article class="card"><span>04</span><h3>Staff Engineer</h3><p>Designs systems and asks, “How should these components work together?”</p></article>
+        <article class="card"><span>05</span><h3>Principal Engineer</h3><p>Shapes platforms and organizations and asks, “What is the simplest system that can keep working as the company grows?”</p></article>
+      </div>
+    </section>
+
+    <section class="section contrast">
+      <div class="shell split">
+        <div>
+          <p class="eyebrow">Core lenses</p>
+          <h2>Evaluate every design from multiple perspectives.</h2>
+        </div>
+        <ol class="method-list">
+          <li><strong>Customer value</strong><span>Does this solve the right problem for the right user?</span></li>
+          <li><strong>Simplicity</strong><span>Is this the least complex design that satisfies the requirements?</span></li>
+          <li><strong>Reliability</strong><span>How does the system fail, recover, and degrade gracefully?</span></li>
+          <li><strong>Scalability</strong><span>What breaks at 10× traffic, data, teams, or tenants?</span></li>
+          <li><strong>Security</strong><span>Are identity, authorization, data protection, and auditability built in?</span></li>
+          <li><strong>Cost</strong><span>What are the infrastructure, model, operational, and staffing costs?</span></li>
+          <li><strong>Maintainability</strong><span>Can another team understand, operate, and evolve this design?</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>The engineering decision framework</h2>
+      <div class="card-grid">
+        <article class="card"><span>1</span><h3>Problem</h3><p>State the user, business, and engineering problem without prematurely prescribing a technology.</p></article>
+        <article class="card"><span>2</span><h3>Constraints</h3><p>Identify latency, scale, security, compliance, cost, deadlines, skills, and operational boundaries.</p></article>
+        <article class="card"><span>3</span><h3>Alternatives</h3><p>Develop multiple viable options, including a deliberately simple baseline.</p></article>
+        <article class="card"><span>4</span><h3>Trade-offs</h3><p>Explain what each option improves, sacrifices, and makes harder later.</p></article>
+        <article class="card"><span>5</span><h3>Decision</h3><p>Select the option that best fits the present context, not the most fashionable architecture.</p></article>
+        <article class="card"><span>6</span><h3>Consequences</h3><p>Record risks, follow-up work, rollback paths, and signals that would justify revisiting the decision.</p></article>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>First principles of AI platform engineering</h2>
+      <ol class="method-list">
+        <li><strong>Build platforms, not isolated demos</strong><span>Create reusable capabilities with clear ownership and interfaces.</span></li>
+        <li><strong>Prefer composition over hidden magic</strong><span>Explicit components are easier to test, observe, secure, and replace.</span></li>
+        <li><strong>Design contracts before implementations</strong><span>APIs, events, state models, and failure semantics shape the system.</span></li>
+        <li><strong>Make everything observable</strong><span>Trace requests, prompts, retrieval, tools, models, cost, latency, and failures.</span></li>
+        <li><strong>Fail safely</strong><span>Constrain agent permissions, make operations idempotent, and provide recovery paths.</span></li>
+        <li><strong>Measure before optimizing</strong><span>Optimize from production evidence rather than assumptions.</span></li>
+        <li><strong>Optimize developer experience</strong><span>A platform succeeds only when teams can adopt and operate it safely.</span></li>
+        <li><strong>Document decisions</strong><span>Architecture Decision Records preserve context and prevent repeated debates.</span></li>
+      </ol>
+    </section>
+
+    <section class="section">
+      <h2>Questions a Principal Engineer asks</h2>
+      <div class="card-grid">
+        <article class="card"><h3>Assumptions</h3><p>Which assumptions are unverified, and how can we test them cheaply?</p></article>
+        <article class="card"><h3>Failure</h3><p>What happens when dependencies time out, models degrade, or agents repeat unsafe actions?</p></article>
+        <article class="card"><h3>Scale</h3><p>What changes at ten times the users, tenants, tokens, tools, and engineering teams?</p></article>
+        <article class="card"><h3>Operations</h3><p>How will we deploy, observe, debug, roll back, and support the system?</p></article>
+        <article class="card"><h3>Ownership</h3><p>Who owns the service, data, incidents, security posture, and roadmap?</p></article>
+        <article class="card"><h3>Exit strategy</h3><p>How do we replace the model, vendor, vector store, or orchestration framework?</p></article>
+      </div>
+    </section>
+
+    <section class="section contrast">
+      <div class="shell split">
+        <div>
+          <p class="eyebrow">Interview perspective</p>
+          <h2>Open-ended questions test reasoning, not memorization.</h2>
+        </div>
+        <ol class="method-list">
+          <li><strong>Clarify</strong><span>Define users, use cases, scale, latency, compliance, and success metrics.</span></li>
+          <li><strong>Structure</strong><span>Separate functional requirements, quality attributes, and constraints.</span></li>
+          <li><strong>Propose</strong><span>Start with a simple end-to-end architecture and identify boundaries.</span></li>
+          <li><strong>Stress</strong><span>Discuss bottlenecks, failure modes, security, observability, and cost.</span></li>
+          <li><strong>Evolve</strong><span>Explain what changes as traffic, tenants, and organizational complexity grow.</span></li>
+          <li><strong>Decide</strong><span>State trade-offs and make a recommendation instead of listing technologies.</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>Common mistakes</h2>
+      <div class="card-grid">
+        <article class="card"><h3>Technology-first design</h3><p>Selecting a framework before clarifying the problem and constraints.</p></article>
+        <article class="card"><h3>Premature complexity</h3><p>Introducing microservices, agents, or streaming where a simpler workflow would work.</p></article>
+        <article class="card"><h3>Ignoring operations</h3><p>Designing only the happy path without deployment, monitoring, rollback, and support.</p></article>
+        <article class="card"><h3>Unmeasured optimization</h3><p>Improving hypothetical bottlenecks instead of observed latency, cost, or quality issues.</p></article>
+        <article class="card"><h3>Weak failure boundaries</h3><p>Allowing one model, tool, or service failure to cascade across the platform.</p></article>
+        <article class="card"><h3>Vague ownership</h3><p>Building shared infrastructure without clear product, operational, and security owners.</p></article>
+      </div>
+    </section>
+
+    <section class="callout">
+      <div>
+        <p class="eyebrow">Module outcome</p>
+        <h2>Move from implementation answers to engineering decisions.</h2>
+        <p>After completing this module, you should be able to frame ambiguous problems, compare alternatives, communicate trade-offs, identify production risks, and make a clear recommendation at Principal Engineer depth.</p>
+      </div>
+      <a class="button primary" href="../01-production-python/index.html">Continue to Module 1</a>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="shell footer-wrap">
+      <p>Created by Vinod Pattar · Principal Engineer</p>
+      <p>Module 0 · Principal Engineering Mindset</p>
+    </div>
+  </footer>
+</body>
+</html>
