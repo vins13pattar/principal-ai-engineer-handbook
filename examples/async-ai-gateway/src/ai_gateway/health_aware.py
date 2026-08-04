@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from .models import AIProvider
 
@@ -57,7 +57,7 @@ class HealthAwareSelector:
             latency = health.latency_ema_ms or 1.0
             return (-health.success_rate, latency, health.consecutive_failures)
 
-        name, provider = min(candidates, key=score)
+        _, provider = min(candidates, key=score)
         return provider
 
     def record_success(self, provider_name: str, latency_ms: float) -> None:
@@ -80,4 +80,4 @@ class HealthAwareSelector:
             health.ejected_until = time.monotonic() + self._ejection_seconds
 
     def snapshot(self) -> dict[str, ProviderHealth]:
-        return {name: ProviderHealth(**vars(health)) for name, health in self._health.items()}
+        return {name: replace(health) for name, health in self._health.items()}
