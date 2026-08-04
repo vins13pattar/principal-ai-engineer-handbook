@@ -1,0 +1,59 @@
+name: Async AI Gateway CI
+
+on:
+  push:
+    paths:
+      - "examples/async-ai-gateway/**"
+      - ".github/workflows/async-ai-gateway-ci.yml"
+  pull_request:
+    paths:
+      - "examples/async-ai-gateway/**"
+      - ".github/workflows/async-ai-gateway-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: examples/async-ai-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: examples/async-ai-gateway/pyproject.toml
+      - name: Install dependencies
+        run: pip install -e '.[dev,observability,redis]'
+      - name: Ruff
+        run: ruff check .
+      - name: MyPy
+        run: mypy src
+      - name: Tests
+        run: pytest --maxfail=1 -q
+
+  redis-integration:
+    runs-on: ubuntu-latest
+    services:
+      redis:
+        image: redis:7.4-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    defaults:
+      run:
+        working-directory: examples/async-ai-gateway
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev,redis]'
+      - name: Redis integration tests
+        env:
+          REDIS_URL: redis://localhost:6379/0
+        run: pytest -q -k redis
