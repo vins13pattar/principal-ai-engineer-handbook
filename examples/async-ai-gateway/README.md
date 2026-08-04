@@ -10,12 +10,11 @@ A production-oriented Python 3.12+ lab for learning how an AI gateway protects i
 - circuit breaking and ordered provider fallback;
 - reusable `httpx.AsyncClient` adapters for OpenAI-compatible JSON and SSE APIs;
 - global, per-tenant, and Redis-backed token-bucket rate limiting;
-- provider health scoring, temporary ejection, and latency-aware routing;
+- health-aware provider selection, ejection, and recovery;
 - correlated structured logs and request IDs;
-- RED metrics, Prometheus text output, and optional OpenTelemetry span hooks;
+- RED metrics, Prometheus text output, and OpenTelemetry hooks;
 - SSE framing and client-disconnect-aware streaming;
-- liveness and readiness endpoints;
-- graceful shutdown admission control;
+- liveness, readiness, Docker, Compose, and GitHub Actions CI;
 - typed models and automated async tests.
 
 The default app uses deterministic fake providers so it runs without API keys. The production-oriented adapters remain vendor-neutral.
@@ -26,14 +25,8 @@ The default app uses deterministic fake providers so it runs without API keys. T
 cd examples/async-ai-gateway
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev]'
-uvicorn ai_gateway.production_app:app --reload
-```
-
-Install optional production integrations:
-
-```bash
 pip install -e '.[dev,observability,redis]'
+uvicorn ai_gateway.production_app:app --reload
 ```
 
 Generate a response:
@@ -43,7 +36,7 @@ curl -s http://127.0.0.1:8000/v1/generate \
   -H 'content-type: application/json' \
   -H 'x-tenant-id: tenant-demo' \
   -H 'x-request-id: demo-123' \
-  -d '{"prompt":"Explain bounded concurrency","provider":"primary"}'
+  -d '{"prompt":"Explain bounded concurrency"}'
 ```
 
 Stream with SSE:
@@ -52,15 +45,29 @@ Stream with SSE:
 curl -N http://127.0.0.1:8000/v1/stream \
   -H 'content-type: application/json' \
   -H 'x-tenant-id: tenant-demo' \
-  -d '{"prompt":"Stream this explanation","provider":"primary"}'
+  -d '{"prompt":"Stream this explanation"}'
 ```
 
-Inspect metrics:
+Inspect health and metrics:
 
 ```bash
-curl -s http://127.0.0.1:8000/metrics
+curl -s http://127.0.0.1:8000/health/live
+curl -s http://127.0.0.1:8000/health/ready
 curl -s http://127.0.0.1:8000/metrics/prometheus
 ```
+
+## Run the local infrastructure stack
+
+```bash
+docker compose up --build
+```
+
+This starts:
+
+- the gateway on port `8000`;
+- Redis on port `6379`;
+- an OpenTelemetry Collector on ports `4317` and `4318`;
+- collector-exported Prometheus metrics on port `8889`.
 
 ## Verify quality
 
@@ -69,6 +76,8 @@ pytest
 ruff check .
 mypy src
 ```
+
+GitHub Actions runs these checks for changes under `examples/async-ai-gateway`. A separate job starts Redis and executes Redis-focused integration tests.
 
 ## Architecture
 
@@ -82,88 +91,68 @@ Verified identity -> tenant resolution
 FastAPI request telemetry
   |-- request ID + structured logs
   |-- RED metrics + Prometheus output
-  |-- optional OpenTelemetry spans
+  |-- OpenTelemetry export hooks
   |
 AsyncAIGateway
   |-- deadline + bounded concurrency
   |-- retry budget + jitter
-  |-- provider selection
+  |-- health-aware provider selection
   |
-Fallback / health-aware routing layer
-  |-- circuit breaker per provider
-  |-- compatible provider fallback
+Provider health state
+  |-- success rate + latency EMA
+  |-- temporary failure ejection
   |
 HTTPJSONProvider / DemoProvider
 ```
 
 ## Integrated request path
 
-`ai_gateway.production_app` demonstrates how the individual building blocks fit together:
+`ai_gateway.production_app` demonstrates how the building blocks fit together:
 
-1. Resolve a tenant from request context.
+1. Resolve a tenant from trusted request context.
 2. Enforce a tenant-scoped quota before expensive work begins.
 3. Attach or generate a request ID.
 4. Emit structured lifecycle events.
-5. Record RED metrics.
+5. Record RED metrics and tracing data.
 6. Route through the bounded asynchronous gateway.
-7. Return mapped HTTP failures.
-8. Frame streaming output as SSE and stop work after client disconnect.
+7. Select a healthy provider unless an explicit provider is requested.
+8. Retry transient failures within the original deadline.
+9. Return mapped HTTP failures.
+10. Frame streaming output as SSE and stop work after client disconnect.
 
-The sample accepts `x-tenant-id` only to keep the lab runnable. In production, derive tenant identity from verified JWT claims, mTLS identity, or a trusted upstream gateway. Never trust a caller-supplied tenant header directly.
+The sample accepts `x-tenant-id` only to keep the lab runnable. In production, derive tenant identity from verified JWT claims, mTLS identity, or a trusted upstream gateway.
+
+## Health-aware routing policy
+
+The selector tracks success rate, consecutive failures, and latency exponential moving average. Automatic routing may move to another provider after transient failure. An explicitly requested provider does not silently fall back because that could violate model, cost, compliance, or data-residency intent.
+
+Health-based routing can create feedback loops. Production systems should retain minimum probe traffic, cap scoring adjustments, expire stale observations, and separate health by provider, model, endpoint, and region.
 
 ## Distributed rate limiting
 
-A Redis-backed limiter can execute refill and consume operations inside one Lua script, keeping the decision atomic across gateway replicas.
-
-Production decisions still matter:
+A Redis-backed limiter executes refill and consume operations inside one Lua script, keeping the decision atomic across gateway replicas.
 
 - **Fail closed:** protects spend and abuse limits, but Redis failure blocks traffic.
-- **Fail open:** preserves availability, but quota and cost controls may be bypassed.
-- **Local emergency bucket:** allows a small degraded allowance while Redis is unavailable.
-- **Edge enforcement:** rejects excessive traffic before it consumes application capacity.
-
-## Observability
-
-The lab includes four layers:
-
-1. `ContextVar` request correlation and JSON event logs.
-2. A small in-process RED collector for learning and tests.
-3. Prometheus-compatible text exposition.
-4. Optional OpenTelemetry span hooks.
-
-In production, export counters and histograms rather than aggregating unbounded latency samples in process. Recommended dimensions include operation, provider, model, region, tenant tier, outcome, retry count, and stream/non-stream traffic. Avoid request IDs and raw user IDs in metric labels.
-
-## Health-aware routing
-
-A health-aware router can combine success rate, consecutive failures, and an exponential moving average of latency. Repeatedly failing providers should be temporarily ejected and periodically probed for recovery.
-
-Production routing should also consider:
-
-- model capability and context window;
-- cost and tenant policy;
-- region and data residency;
-- provider quota headroom;
-- streaming compatibility;
-- minimum sample size and stale health data;
-- active probes versus passive observations.
+- **Fail open:** preserves availability, but quota controls may be bypassed.
+- **Local emergency bucket:** allows a small degraded allowance during Redis outages.
+- **Edge enforcement:** rejects excessive traffic before application capacity is consumed.
 
 ## Principal-level discussion points
 
-1. Semaphores bound concurrent work; token buckets bound arrival rate. Most production gateways require both.
-2. A distributed quota decision needs atomic state mutation. A naive Redis `GET` followed by `SET` oversubscribes under concurrency.
-3. Observability must distinguish queue wait, provider latency, retries, serialization, and stream duration.
-4. Circuit breakers and health scores should be scoped by provider, model, endpoint, and sometimes region—not one global flag.
-5. Streaming fallback is unsafe after partial output has reached the client.
-6. Health-based routing can create feedback loops. Use bounded adjustments, minimum traffic probes, and explicit recovery behaviour.
-7. Metric labels must be controlled to prevent cardinality-driven cost and reliability problems.
-8. Readiness should reflect whether the process can safely accept traffic; liveness should only indicate whether it should be restarted.
+1. Semaphores bound concurrent work; token buckets bound arrival rate. Production gateways usually need both.
+2. A distributed quota decision needs atomic state mutation; naive `GET` then `SET` oversubscribes under concurrency.
+3. Observability must distinguish queue wait, provider latency, retry delay, serialization, first-token latency, and stream duration.
+4. Streaming fallback is unsafe after partial output reaches the client.
+5. Explicit provider choice should generally override automatic fallback policy.
+6. Readiness reflects whether traffic can be accepted safely; liveness only indicates whether the process should be restarted.
+7. CI should validate code quality and integration behaviour, not only unit tests.
 
 ## Remaining exercises
 
 - Replace the sample tenant header with JWT or mTLS-derived identity.
-- Connect the Redis limiter to a real Redis container and test fail-open/fail-closed behaviour.
-- Configure an OTLP exporter and instrument outbound `httpx` calls.
+- Wire `RedisTenantRateLimiter` into the production app through configuration.
+- Configure a real OTLP SDK exporter and instrument outbound `httpx` calls.
 - Replace the educational Prometheus renderer with a production metrics SDK.
-- Integrate the health-aware router directly into provider selection.
 - Add stream duration, disconnect, and first-token-latency metrics.
+- Add provider capability, cost, region, and data-residency routing policies.
 - Add contract tests for multiple OpenAI-compatible providers.
