@@ -11,7 +11,6 @@ dependencies = [
   "fastapi>=0.115,<1.0",
   "httpx>=0.28,<1.0",
   "pydantic>=2.10,<3.0",
-  "PyJWT>=2.10,<3.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
 
@@ -25,16 +24,22 @@ dev = [
 observability = [
   "opentelemetry-api>=1.30,<2.0",
   "opentelemetry-sdk>=1.30,<2.0",
-  "opentelemetry-exporter-otlp-proto-http>=1.30,<2.0",
 ]
 redis = [
   "redis>=5.2,<6.0",
 ]
+auth = [
+  "PyJWT>=2.10,<3.0",
+]
+load = [
+  "locust>=2.32,<3.0",
+]
 all = [
   "opentelemetry-api>=1.30,<2.0",
   "opentelemetry-sdk>=1.30,<2.0",
-  "opentelemetry-exporter-otlp-proto-http>=1.30,<2.0",
   "redis>=5.2,<6.0",
+  "PyJWT>=2.10,<3.0",
+  "locust>=2.32,<3.0",
 ]
 
 [tool.hatch.build.targets.wheel]
