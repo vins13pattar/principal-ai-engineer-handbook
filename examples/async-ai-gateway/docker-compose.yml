@@ -1,0 +1,35 @@
+services:
+  gateway:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379/0
+      OTEL_SERVICE_NAME: async-ai-gateway
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+    depends_on:
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  redis:
+    image: redis:7.4-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.120.0
+    command: ["--config=/etc/otelcol-contrib/config.yml"]
+    volumes:
+      - ./ops/otel-collector.yml:/etc/otelcol-contrib/config.yml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+      - "8889:8889"
