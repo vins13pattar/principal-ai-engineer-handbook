@@ -1,0 +1,30 @@
+---
+import Callout from "./Callout.astro";
+
+/** A pointer to a paper, RFC, or primary source the surrounding claim relies on. */
+interface Props {
+  title?: string;
+  source?: string;
+}
+
+const { title, source } = Astro.props;
+---
+
+<Callout variant="info" glyph="¶" label="Research Note" title={title}>
+  <slot />
+  {
+    source && (
+      <p class="handbook-research-note__source">
+        Source: <cite>{source}</cite>
+      </p>
+    )
+  }
+</Callout>
+
+<style>
+  .handbook-research-note__source {
+    margin-top: 0.75rem;
+    font-size: 0.85em;
+    opacity: 0.8;
+  }
+</style>

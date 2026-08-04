@@ -1,0 +1,81 @@
+---
+import type { AdrStatus } from "@handbook/shared";
+
+/** Renders the at-a-glance metadata block at the top of an ADR page. */
+interface Props {
+  adrNumber: number;
+  status: AdrStatus;
+  date: Date;
+  supersededBy?: number;
+}
+
+const { adrNumber, status, date, supersededBy } = Astro.props;
+const formattedDate = date.toLocaleDateString("en-US", {
+  year: "numeric",
+  month: "long",
+  day: "numeric",
+});
+---
+
+<div class="handbook-adr-summary">
+  <span class="handbook-adr-summary__id">ADR-{String(adrNumber).padStart(4, "0")}</span>
+  <span class={`handbook-adr-summary__status handbook-adr-summary__status--${status}`}>
+    {status}
+  </span>
+  <span class="handbook-adr-summary__date">{formattedDate}</span>
+  {
+    supersededBy && (
+      <a
+        class="handbook-adr-summary__superseded"
+        href={`/adr/${String(supersededBy).padStart(4, "0")}/`}
+      >
+        Superseded by ADR-{String(supersededBy).padStart(4, "0")}
+      </a>
+    )
+  }
+</div>
+
+<style>
+  .handbook-adr-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    margin-block: 1rem 2rem;
+    padding-block-end: 1rem;
+    border-bottom: 1px solid var(--sl-color-hairline, #e2e8f0);
+    font-size: 0.9rem;
+  }
+  .handbook-adr-summary__id {
+    font-family: var(--font-mono, monospace);
+    font-weight: 600;
+    color: var(--sl-color-gray-2, #334155);
+  }
+  .handbook-adr-summary__status {
+    padding: 0.15rem 0.6rem;
+    border-radius: 999px;
+    font-weight: 600;
+    text-transform: capitalize;
+  }
+  .handbook-adr-summary__status--accepted {
+    background: color-mix(in srgb, var(--sl-color-green, #16a34a) 15%, transparent);
+    color: var(--sl-color-green-high, #15803d);
+  }
+  .handbook-adr-summary__status--proposed {
+    background: color-mix(in srgb, var(--sl-color-blue, #3b82f6) 15%, transparent);
+    color: var(--sl-color-blue-high, #1d4ed8);
+  }
+  .handbook-adr-summary__status--deprecated,
+  .handbook-adr-summary__status--superseded {
+    background: var(--sl-color-gray-6, #f1f5f9);
+    color: var(--sl-color-gray-2, #334155);
+  }
+  .handbook-adr-summary__date {
+    color: var(--sl-color-gray-3, #64748b);
+  }
+  .handbook-adr-summary__superseded {
+    margin-inline-start: auto;
+    color: var(--sl-color-red-high, #b91c1c);
+    font-weight: 600;
+  }
+</style>

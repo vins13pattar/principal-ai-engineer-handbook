@@ -1,0 +1,16 @@
+flowchart TD
+    Client[Client] --> Auth[JWT identity verification]
+    Auth -->|invalid| Reject401[401 Unauthorized]
+    Auth -->|valid| Quota[Tenant quota check\nRedis token bucket]
+    Quota -->|exceeded| Reject429[429 Too Many Requests]
+    Quota -->|allowed| Admission[Bounded concurrency\nadmission control]
+    Admission -->|saturated| Reject503[503 Service Unavailable]
+    Admission -->|admitted| Telemetry[Request telemetry\nID, RED metrics, OTEL span]
+    Telemetry --> Gateway[AsyncAIGateway\ndeadline + retry budget]
+    Gateway --> Health[Health-aware provider selection]
+    Health --> Provider1[Primary provider]
+    Health -->|ejected on failure| Provider2[Fallback provider]
+    Provider1 -->|transient failure, retries remain| Gateway
+    Provider2 --> Response[Response or SSE stream]
+    Provider1 --> Response
+    Response --> Client

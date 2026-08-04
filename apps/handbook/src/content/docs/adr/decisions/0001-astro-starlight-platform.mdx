@@ -1,0 +1,84 @@
+---
+title: "ADR-0001: Use Astro + Starlight for the documentation platform"
+description: Why the handbook rebuilds its static-HTML prototype on Astro and Starlight instead of another docs framework or a hand-rolled static site.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 1
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={1} status="accepted" date={new Date("2026-08-04")} />
+
+## Status
+
+Accepted. The site you're reading this on is built with it.
+
+## Context
+
+The handbook started as a hand-written static HTML site (`index.html`, `modules/*/index.html`,
+plain CSS/JS) — reasonable for two modules, but it has no content model, no search, no versioning,
+and every new page means hand-writing navigation, head tags, and responsive layout again. The
+project's stated goal is to become the reference documentation system for Principal AI Engineers
+over multiple years and hundreds of pages, which means the platform decision made now has to hold
+up at that scale, not just for the first ten pages.
+
+## Problem
+
+Which documentation framework gives us content collections with schema validation, built-in
+offline-capable search, dark mode, accessible navigation, and a component model for reusable
+elements (callouts, diagrams, ADR templates) — without locking the project into a narrow plugin
+ecosystem or a slow build for hundreds of pages?
+
+## Options
+
+- **Keep hand-written static HTML.** Zero framework risk, but no content model, no search, and
+  every structural change (like adding the versioning fields this platform requires) means editing
+  every page by hand. Doesn't scale past the two modules that already existed.
+- **Docusaurus.** Mature, plugin-rich, React-based. Heavier runtime and slower builds at scale than
+  Astro's island architecture; MDX support is solid but the React-everywhere model works against a
+  content-heavy, mostly-static site.
+- **VitePress / Nextra.** Fast, Vue- or Next-based respectively. Both are strong for API-reference
+  style docs but have a smaller ecosystem for the specific things this project needs: ADR
+  templates, printable cheat sheets, and a component library shared with a monorepo of labs.
+  Neither has a docs-framework layer as complete as Starlight's out of the box (sidebar
+  autogeneration from content collections, built-in Pagefind search, i18n, accessible components
+  audited against WCAG).
+- **Astro + Starlight.** Astro ships zero JS by default and only hydrates the components that need
+  it (the theme toggle, the Mermaid renderer); Starlight adds content collections with Zod schema
+  validation, Pagefind search, dark mode, and an accessible component set on top. Both are
+  actively maintained and version in lockstep with each other.
+
+## Decision
+
+Build the platform on Astro 7 with the `@astrojs/starlight` integration. Content lives in Starlight's
+`docs` content collection (validated by the schema in `apps/handbook/src/content.config.ts`); site
+chrome, search, and navigation come from Starlight; custom visual identity comes from a Tailwind v4
+theme layered over Starlight's CSS variables (see `packages/ui/src/tokens.css`).
+
+## Consequences
+
+- Content authors write MDX with frontmatter validated at build time — a missing required field
+  fails the build instead of shipping a broken page.
+- Search, dark mode, and accessible navigation are inherited from Starlight rather than
+  hand-maintained, which is less flexible than a fully custom site but removes an entire category
+  of bugs this project doesn't need to own.
+- The project is coupled to Starlight's content collection model: sections that don't map cleanly
+  onto "a folder of Markdown/MDX pages with frontmatter" (there aren't any today) would need a
+  custom Astro page outside the collection.
+- Every new content type still needs its own required-frontmatter contract; ADR-0004 covers how
+  that's enforced without fragmenting Starlight's single collection schema.
+
+## References
+
+- [Astro documentation](https://docs.astro.build)
+- [Starlight documentation](https://starlight.astro.build)
+- Astro's island architecture and partial hydration model, which keeps per-page JS near zero for
+  content that doesn't need it.

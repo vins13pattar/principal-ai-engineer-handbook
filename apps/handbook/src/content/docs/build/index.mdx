@@ -1,0 +1,54 @@
+---
+title: Build
+description: Production-quality labs that back the Learn track — real services, not toy demos.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Published the Build section overview and documented the async-ai-gateway lab.
+    author: vinod
+category: section-overview
+---
+
+import { LabCallout } from "@handbook/components";
+
+Every module in [Learn](/Principal-AI-Engineer-Interview-Handbook/learn/) is backed by a production lab in [`labs/`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs).
+A lab isn't a code snippet — it's a service with its own test suite, CI pipeline, and production
+readiness notes, built to the bar described below.
+
+## What makes a lab "production"
+
+A lab is graded against the same rubric a real system design review would use:
+
+- **Architecture that survives contact** — clear module boundaries, explicit interfaces between
+  them, and a documented request flow.
+- **Failure handling, not just the happy path** — timeouts, retries, backpressure, graceful
+  shutdown, and draining are implemented, not described.
+- **Tests that would catch a regression** — unit tests for logic, integration tests for the pieces
+  that talk to Redis/Kafka/etc., and load tests for anything claiming a throughput number.
+- **Observability built in** — structured logs, metrics, and traces wired up from the start, not
+  bolted on before a demo.
+- **CI that actually gates merges** — lint, type-check, and test, running in
+  [`.github/workflows/`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/.github/workflows)
+  against every change to the lab.
+- **A production readiness doc** — what's load-tested, what's known-broken, and what you'd need to
+  change before pointing real traffic at it.
+
+## Labs
+
+<LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
+  An async API gateway in front of multiple LLM providers: JWT-based tenant identity, Redis-backed
+  distributed rate limiting, health-aware provider fallback, graceful connection draining, and
+  OpenTelemetry tracing. [Read the lab documentation
+  →](/Principal-AI-Engineer-Interview-Handbook/build/labs/async-ai-gateway/)
+</LabCallout>
+
+| Lab                                                                                        | Status           |
+| ------------------------------------------------------------------------------------------ | ---------------- |
+| [Async AI Gateway](/Principal-AI-Engineer-Interview-Handbook/build/labs/async-ai-gateway/) | Production-ready |
+| Distributed Task Engine                                                                    | Planned          |
+| Agent Registry                                                                             | Planned          |
+| Model Router                                                                               | Planned          |
+| Semantic Cache                                                                             | Planned          |
+| Evaluation Platform                                                                        | Planned          |

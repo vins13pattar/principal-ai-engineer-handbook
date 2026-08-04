@@ -1,0 +1,126 @@
+---
+title: Async AI Gateway
+description: An async API gateway in front of multiple LLM providers, with tenant identity, distributed rate limiting, health-aware routing, and graceful draining.
+version: 1.1.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-06-01
+    change: Initial lab documentation covering the demo and production_app entry points.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-04
+    change: Documented the JWT/Redis/policy-aware secure_app entry point, draining, and stream telemetry added since.
+    author: vinod
+category: lab
+repoPath: labs/async-ai-gateway
+stack:
+  - Python 3.12+
+  - FastAPI
+  - httpx
+  - Redis
+  - OpenTelemetry
+labStatus: production-ready
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import requestFlow from "./async-ai-gateway.request-flow.mmd?raw";
+
+An async API gateway that sits in front of one or more LLM providers and protects both itself and
+those providers under load. It runs with deterministic fake providers out of the box — no API keys
+required — while the adapters underneath stay vendor-neutral.
+
+Source: [`labs/async-ai-gateway`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/async-ai-gateway)
+
+## Entry points
+
+The lab ships two FastAPI apps that layer capability on top of a shared `AsyncAIGateway` core:
+
+- **`ai_gateway.production_app`** — bounded concurrency, deadlines, retries with jitter,
+  health-aware provider fallback, RED metrics, and OpenTelemetry hooks. Tenant identity comes from
+  an `x-tenant-id` header, which keeps the demo runnable without an identity provider.
+- **`ai_gateway.secure_app`** — everything in `production_app`, plus JWT-verified tenant identity,
+  tier-based provider policy, and Redis-backed distributed rate limiting shared across replicas.
+  This is the entry point to read as the reference for a real deployment.
+
+## Request flow
+
+<Mermaid code={requestFlow} title="Async AI Gateway request flow" />
+
+## What it demonstrates
+
+- Bounded concurrency and queue-wait limits, separate from rate limiting.
+- Request deadlines, cancellation, retries, and jitter within a fixed retry budget.
+- Circuit breaking and ordered provider fallback, with explicit-provider requests never silently
+  falling back.
+- A Redis-backed token bucket that executes refill-and-consume atomically in one Lua script, so
+  concurrent replicas can't oversubscribe a tenant's quota.
+- JWT-verified tenant identity (`sub`, `tenant_id`, `tier` claims) with tier-scoped provider and
+  timeout policy.
+- Health-aware provider selection based on success rate, consecutive failures, and a latency EMA,
+  with automatic ejection and recovery.
+- Graceful connection draining on shutdown, and SSE streaming that stops work on client disconnect.
+- Correlated structured logs, RED metrics, Prometheus output, and OpenTelemetry trace export.
+
+<Aside type="note" title="Why two apps instead of one">
+  Keeping `production_app` and `secure_app` separate makes the identity/policy/quota layer legible
+  on its own, without threading it through every reliability example. A real deployment would
+  collapse them into one app with the security layer always on.
+</Aside>
+
+## Run it
+
+```bash
+cd labs/async-ai-gateway
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev,observability,redis]'
+uvicorn ai_gateway.production_app:app --reload
+```
+
+```bash
+curl -s http://127.0.0.1:8000/v1/generate \
+  -H 'content-type: application/json' \
+  -H 'x-tenant-id: tenant-demo' \
+  -d '{"prompt":"Explain bounded concurrency"}'
+```
+
+The full local stack — gateway, Redis, and an OpenTelemetry Collector — comes up with:
+
+```bash
+docker compose up --build
+```
+
+## Verify it
+
+```bash
+pytest
+ruff check .
+mypy src
+```
+
+GitHub Actions runs this same check, plus a Redis-integration job, on every change under
+`labs/async-ai-gateway/` — see
+[`.github/workflows/async-ai-gateway-ci.yml`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/.github/workflows/async-ai-gateway-ci.yml).
+
+## Production readiness
+
+The lab tracks its own gap list against a real production bar in
+[`PRODUCTION_READINESS.md`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/PRODUCTION_READINESS.md) —
+covering correctness contracts, reliability, observability, tenancy and security, capacity, and
+delivery. Treat an unchecked item as a known gap, not an oversight.
+
+## Principal-level discussion points
+
+1. Semaphores bound concurrent work; token buckets bound arrival rate. Production gateways
+   generally need both, enforced at different points in the request path.
+2. A distributed quota decision needs atomic state mutation — a naive `GET` then `SET` against
+   Redis oversubscribes under concurrency, which is why the limiter uses a single Lua script.
+3. Health-based routing can create feedback loops: a provider that looks unhealthy under one
+   scoring window can starve of the probe traffic it needs to recover. Production systems cap
+   scoring adjustments and expire stale observations.
+4. Streaming fallback is unsafe once partial output has reached the client — you cannot silently
+   retry a stream the caller has already started rendering.
+5. Readiness reflects whether traffic can be accepted safely; liveness only reflects whether the
+   process should be restarted. Conflating them causes rolling deploys to kill draining pods.

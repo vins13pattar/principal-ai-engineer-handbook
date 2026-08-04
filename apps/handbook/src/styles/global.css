@@ -1,0 +1,53 @@
+@import "tailwindcss";
+@import "@handbook/ui/tokens.css";
+
+/*
+ * Re-skin Starlight's own CSS variables to the brand tokens above instead of
+ * fighting its component markup. Starlight reads these on every built-in
+ * component (nav, search, asides, ToC), so this is the highest-leverage
+ * place to apply a Stripe-docs-like density and palette.
+ */
+:root {
+  --sl-color-accent-low: var(--color-brand-950);
+  --sl-color-accent: var(--color-brand-600);
+  --sl-color-accent-high: var(--color-brand-200);
+
+  --sl-font: var(--font-sans);
+  --sl-font-mono: var(--font-mono);
+
+  --sl-text-h1: 2.25rem;
+  --sl-text-h2: 1.625rem;
+  --sl-text-h3: 1.25rem;
+}
+
+:root[data-theme="light"] {
+  --sl-color-accent-low: var(--color-brand-100);
+  --sl-color-accent: var(--color-brand-600);
+  --sl-color-accent-high: var(--color-brand-700);
+}
+
+/* Slightly denser body copy than Starlight's default, closer to Stripe Docs. */
+.sl-markdown-content {
+  font-size: 0.975rem;
+  line-height: 1.7;
+}
+
+.sl-markdown-content h2 {
+  margin-top: 2.5rem;
+  padding-top: 0;
+  border-top: none;
+}
+
+/* Printable pages (cheat sheets, checklists) should look intentional on paper. */
+@media print {
+  [data-theme] nav,
+  .right-sidebar,
+  .header,
+  a[href].site-title,
+  .pagination-links {
+    display: none !important;
+  }
+  .sl-markdown-content {
+    font-size: 11pt;
+  }
+}

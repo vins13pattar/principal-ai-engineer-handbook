@@ -1,0 +1,64 @@
+---
+title: Learn
+description: Fifteen structured modules covering the Principal AI Engineer track, from engineering mindset through leadership.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Published the Learn section overview as part of the platform rebuild.
+    author: vinod
+category: section-overview
+---
+
+The Learn track is fifteen modules, read roughly in order. Each one follows the same structure
+end to end — an executive summary and mental model up front, an architecture and deep dive in the
+middle, and failure modes, trade-offs, and interview questions before the hands-on lab. That
+consistency is deliberate: once you know the shape of one module, you know how to navigate all of
+them, and how to write the next one.
+
+## Required structure
+
+Every module page carries these sections, in this order. `scripts/lint-content-structure.ts` fails
+CI if one is missing.
+
+1. **Executive Summary** — what this module covers and who needs it, in one paragraph.
+2. **Mental Model** — the one idea that makes everything else in the module make sense.
+3. **Architecture** — how the pieces fit together, with a diagram.
+4. **Deep Dive** — the mechanics: what actually happens and why.
+5. **Implementation** — real code, not pseudocode.
+6. **Production Example** — how this shows up in a system that takes real traffic.
+7. **Failure Modes** — the specific ways this breaks, and how you'd know.
+8. **Trade-offs** — what you give up by choosing this approach over the alternatives.
+9. **Security** — the attack surface this introduces and how it's closed.
+10. **Performance** — the numbers that matter and how to measure them.
+11. **Scaling** — what changes at 10x and 100x load.
+12. **Interview Questions** — the questions this material actually answers.
+13. **Hands-on Lab** — a link to the companion lab in [Build](/Principal-AI-Engineer-Interview-Handbook/build/).
+14. **References** — primary sources, not blog posts about blog posts.
+15. **Revision History** — what changed, and when.
+
+## Modules
+
+| #   | Module                     | Status  |
+| --- | -------------------------- | ------- |
+| 0   | Principal Engineer Mindset | Planned |
+| 1   | Production Python          | Planned |
+| 2   | Distributed Systems        | Planned |
+| 3   | Networking                 | Planned |
+| 4   | AI Infrastructure          | Planned |
+| 5   | Agent Engineering          | Planned |
+| 6   | MCP                        | Planned |
+| 7   | LangGraph                  | Planned |
+| 8   | RAG                        | Planned |
+| 9   | Model Serving              | Planned |
+| 10  | Kubernetes                 | Planned |
+| 11  | Cloud                      | Planned |
+| 12  | Observability              | Planned |
+| 13  | System Design              | Planned |
+| 14  | Leadership                 | Planned |
+
+No module has been migrated onto this platform yet — see the [Roadmap](/Principal-AI-Engineer-Interview-Handbook/roadmap/) for the authoring
+schedule. Early drafts of Modules 0–2 exist in the retired static-HTML prototype, archived at
+[`legacy/static-prototype/`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/legacy/static-prototype)
+for reference during migration.

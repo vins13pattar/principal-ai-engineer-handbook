@@ -1,0 +1,14 @@
+---
+import Callout from "./Callout.astro";
+
+/** Narrative annotation around a code sample — pair with a fenced code block in the slot. */
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<Callout variant="neutral" glyph="{ }" label="Code Walkthrough" title={title}>
+  <slot />
+</Callout>

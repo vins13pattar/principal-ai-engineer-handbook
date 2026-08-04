@@ -1,0 +1,20 @@
+{
+  "extends": "astro/tsconfigs/strict",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@handbook/shared": ["../../packages/shared/src/index.ts"],
+      "@handbook/ui/*": ["../../packages/ui/src/*"],
+      "@handbook/components": ["../../packages/components/src/index.ts"],
+      "@handbook/diagrams/*": ["../../packages/diagrams/src/*"]
+    }
+  },
+  "include": [
+    ".astro/types.d.ts",
+    "src/**/*",
+    "vitest.config.ts",
+    "playwright.config.ts",
+    "tests/**/*"
+  ],
+  "exclude": ["dist"]
+}

@@ -1,0 +1,30 @@
+/**
+ * Brand design tokens shared across every app in the monorepo.
+ * Imported into a Tailwind v4 entry (after `@import "tailwindcss";`) so the
+ * `--color-brand-*` custom properties below both generate Tailwind utilities
+ * (e.g. `bg-brand-600`) and stay readable as plain CSS variables for
+ * non-Tailwind consumers such as Starlight's own theme variables.
+ */
+@theme {
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono:
+    "JetBrains Mono Variable", "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+
+  /* Indigo-leaning brand accent. Distinct from any single vendor's brand mark. */
+  --color-brand-50: #eef1ff;
+  --color-brand-100: #e0e4ff;
+  --color-brand-200: #c6cbff;
+  --color-brand-300: #a4a4ff;
+  --color-brand-400: #8577f7;
+  --color-brand-500: #6c5ce7;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4038c7;
+  --color-brand-800: #342e9e;
+  --color-brand-900: #211c6a;
+  --color-brand-950: #14113f;
+
+  --radius-card: 0.75rem;
+  --shadow-card: 0 1px 2px rgba(16, 15, 43, 0.06), 0 8px 24px rgba(16, 15, 43, 0.06);
+
+  --content-width: 72rem;
+}

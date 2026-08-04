@@ -1,0 +1,43 @@
+---
+title: Roadmap
+description: Current platform version and the content authoring schedule ahead.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Replaced the old static-site roadmap with the platform-first roadmap.
+    author: vinod
+category: section-overview
+---
+
+## Current version: v0.1.0 — Platform foundation
+
+The documentation platform is complete: the Astro + Starlight site, the shared component and
+diagram libraries in `packages/`, the pnpm workspace layout, linting/formatting/testing, and CI/CD.
+Everything after this point is content, authored incrementally against that platform.
+
+## What's next
+
+| Version | Scope                                                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| `v0.2`  | Learn Module 0 (Principal Engineer Mindset) and Module 1 (Production Python), migrated and expanded from the archived prototype |
+| `v0.3`  | Learn Modules 2–3 (Distributed Systems, Networking) and the first Architecture page                                             |
+| `v0.4`  | Learn Modules 4–7 (AI Infrastructure, Agent Engineering, MCP, LangGraph) and the Agent Registry lab                             |
+| `v0.5`  | Learn Modules 8–9 (RAG, Model Serving) and the Enterprise RAG / Model Router labs                                               |
+| `v0.6`  | Learn Modules 10–11 (Kubernetes, Cloud)                                                                                         |
+| `v0.7`  | Learn Module 12 (Observability) and the Evaluation Platform lab                                                                 |
+| `v0.8`  | Learn Modules 13–14 (System Design, Leadership) and the Interview section tracks                                                |
+| `v0.9`  | Reference lookups and Cheat Sheets for every topic introduced so far                                                            |
+| `v1.0`  | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage                     |
+
+## How this roadmap works
+
+Each version bump ships complete modules, not partial ones — a module isn't "in progress" on this
+roadmap, it's either published (with every required section from the [Learn](/Principal-AI-Engineer-Interview-Handbook/learn/) structure)
+or not started. `scripts/lint-content-structure.ts` enforces that a merged module page has every
+required section, so the roadmap can't silently drift from what's actually on the site.
+
+Track progress against this roadmap through the repository's
+[releases](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/releases) and
+[commit history](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/commits/main).

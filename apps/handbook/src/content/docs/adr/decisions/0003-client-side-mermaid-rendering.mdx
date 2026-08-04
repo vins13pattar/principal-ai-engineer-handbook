@@ -1,0 +1,82 @@
+---
+title: "ADR-0003: Render Mermaid diagrams client-side instead of at build time"
+description: Why the Mermaid component in packages/diagrams renders in the browser and reacts to the theme toggle, rather than pre-rendering static SVG at build time.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 3
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={3} status="accepted" date={new Date("2026-08-04")} />
+
+## Status
+
+Accepted. Implemented in `packages/diagrams/src/Mermaid.astro`.
+
+## Context
+
+The platform requires Mermaid diagram support (flowcharts, sequence diagrams, architecture
+diagrams, state diagrams) across a site that also requires dark mode. Mermaid needs to know which
+theme to render with, and a reader can toggle light/dark at any time without a page reload.
+
+## Problem
+
+Should diagrams be rendered to SVG at build time (so the page ships zero diagram-rendering JS), or
+rendered in the browser (so the same markup can react to a live theme toggle)?
+
+## Options
+
+- **Build-time rendering via `rehype-mermaid`.** Produces static SVG with no client-side JS and
+  works without JavaScript enabled — the better default for a static docs site in general. But
+  Mermaid has one theme per render, so reacting to a live light/dark toggle means pre-rendering
+  two SVGs per diagram and swapping between them with CSS, and `rehype-mermaid` drives a headless
+  browser during `astro build`, which adds a Chromium dependency to every CI build and local build
+  for every contributor.
+- **Client-side rendering via `mermaid.run()`**, Mermaid's own DOM-scanning API. Simple to wire up,
+  but it replaces a diagram element's content in place, which makes it awkward to re-render the
+  same diagram from its original source when the theme changes — the source text is gone once
+  Mermaid consumes it.
+- **Client-side rendering via `mermaid.render(id, source)`**, keeping the original diagram source in
+  a `data-` attribute on the container so it survives being re-rendered, with a `MutationObserver`
+  on `<html data-theme>` (the attribute Starlight's theme toggle already sets) triggering a
+  re-render.
+
+## Decision
+
+Render Mermaid diagrams client-side using `mermaid.render()`, implemented in
+`packages/diagrams/src/Mermaid.astro`. The component keeps the diagram's source in a `data-`
+attribute, renders once on load, and re-renders whenever `<html>`'s `data-theme` attribute changes
+— so a diagram matches the reader's current theme immediately, including a toggle mid-session, with
+no duplicate build artifacts.
+
+## Consequences
+
+- Diagrams show a brief unstyled flash (the `<pre>` fallback) before Mermaid hydrates, and require
+  JavaScript to render at all. A `role="img"` label and the visible fallback text keep the content
+  accessible to screen readers and no-JS clients even though the rendered graphic isn't available
+  to them.
+- No headless-browser dependency in the build pipeline — `astro build` stays fast and has one fewer
+  thing that can flake in CI.
+- Diagram source must be passed as a `code` prop (typically imported from a `.mmd` file via
+  `?raw`), not written inside the component's default slot — MDX rewrites plain-text slot content
+  (line breaks become `<br/>`, etc.), which corrupts Mermaid's whitespace-sensitive syntax. This is
+  documented directly in the component's doc comment so it isn't rediscovered by trial and error.
+- If the unstyled-flash trade-off stops being acceptable — for example, if analytics show a
+  meaningful number of readers with JavaScript disabled — revisit this decision in favor of
+  build-time rendering with a light/dark SVG pair per diagram.
+
+## References
+
+- [Mermaid's JavaScript API](https://mermaid.js.org/config/usage.html)
+- [`rehype-mermaid`](https://github.com/remcohaszing/rehype-mermaid), the build-time alternative
+  considered and rejected above.
+- Starlight's `data-theme` attribute on `<html>`, which every built-in Starlight component already
+  reads for the same light/dark switch this component observes.

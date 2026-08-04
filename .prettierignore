@@ -1,0 +1,11 @@
+dist/
+.astro/
+node_modules/
+coverage/
+playwright-report/
+test-results/
+public/pagefind/
+pnpm-lock.yaml
+labs/
+legacy/
+CHANGELOG.md

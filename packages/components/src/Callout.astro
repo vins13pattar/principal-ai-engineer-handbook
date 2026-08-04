@@ -1,0 +1,119 @@
+---
+import type { CalloutVariant } from "@handbook/ui/tokens";
+
+/**
+ * Base callout used by every semantic doc component (EngineeringNote,
+ * TradeOff, Warning, ...). Not meant to be authored directly in content —
+ * import the semantic wrapper instead so the visual language stays
+ * consistent as new components get added.
+ */
+interface Props {
+  variant: CalloutVariant;
+  glyph: string;
+  label: string;
+  title?: string;
+}
+
+const { variant, glyph, label, title } = Astro.props;
+---
+
+<div class:list={["handbook-callout", `handbook-callout--${variant}`]}>
+  <p class="handbook-callout__label">
+    <span class="handbook-callout__glyph" aria-hidden="true">{glyph}</span>
+    {title ?? label}
+  </p>
+  <div class="handbook-callout__body">
+    <slot />
+  </div>
+</div>
+
+<style>
+  .handbook-callout {
+    margin-block: 1.5rem;
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius-card, 0.75rem);
+    border: 1px solid var(--handbook-callout-border);
+    background: var(--handbook-callout-bg);
+    border-inline-start-width: 4px;
+  }
+  .handbook-callout__label {
+    margin: 0 0 0.5rem;
+    font-weight: 600;
+    font-size: 0.9em;
+    letter-spacing: 0.01em;
+    color: var(--handbook-callout-label);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .handbook-callout__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.25rem;
+    height: 1.25rem;
+    border-radius: 999px;
+    font-size: 0.75em;
+    background: var(--handbook-callout-label);
+    color: var(--handbook-callout-glyph-fg);
+    flex-shrink: 0;
+  }
+  .handbook-callout__body {
+    font-size: 0.95em;
+  }
+  .handbook-callout__body :global(> *:first-child) {
+    margin-top: 0;
+  }
+  .handbook-callout__body :global(> *:last-child) {
+    margin-bottom: 0;
+  }
+
+  .handbook-callout--info {
+    --handbook-callout-border: var(--sl-color-blue, #3b82f6);
+    --handbook-callout-bg: color-mix(in srgb, var(--sl-color-blue, #3b82f6) 8%, transparent);
+    --handbook-callout-label: var(--sl-color-blue-high, #1d4ed8);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--accent {
+    --handbook-callout-border: var(--color-brand-500, #6c5ce7);
+    --handbook-callout-bg: color-mix(in srgb, var(--color-brand-500, #6c5ce7) 8%, transparent);
+    --handbook-callout-label: var(--color-brand-600, #4f46e5);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--success {
+    --handbook-callout-border: var(--sl-color-green, #16a34a);
+    --handbook-callout-bg: color-mix(in srgb, var(--sl-color-green, #16a34a) 8%, transparent);
+    --handbook-callout-label: var(--sl-color-green-high, #15803d);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--warning {
+    --handbook-callout-border: var(--sl-color-orange, #d97706);
+    --handbook-callout-bg: color-mix(in srgb, var(--sl-color-orange, #d97706) 10%, transparent);
+    --handbook-callout-label: var(--sl-color-orange-high, #b45309);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--danger {
+    --handbook-callout-border: var(--sl-color-red, #dc2626);
+    --handbook-callout-bg: color-mix(in srgb, var(--sl-color-red, #dc2626) 8%, transparent);
+    --handbook-callout-label: var(--sl-color-red-high, #b91c1c);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--neutral {
+    --handbook-callout-border: var(--sl-color-gray-4, #64748b);
+    --handbook-callout-bg: var(--sl-color-gray-6, #f1f5f9);
+    --handbook-callout-label: var(--sl-color-gray-2, #334155);
+    --handbook-callout-glyph-fg: var(--sl-color-gray-6, white);
+  }
+  .handbook-callout--highlight {
+    --handbook-callout-border: var(--sl-color-teal, #0d9488);
+    --handbook-callout-bg: color-mix(in srgb, var(--sl-color-teal, #0d9488) 8%, transparent);
+    --handbook-callout-label: var(--sl-color-teal-high, #0f766e);
+    --handbook-callout-glyph-fg: white;
+  }
+  .handbook-callout--purple {
+    --handbook-callout-border: #a855f7;
+    --handbook-callout-bg: color-mix(in srgb, #a855f7 8%, transparent);
+    --handbook-callout-label: #7e22ce;
+    --handbook-callout-glyph-fg: white;
+  }
+</style>

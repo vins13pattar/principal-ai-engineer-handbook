@@ -1,0 +1,42 @@
+{
+  "name": "principal-ai-engineer-handbook",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "An open-source knowledge system for Principal AI Engineers: documentation platform, production labs, and architecture reference.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "packageManager": "pnpm@10.33.0",
+  "scripts": {
+    "dev": "pnpm --filter @handbook/site dev",
+    "build": "pnpm --filter @handbook/site build",
+    "preview": "pnpm --filter @handbook/site preview",
+    "check": "pnpm --filter @handbook/site check",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm --filter @handbook/site test:e2e",
+    "lint:content": "node --experimental-strip-types scripts/lint-content-structure.ts",
+    "check:links": "pnpm --filter @handbook/site check:links",
+    "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@handbook/shared": "workspace:*",
+    "@typescript-eslint/eslint-plugin": "8.66.0",
+    "@typescript-eslint/parser": "8.66.0",
+    "eslint": "10.8.0",
+    "eslint-plugin-astro": "3.1.0",
+    "globals": "17.9.0",
+    "prettier": "3.9.6",
+    "prettier-plugin-astro": "0.14.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

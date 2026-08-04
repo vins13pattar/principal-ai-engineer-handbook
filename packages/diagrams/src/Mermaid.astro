@@ -1,0 +1,104 @@
+---
+/**
+ * Renders a Mermaid diagram client-side, themed to match Starlight's current
+ * light/dark mode and re-rendered when the reader toggles it.
+ *
+ * Pass diagram source as a prop rather than through the default slot: MDX
+ * rewrites plain-text children (line breaks become `<br/>`, etc.) which
+ * corrupts Mermaid's whitespace-sensitive syntax. Keep the diagram source in
+ * its own `.mmd` file and import it as raw text instead:
+ *
+ * ```astro
+ * import flow from "./request-flow.mmd?raw";
+ * <Mermaid code={flow} title="Gateway request flow" />
+ * ```
+ *
+ * Rendering happens in the browser (not at build time) so the same markup
+ * can react to the theme toggle without shipping two pre-rendered SVGs per
+ * diagram. The trade-off is a brief unstyled flash before hydration, which
+ * the `<pre>` fallback and `role="img"` label soften for slow connections
+ * and assistive tech.
+ */
+interface Props {
+  code: string;
+  title: string;
+}
+
+const { code, title } = Astro.props;
+const source = code.trim();
+---
+
+<div class="handbook-mermaid" data-mermaid-source={source} role="img" aria-label={title}>
+  <pre class="handbook-mermaid__fallback">{source}</pre>
+</div>
+
+<style>
+  .handbook-mermaid {
+    margin-block: 1.5rem;
+    overflow-x: auto;
+    border-radius: var(--radius-card, 0.75rem);
+  }
+  .handbook-mermaid :global(svg) {
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin-inline: auto;
+  }
+  .handbook-mermaid__fallback {
+    margin: 0;
+    white-space: pre-wrap;
+  }
+  .handbook-mermaid[data-mermaid-rendered] .handbook-mermaid__fallback {
+    display: none;
+  }
+</style>
+
+<script>
+  import mermaid from "mermaid";
+
+  function currentTheme(): "dark" | "default" {
+    return document.documentElement.dataset.theme === "dark" ? "dark" : "default";
+  }
+
+  async function renderDiagram(node: HTMLElement, index: number): Promise<void> {
+    const source = node.dataset.mermaidSource ?? "";
+    if (!source) return;
+
+    const id = `handbook-mermaid-${Date.now()}-${index}`;
+    try {
+      const { svg } = await mermaid.render(id, source);
+      const target = node.querySelector(".handbook-mermaid__fallback") ?? node;
+      target.insertAdjacentHTML("afterend", svg);
+      node.dataset.mermaidRendered = "true";
+    } catch (error) {
+      console.error(`handbook-mermaid: failed to render diagram ${id}`, error);
+    }
+  }
+
+  async function renderAll(): Promise<void> {
+    const nodes = Array.from(
+      document.querySelectorAll<HTMLElement>(".handbook-mermaid[data-mermaid-source]"),
+    );
+    if (nodes.length === 0) return;
+
+    mermaid.initialize({ startOnLoad: false, theme: currentTheme(), securityLevel: "strict" });
+
+    nodes.forEach((node) => {
+      node.querySelectorAll("svg").forEach((svg) => svg.remove());
+      delete node.dataset.mermaidRendered;
+    });
+
+    await Promise.all(nodes.map((node, index) => renderDiagram(node, index)));
+  }
+
+  renderAll();
+  document.addEventListener("astro:page-load", renderAll);
+
+  const themeObserver = new MutationObserver(() => {
+    void renderAll();
+  });
+  themeObserver.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ["data-theme"],
+  });
+</script>

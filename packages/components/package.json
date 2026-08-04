@@ -1,0 +1,19 @@
+{
+  "name": "@handbook/components",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "echo '@handbook/components has no standalone type-check: its .astro components are checked by apps/handbook via astro check'"
+  },
+  "dependencies": {
+    "@handbook/shared": "workspace:*",
+    "@handbook/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "astro": ">=5.0.0"
+  }
+}

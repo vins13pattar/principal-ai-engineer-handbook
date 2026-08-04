@@ -1,0 +1,79 @@
+---
+title: "ADR-0002: Use a pnpm workspace monorepo for site, packages, and labs"
+description: Why the documentation site, shared component libraries, and production labs live in one repository under pnpm workspaces instead of being split apart.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 2
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={2} status="accepted" date={new Date("2026-08-04")} />
+
+## Status
+
+Accepted. `pnpm-workspace.yaml` and the `workspace:*` dependencies between `packages/*` and
+`apps/handbook` reflect this decision directly.
+
+## Context
+
+The platform has three kinds of TypeScript/Astro code that need to share conventions without
+sharing a build: the documentation site itself (`apps/handbook`), reusable pieces it depends on
+(design tokens, MDX doc components, the Mermaid wrapper), and — separately — Python production labs
+under `labs/` that the docs reference but don't build with. `examples/async-ai-gateway` already
+existed as a standalone Python project with its own CI workflow before this platform did.
+
+## Problem
+
+How should the handbook site, its reusable component packages, and the (Python, not Node) labs be
+laid out so that a change to a shared component doesn't require publishing a package and bumping a
+version, while the labs keep their own independent tooling and CI?
+
+## Options
+
+- **Separate repositories** for the site, the component packages, and each lab. Clean ownership
+  boundaries, but every cross-cutting change (e.g. a new doc component used by both the site and a
+  future second app) means coordinating a publish across repos before the consuming repo can pick
+  it up. For a single-maintainer OSS project at this stage, that overhead has no offsetting
+  benefit.
+- **A single flat repository** with no workspace tooling, importing shared code via relative paths
+  (`../../packages/ui/src/...`). Works until a package needs its own `package.json`,
+  dependencies, or test runner — at which point the lack of workspace tooling becomes the thing
+  fighting every addition.
+- **A pnpm workspace monorepo**, with `labs/` deliberately excluded from the workspace since it's
+  Python, not a package this workspace's tooling should try to build.
+
+## Decision
+
+Use a pnpm workspace (`pnpm-workspace.yaml` covering `apps/*` and `packages/*`) with
+`workspace:*` protocol dependencies between packages. `labs/` stays outside the workspace — it's
+addressed by path from documentation (`repoPath` frontmatter, `LabCallout`) but has its own
+per-language tooling (`pyproject.toml`, `pytest`, `ruff`, `mypy`) and its own CI job, unrelated to
+the Node toolchain.
+
+## Consequences
+
+- A change to `packages/components` is immediately visible to `apps/handbook` on the next dev
+  server reload — no publish step, no version bump, no registry.
+- Root-level tooling (ESLint, Prettier, Vitest, TypeScript's base config) is defined once and
+  extended per package, so adding a fourth package means adding a `package.json` and a
+  `tsconfig.json` that extends the root, not re-deriving lint rules.
+- `pnpm`'s content-addressable store keeps `node_modules` size sane across packages that share most
+  of their dependency tree (Astro, TypeScript) without pnpm's workspace tooling, this would be a
+  much larger `node_modules` footprint per package.
+- The trade-off: anyone who wants only the labs (Python, no interest in the docs site) still clones
+  the whole repository. Given the project's stated goal — the platform and the labs are meant to be
+  read together — that's an acceptable cost, not an oversight.
+
+## References
+
+- [pnpm workspaces](https://pnpm.io/workspaces)
+- The existing `examples/async-ai-gateway` lab and its CI workflow, which predated this ADR and
+  shaped the decision to keep Python tooling independent of the Node workspace.

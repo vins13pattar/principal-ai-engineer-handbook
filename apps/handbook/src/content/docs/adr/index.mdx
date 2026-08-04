@@ -1,0 +1,40 @@
+---
+title: Architecture Decision Records
+description: Why the handbook platform and its labs are built the way they are, and what would change our minds.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Published the ADR section overview and the platform's first four decision records.
+    author: vinod
+category: section-overview
+---
+
+An ADR records a decision, the options it was weighed against, and the consequences of picking one
+— so a future maintainer (including a future version of whoever wrote it) can tell whether the
+reasoning still holds before reversing it. This section holds ADRs for the handbook platform
+itself and for the labs in [Build](/Principal-AI-Engineer-Interview-Handbook/build/); it's a working example of the format as much as it is
+a record.
+
+## Required structure
+
+Every ADR carries these sections, in this order. `scripts/lint-content-structure.ts` fails CI if
+one is missing.
+
+1. **Status** — Proposed, Accepted, Deprecated, or Superseded.
+2. **Context** — the situation that forced a decision.
+3. **Problem** — the specific question being answered.
+4. **Options** — what was considered, including the ones rejected.
+5. **Decision** — what was chosen.
+6. **Consequences** — what that decision costs and what it buys, including what it makes harder.
+7. **References** — sources the decision leaned on.
+
+## Decisions
+
+| ADR                                                                                                 | Title                                                                 | Status   |
+| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------- |
+| [0001](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0001-astro-starlight-platform/)      | Use Astro + Starlight for the documentation platform                  | Accepted |
+| [0002](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0002-pnpm-monorepo-layout/)          | Use a pnpm workspace monorepo for site, packages, and labs            | Accepted |
+| [0003](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0003-client-side-mermaid-rendering/) | Render Mermaid diagrams client-side instead of at build time          | Accepted |
+| [0004](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0004-single-docs-collection-schema/) | Use one permissive Starlight schema plus a separate structural linter | Accepted |

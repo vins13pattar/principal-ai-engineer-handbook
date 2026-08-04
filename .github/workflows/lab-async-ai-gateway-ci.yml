@@ -3,26 +3,26 @@ name: Async AI Gateway CI
 on:
   push:
     paths:
-      - "examples/async-ai-gateway/**"
-      - ".github/workflows/async-ai-gateway-ci.yml"
+      - "labs/async-ai-gateway/**"
+      - ".github/workflows/lab-async-ai-gateway-ci.yml"
   pull_request:
     paths:
-      - "examples/async-ai-gateway/**"
-      - ".github/workflows/async-ai-gateway-ci.yml"
+      - "labs/async-ai-gateway/**"
+      - ".github/workflows/lab-async-ai-gateway-ci.yml"
 
 jobs:
   quality:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: examples/async-ai-gateway
+        working-directory: labs/async-ai-gateway
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: examples/async-ai-gateway/pyproject.toml
+          cache-dependency-path: labs/async-ai-gateway/pyproject.toml
       - name: Install dependencies
         run: pip install -e '.[dev,observability,redis]'
       - name: Ruff
@@ -46,7 +46,7 @@ jobs:
           --health-retries 10
     defaults:
       run:
-        working-directory: examples/async-ai-gateway
+        working-directory: labs/async-ai-gateway
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

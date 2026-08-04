@@ -1,0 +1,14 @@
+---
+import Callout from "./Callout.astro";
+
+/** The judgment call a Principal Engineer makes, and why — not just what the docs say. */
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<Callout variant="accent" glyph="★" label="Principal Perspective" title={title}>
+  <slot />
+</Callout>

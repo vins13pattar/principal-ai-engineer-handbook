@@ -1,0 +1,57 @@
+---
+import type { LabStatus } from "@handbook/shared";
+import Callout from "./Callout.astro";
+
+/** Points a Learn module at its companion production lab in `labs/`. */
+interface Props {
+  title?: string;
+  repoPath: string;
+  status?: LabStatus;
+}
+
+const { title, repoPath, status } = Astro.props;
+---
+
+<Callout variant="success" glyph="⚙" label="Hands-on Lab" title={title}>
+  <slot />
+  <p class="handbook-lab-callout__path">
+    <code>{repoPath}</code>
+    {
+      status && (
+        <span class={`handbook-lab-callout__status handbook-lab-callout__status--${status}`}>
+          {status}
+        </span>
+      )
+    }
+  </p>
+</Callout>
+
+<style>
+  .handbook-lab-callout__path {
+    margin-top: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85em;
+  }
+  .handbook-lab-callout__status {
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+    font-size: 0.75em;
+    font-weight: 600;
+    text-transform: capitalize;
+    background: var(--sl-color-gray-6, #f1f5f9);
+  }
+  .handbook-lab-callout__status--production-ready {
+    background: color-mix(in srgb, var(--sl-color-green, #16a34a) 15%, transparent);
+    color: var(--sl-color-green-high, #15803d);
+  }
+  .handbook-lab-callout__status--in-progress {
+    background: color-mix(in srgb, var(--sl-color-orange, #d97706) 15%, transparent);
+    color: var(--sl-color-orange-high, #b45309);
+  }
+  .handbook-lab-callout__status--planned {
+    background: var(--sl-color-gray-6, #f1f5f9);
+    color: var(--sl-color-gray-2, #334155);
+  }
+</style>

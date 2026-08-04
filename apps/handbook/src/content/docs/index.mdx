@@ -1,0 +1,92 @@
+---
+title: Principal AI Engineer Handbook
+description: An open-source knowledge system for Principal AI Engineers — production architecture, hands-on labs, and interview preparation.
+template: splash
+hero:
+  tagline: Production AI systems, agentic architecture, and distributed infrastructure — documented like it ships, not like it's interview notes.
+  actions:
+    - text: Start with Module 0
+      link: /Principal-AI-Engineer-Interview-Handbook/learn/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook
+      icon: external
+      variant: minimal
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Replaced the static HTML prototype with the Astro + Starlight documentation platform.
+    author: vinod
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+import LatestPages from "../../components/LatestPages.astro";
+
+## What this is
+
+A version-controlled engineering reference for the Principal / Staff AI Engineer track: production
+architecture, hands-on labs built to the same bar as the systems they describe, and an interview
+track that stays honest about trade-offs instead of listing buzzwords.
+
+<CardGrid stagger>
+  <Card title="Learn" icon="open-book">
+    Fifteen modules from the Principal Engineer mindset through leadership, each following the same
+    structure: mental model, architecture, production example, failure modes, and interview
+    questions.
+
+    [Browse the Learn track →](/Principal-AI-Engineer-Interview-Handbook/learn/)
+
+  </Card>
+  <Card title="Build" icon="rocket">
+    Production-quality labs — not toy demos. The Async AI Gateway lab ships JWT auth, distributed
+    rate limiting, health-aware routing, and graceful draining with a full test suite.
+
+    [Browse the labs →](/Principal-AI-Engineer-Interview-Handbook/build/)
+
+  </Card>
+  <Card title="Architecture" icon="setting">
+    Reference architectures with request flows, failure modes, cost, and production deployment
+    notes — the shape a design review actually needs.
+
+    [Browse architecture →](/Principal-AI-Engineer-Interview-Handbook/architecture/)
+
+  </Card>
+  <Card title="Interview" icon="puzzle">
+    Interview questions embedded next to the material that answers them, plus system design and
+    leadership tracks for Principal-level rounds.
+
+    [Browse interview prep →](/Principal-AI-Engineer-Interview-Handbook/interview/)
+
+  </Card>
+</CardGrid>
+
+## How the handbook is organized
+
+| Section                                                                 | Purpose                                                                                                                      |
+| ----------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| [Learn](/Principal-AI-Engineer-Interview-Handbook/learn/)               | Fifteen structured modules, mindset through leadership                                                                       |
+| [Build](/Principal-AI-Engineer-Interview-Handbook/build/)               | Production labs living in [`labs/`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs) |
+| [Architecture](/Principal-AI-Engineer-Interview-Handbook/architecture/) | Reference architectures for recurring AI infrastructure problems                                                             |
+| [Interview](/Principal-AI-Engineer-Interview-Handbook/interview/)       | Question tracks mapped to the material that answers them                                                                     |
+| [Reference](/Principal-AI-Engineer-Interview-Handbook/reference/)       | One-page lookups for tools and primitives (asyncio, Kafka, Raft, ...)                                                        |
+| [ADR](/Principal-AI-Engineer-Interview-Handbook/adr/)                   | Why the handbook itself — and its labs — are built the way they are                                                          |
+| [Cheat Sheets](/Principal-AI-Engineer-Interview-Handbook/cheatsheets/)  | Printable, one-page summaries                                                                                                |
+| [Roadmap](/Principal-AI-Engineer-Interview-Handbook/roadmap/)           | Current version and what ships next                                                                                          |
+
+## Latest
+
+<div style="display: grid; gap: 2rem; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));">
+  <LatestPages title="Latest labs" prefix="build/labs/" />
+  <LatestPages title="Latest modules" prefix="learn/modules/" />
+  <LatestPages title="Latest decisions" prefix="adr/decisions/" />
+</div>
+
+## Current status
+
+**v0.1.0 — Platform foundation.** The documentation platform (this site, its component library, its
+labs monorepo, and its CI) is complete. Module and architecture content is being authored
+incrementally — see the [Roadmap](/Principal-AI-Engineer-Interview-Handbook/roadmap/) for what's next and the [Learn overview](/Principal-AI-Engineer-Interview-Handbook/learn/) for
+which modules exist today.

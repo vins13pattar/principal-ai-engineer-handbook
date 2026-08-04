@@ -1,0 +1,33 @@
+{
+  "name": "@handbook/site",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "check": "astro check",
+    "check:links": "astro build && echo 'link validation runs as part of astro build via starlight-links-validator'",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "0.41.6",
+    "@handbook/components": "workspace:*",
+    "@handbook/diagrams": "workspace:*",
+    "@handbook/shared": "workspace:*",
+    "@handbook/ui": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
+    "astro": "7.1.6",
+    "sharp": "0.35.3",
+    "starlight-links-validator": "0.25.2",
+    "tailwindcss": "4.3.3"
+  },
+  "devDependencies": {
+    "@astrojs/check": "0.9.10",
+    "@playwright/test": "1.62.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

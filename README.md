@@ -1,92 +1,69 @@
-# Principal AI Engineer Interview Handbook
+# Principal AI Engineer Handbook
 
-**Production AI Systems, Agentic AI & Distributed Infrastructure**
+[![Site CI](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/site-ci.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/site-ci.yml)
+[![Deploy site](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/deploy.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/deploy.yml)
+[![Async AI Gateway CI](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A version-controlled, HTML-first engineering handbook for Principal AI Engineer, Staff AI Engineer, AI Platform Engineer, AI Architect, and Founding AI Engineer roles.
+An open-source knowledge system for Principal AI Engineers: production architecture reference,
+hands-on labs built to a production bar, and interview preparation grounded in that same material —
+not interview notes with a coat of paint.
 
-The project is intentionally company-neutral so it can be published as a reusable open engineering resource.
+**[Read the handbook →](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/)**
 
-## Current release
+## What's here
 
-`v0.2` introduces the Principal engineering mindset and the first technical module: **Production Python for AI Infrastructure Engineers**.
+| Section                                                                                               | What it is                                                          |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| [Learn](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/learn/)               | Fifteen modules, Principal Engineer mindset through leadership      |
+| [Build](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/build/)               | Production-quality labs in [`labs/`](labs/)                         |
+| [Architecture](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/architecture/) | Reference architectures for recurring AI infrastructure problems    |
+| [Interview](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/interview/)       | Interview questions embedded next to the material that answers them |
+| [Reference](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/reference/)       | One-page lookups for tools and primitives                           |
+| [ADR](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/adr/)                   | Why the platform and its labs are built the way they are            |
+| [Cheat Sheets](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/cheatsheets/)  | Printable, one-page summaries                                       |
+| [Roadmap](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/roadmap/)           | Current version and what ships next                                 |
 
-Open [`index.html`](index.html) to start the handbook.
+## Status
+
+**v0.1.0 — Platform foundation.** The documentation platform — this site, its component and design
+token libraries, its CI/CD, and its content-structure linting — is complete. Module and
+architecture content is being authored incrementally on top of it; see the
+[Roadmap](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/roadmap/).
 
 ## Repository structure
 
 ```text
-.
-├── index.html
-├── roadmap.html
-├── assets/
-│   ├── css/main.css
-│   └── js/main.js
-├── modules/
-│   ├── 00-principal-mindset/index.html
-│   └── 01-production-python/index.html
-├── playbooks/
-│   └── ai-infrastructure-interview/index.html
-├── examples/                  # Production-quality code examples
-├── diagrams/                  # SVG and Mermaid source files
-└── README.md
+apps/handbook/       Astro + Starlight documentation site
+packages/ui/         Brand design tokens (Tailwind v4 theme)
+packages/components/ Reusable MDX doc components
+packages/diagrams/   Client-side Mermaid diagram component
+packages/shared/     Content schemas, versioning types, structural content linter
+labs/                Production-quality labs (independent Python projects)
+docs/                Contributor-facing guides (content authoring, local development)
+legacy/              Retired static-HTML prototype, kept for migration reference
+scripts/             Repo-level tooling (content structure lint)
+.github/workflows/   CI and deployment
 ```
 
-## Design goals
-
-- Semantic, accessible HTML pages
-- Responsive navigation and layouts
-- Shared CSS and lightweight JavaScript
-- Print-friendly pages for browser-to-PDF export
-- GitHub Pages-compatible static hosting
-- Production-focused modules with architecture, code, trade-offs, failure modes, and interview questions
-- Generic terminology suitable for future open-source publication
-
-## Version roadmap
-
-| Version | Scope |
-|---|---|
-| `v0.1` | HTML foundation, design system, Module 0, and generic AI infrastructure interview track |
-| `v0.2` | Production Python, asyncio, concurrency, reliability, and coding exercises |
-| `v0.3` | Distributed systems and networking |
-| `v0.4` | Agent architecture, MCP, and LangGraph |
-| `v0.5` | Production RAG and vector databases |
-| `v0.6` | Model serving and Kubernetes for AI |
-| `v0.7` | Cloud, observability, reliability, and security |
-| `v0.8` | AI system design case studies |
-| `v0.9` | Coding, leadership, behavioural, and role-oriented playbooks |
-| `v1.0` | Complete reviewed handbook and publishable build |
-
-See the visual roadmap in [`roadmap.html`](roadmap.html).
-
-## Local preview
-
-The pages can be opened directly in a browser. For a local web server:
+## Local development
 
 ```bash
-python3 -m http.server 8080
+pnpm install
+pnpm dev      # http://localhost:4321
 ```
 
-Then open `http://localhost:8080`.
+See [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md) for the full command reference and
+[`docs/CONTENT_GUIDE.md`](docs/CONTENT_GUIDE.md) for how to write a new page.
 
-## GitHub Pages
+## Contributing
 
-In the repository settings, open **Pages**, choose **Deploy from a branch**, select the `main` branch and `/ (root)`, and save.
+See [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
-## Working model
+## License
 
-- `main` contains reviewed, usable content.
-- New modules and substantial revisions should use feature branches.
-- Prefer small, focused commits using Conventional Commit-style messages.
-- Keep content semantic and readable without JavaScript.
-- Add citations to primary documentation or research for technical claims.
-- Test pages at mobile, tablet, desktop, and print widths.
-- Avoid organization, recruiter, or company-specific names in published content.
+[MIT](LICENSE)
 
 ## Author
 
-**Vinod Pattar**  
-Principal Engineer · AI Platform & Full-Stack Architecture
-
-## Status
-
-Work in progress — building `v0.2` and expanding the Production Python lab.
+**Vinod Pattar** — Principal Engineer, AI Platform & Full-Stack Architecture

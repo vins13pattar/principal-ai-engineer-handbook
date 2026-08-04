@@ -1,0 +1,41 @@
+---
+title: Architecture
+description: Reference architectures for recurring AI infrastructure problems, with request flows, failure modes, and production deployment notes.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Published the Architecture section overview as part of the platform rebuild.
+    author: vinod
+category: section-overview
+---
+
+Architecture pages answer the question a design review actually asks: not "how does this work"
+but "what happens when it doesn't." Each one covers a single recurring problem — an AI gateway, a
+RAG pipeline, a model-serving layer — end to end, from requirements through cost.
+
+## Required structure
+
+Every architecture page carries these sections. `scripts/lint-content-structure.ts` fails CI if
+one is missing.
+
+1. **Problem** — what this architecture exists to solve.
+2. **Requirements** — the functional and non-functional requirements driving the design.
+3. **Constraints** — what's fixed: budget, latency, compliance, existing infrastructure.
+4. **Diagram** — the system, drawn.
+5. **Request Flow** — a single request's path through every component.
+6. **Failure Modes** — what breaks, and what happens when it does.
+7. **Scaling** — what changes at 10x and 100x load.
+8. **Security** — the attack surface and how it's closed.
+9. **Trade-offs** — what this design gives up, and why that's acceptable.
+10. **Cost** — where the money goes, and the levers to reduce it.
+11. **Observability** — what you'd instrument to know this is healthy.
+12. **Production Deployment** — rollout, rollback, and operational ownership.
+13. **Interview Questions** — the questions this architecture actually answers.
+
+## Systems
+
+No architecture pages are published yet — see the [Roadmap](/Principal-AI-Engineer-Interview-Handbook/roadmap/) for the authoring schedule.
+The [Build](/Principal-AI-Engineer-Interview-Handbook/build/) section's [Async AI Gateway lab](/Principal-AI-Engineer-Interview-Handbook/build/labs/async-ai-gateway/) documents a
+concrete system in the meantime.

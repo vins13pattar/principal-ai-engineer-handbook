@@ -1,0 +1,90 @@
+---
+title: "ADR-0004: Use one permissive Starlight schema plus a separate structural linter"
+description: Why every content section shares one Zod frontmatter schema with optional fields, while required-sections-per-type is enforced by a separate CI script instead of stricter per-collection schemas.
+version: 1.0.0
+lastUpdated: 2026-08-04
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-04
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 4
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={4} status="accepted" date={new Date("2026-08-04")} />
+
+## Status
+
+Accepted. Implemented in `apps/handbook/src/content.config.ts` and
+`scripts/lint-content-structure.ts`.
+
+## Context
+
+Learn, Build, Architecture, Interview, Reference, ADR, and Cheat Sheets each require a different
+set of frontmatter fields (an ADR needs `adrNumber` and `adrStatus`; a Learn module needs
+`moduleNumber` and `difficulty`) and a different set of required body sections (an ADR needs
+Status/Context/Problem/Options/Decision/Consequences/References; a Learn module needs fifteen
+different sections). Starlight, as configured, has one `docs` content collection covering every
+section — Starlight's content-collection architecture doesn't support multiple schemas for
+subdirectories of a single collection.
+
+## Problem
+
+How do we get per-section frontmatter validation and per-section required-body-sections
+enforcement without either (a) forcing every page in every section to satisfy the union of every
+section's required fields, or (b) running multiple Starlight `docs` collections, which Starlight
+doesn't support cleanly for a single sidebar/site.
+
+## Options
+
+- **One Starlight collection, one strict schema** with every field required. Every page — including
+  a section's own `index.mdx` overview — would need to satisfy fields that don't apply to it (an
+  overview page isn't a numbered ADR or a numbered Learn module), forcing meaningless placeholder
+  values into frontmatter just to pass validation.
+- **Multiple `docs`-like collections**, one per section. Starlight is built around a single `docs`
+  collection owning sidebar generation, `editLink`, and `lastUpdated`; splitting it apart means
+  reimplementing sidebar/pagination logic Starlight already provides for free.
+- **One Starlight collection with every section-specific field declared optional**, combined with a
+  separate content-structure linter (`scripts/lint-content-structure.ts`) that walks each section's
+  directory and enforces the fields and body sections that section actually requires.
+
+## Decision
+
+`apps/handbook/src/content.config.ts` defines one `docs` collection whose schema is Starlight's
+base schema extended with every section-specific field, all declared optional (or defaulted) at the
+Zod level — so the build only fails on frontmatter that's outright malformed (wrong type, invalid
+enum value), not on a page choosing not to set fields that don't apply to it. The stricter,
+per-section contract — which fields and which body sections a _type_ of page must have — is
+expressed once in `packages/shared/src/schemas.ts` (as fully-required Zod schemas, used by that
+package's own tests) and enforced against real content by
+`scripts/lint-content-structure.ts` in CI, which knows the required sections list per directory
+(`learn/modules/*`, `architecture/systems/*`, `adr/decisions/*`, ...).
+
+## Consequences
+
+- Section overview pages (`learn/index.mdx`, `adr/index.mdx`, ...) can omit fields that only apply
+  to the numbered pages beneath them, without weakening validation for those numbered pages.
+- The "canonical shape" of each content type is documented in exactly one place
+  (`packages/shared/src/schemas.ts`) that both a Node script and, in principle, an editor
+  integration could import — rather than being implicit in whatever `content.config.ts` happens to
+  accept.
+- This is two systems instead of one: a page can pass Starlight's build-time schema check and still
+  fail `pnpm lint:content` for missing a required section. That's the intended division of labor
+  (type/shape validation vs. structural completeness), but it does mean "the build succeeded" is
+  not synonymous with "the content is complete" — `pnpm ci` runs both for that reason.
+- Two schema definitions (the Astro-side extend schema and `packages/shared`'s per-type schemas)
+  describe overlapping fields and must be kept in sync by hand. This is deliberate: sharing a single
+  Zod schema instance across Astro's content layer and plain Node tooling would couple both to
+  whichever zod version happens to be installed where, which has historically been a worse failure
+  mode (silent instanceof mismatches across duplicate zod installs) than a small amount of
+  duplication reviewed in a diff.
+
+## References
+
+- [Astro content collections](https://docs.astro.build/en/guides/content-collections/)
+- [Starlight's `docsSchema`](https://starlight.astro.build/reference/frontmatter/), which this
+  ADR's schema extends rather than replaces.

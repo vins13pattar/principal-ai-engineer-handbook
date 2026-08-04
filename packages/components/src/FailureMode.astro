@@ -1,0 +1,14 @@
+---
+import Callout from "./Callout.astro";
+
+/** A named way this system breaks in production — distinct from a general Warning. */
+interface Props {
+  title?: string;
+}
+
+const { title } = Astro.props;
+---
+
+<Callout variant="danger" glyph="✕" label="Failure Mode" title={title}>
+  <slot />
+</Callout>

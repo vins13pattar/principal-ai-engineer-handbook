@@ -1,0 +1,18 @@
+---
+import type { DifficultyLevel } from "@handbook/shared";
+import Callout from "./Callout.astro";
+
+interface Props {
+  title?: string;
+  difficulty?: DifficultyLevel;
+}
+
+const { title, difficulty } = Astro.props;
+const label = difficulty
+  ? `Interview Question · ${difficulty[0]!.toUpperCase()}${difficulty.slice(1)}`
+  : "Interview Question";
+---
+
+<Callout variant="highlight" glyph="?" label={label} title={title}>
+  <slot />
+</Callout>
