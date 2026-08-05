@@ -1,0 +1,462 @@
+---
+title: "Module 1: Production Python"
+description: The concurrency mental models, failure modes, and production patterns for building high-throughput AI gateways, agent runtimes, and inference APIs in Python.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication. Expanded from the retired static-prototype draft (legacy/static-prototype/modules/01-production-python/), grounded in the real, tested async-ai-gateway lab code.
+    author: vinod
+category: learn-module
+moduleNumber: 1
+difficulty: intermediate
+estimatedMinutes: 55
+prerequisites:
+  - 00-principal-engineer-mindset
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  LabCallout,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import requestLifecycle from "./01-production-python.request-lifecycle.mmd?raw";
+
+## Executive Summary
+
+Python dominates AI application engineering — the ecosystem, the readability, the direct line to
+every ML framework worth using. None of that removes the need to understand what actually happens
+when your gateway holds a thousand concurrent connections to slow, unreliable model providers.
+Production Python for AI infrastructure means knowing when `async`/`await` helps and when it's the
+wrong tool, how the GIL actually constrains your architecture, and how to design a system that
+degrades predictably instead of falling over silently under load.
+
+This module builds those mental models using real code, not toy snippets — every example below is
+drawn directly from [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/), a lab with its own
+test suite and CI, not sample code invented for this page.
+
+## Mental Model
+
+Choose a concurrency model by workload profile, not by which one is fashionable this year:
+
+| Model                | Best for                                                                                 | The catch                                                                                          |
+| -------------------- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| **asyncio**          | High-concurrency I/O: model APIs, databases, queues, sockets, streaming                  | Cooperative scheduling — one blocking call stalls every other coroutine sharing the loop           |
+| **Threads**          | Blocking libraries with no async API                                                     | Shared memory means synchronization risk; the GIL means no throughput gain on pure-Python CPU work |
+| **Processes**        | CPU-bound Python work, isolation, real parallelism across cores                          | Serialization, startup cost, and cross-process coordination overhead                               |
+| **External workers** | Durable, retryable, independently scalable tasks — ingestion, embedding, batch inference | Adds a queue and a worker fleet to operate; wrong choice for synchronous request/response paths    |
+
+<EngineeringNote title="What the GIL actually changes">
+  The Global Interpreter Lock means only one thread executes Python bytecode at a time *within one
+  process*. It does not prevent I/O concurrency — while one coroutine awaits a network response,
+  others run freely — and it does not prevent parallelism in native-code extensions (NumPy, most ML
+  runtimes) that release the GIL during their C/C++ work. The GIL is a constraint on pure-Python
+  CPU-bound parallelism specifically, not a blanket statement about Python being single-threaded.
+</EngineeringNote>
+
+The one-sentence version that should drive every design choice in this module: **the event loop is
+a scheduler, not a speed multiplier.** A coroutine runs until it hits an `await`; control returns to
+the loop so another ready task can run. Concurrency comes from overlapping _waiting_ time across
+many requests — it does nothing for CPU-bound work, which is why CPU-heavy code inside an async
+handler is one of this module's central failure modes.
+
+## Architecture
+
+Here's the actual admission-and-execution path a request takes through
+[`AsyncAIGateway.generate()`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/gateway.py) —
+every box below is a real control-flow branch in that method, not a simplification:
+
+<Mermaid
+  code={requestLifecycle}
+  title="Request lifecycle through the async gateway's admission control, deadline, and retry logic"
+/>
+
+Three architectural decisions are doing the load-bearing work here, and each maps to a concept the
+Deep Dive section covers in full:
+
+1. **Rate limiting happens before concurrency admission.** A rejected request due to quota should
+   never occupy a semaphore slot — that's wasted capacity a legitimate request needed.
+2. **The deadline (`asyncio.timeout`) wraps the entire retry loop, not each individual attempt.**
+   A caller's 15-second budget is a budget for the whole operation, including every retry —
+   otherwise three retries at 15 seconds each could keep a request alive for 45 seconds no caller
+   asked for.
+3. **Capacity is released in a `finally` block**, so a raised exception, a timeout, or a
+   cancellation all still return the semaphore slot. Forgetting this is exactly the "leaked
+   resources" failure mode covered later.
+
+## Deep Dive
+
+**Coroutines, tasks, and task groups.** A function declared `async def` returns a coroutine object
+when called — nothing runs yet. `await`ing it, or scheduling it as a `asyncio.Task`, is what
+actually starts execution. A bare coroutine with no owner and no error handling is a bug waiting to
+happen; prefer structured concurrency (`asyncio.TaskGroup`, Python 3.11+) which ties a group of
+tasks to a lifecycle scope and propagates the first failure predictably, cancelling its siblings —
+instead of `asyncio.gather()`'s default behavior of silently continuing to await the others.
+
+**Timeouts, layered.** A single "timeout" is rarely one number. Production systems separate:
+
+- **Queue-wait timeout** — how long a request waits for a concurrency slot before being rejected as
+  overloaded (`max_queue_wait_seconds` in the gateway above).
+- **Per-attempt timeout** — how long one provider call gets before it's considered failed.
+- **Total request deadline** — the budget for the _whole_ operation, retries included.
+
+Conflating these is how a "20 second timeout" quietly becomes a 90-second wait under retries, which
+is worse for users than a fast, clear failure.
+
+**Cancellation is normal control flow, not an error.** When a task is cancelled — because its
+deadline expired, or its caller disconnected — `asyncio.CancelledError` propagates through every
+`await` point inside it. Cleanup belongs in `finally` blocks and async context managers, and a
+`CancelledError` should almost always be re-raised, never swallowed (see the Failure Modes section
+for what happens when it's caught and ignored).
+
+**Backpressure.** Bounded `asyncio.Semaphore`s and bounded queues are what stop an overloaded
+downstream dependency from turning into unbounded memory growth in your own process — the same
+mechanism the Architecture section's `_admit()` step relies on.
+
+<ResearchNote source='Nathaniel J. Smith, "Notes on structured concurrency, or: Go statement considered harmful"'>
+  The essay that popularized `TaskGroup`-style structured concurrency in Python. Worth reading even
+  if you never touch Trio — the argument for why unstructured `create_task()` calls are the async
+  equivalent of `goto` applies directly to `asyncio`.
+</ResearchNote>
+
+## Implementation
+
+The bounded-concurrency, deadline, and retry logic from the Architecture diagram, as it actually
+exists in the lab — not a simplified rewrite:
+
+<CodeWalkthrough title="Admission control and retry, from gateway.py">
+```python
+async def _admit(self) -> None:
+    if self._closing:
+        raise RuntimeError("Gateway is shutting down")
+    if self._rate_limiter is not None:
+        await self._rate_limiter.acquire()
+    try:
+        await asyncio.wait_for(
+            self._capacity.acquire(), timeout=self._max_queue_wait_seconds
+        )
+    except TimeoutError as exc:
+        raise GatewayOverloadedError("Gateway concurrency limit reached") from exc
+
+async def generate(
+self, prompt: str, _, provider_name: str | None = None, timeout_seconds: float = 15.0,
+) -> GenerateResponse:
+started = time.perf_counter()
+await self.\_admit()
+try:
+async with asyncio.timeout(timeout_seconds):
+last_error: Exception | None = None
+for attempt in range(1, self.\_max_attempts + 1):
+provider = self.\_select(provider_name)
+try:
+result = await provider.generate(prompt)
+return GenerateResponse(
+provider=result.provider, text=result.text,
+attempts=attempt, latency_ms=(time.perf_counter() - started) _ 1000,
+)
+except (ConnectionError, TimeoutError) as exc:
+last_error = exc
+if provider_name is not None or attempt == self.\_max_attempts:
+raise
+backoff = self.\_base_backoff_seconds \* (2 \*\* (attempt - 1))
+await asyncio.sleep(random.uniform(0, backoff))
+if last_error is not None:
+raise last_error
+finally:
+self.\_capacity.release()
+
+````
+
+Two details that separate this from a "works on my machine" version: rate limiting happens before
+the semaphore acquire (rejected requests don't consume concurrency capacity), and an explicitly
+pinned `provider_name` skips retries entirely — a caller who asked for a specific provider gets a
+fast, honest failure instead of a silent fallback to a different model they didn't ask for.
+</CodeWalkthrough>
+
+The companion resilience primitive is a circuit breaker, so a provider that's already failing
+doesn't get hammered by every retry from every concurrent request:
+
+<CodeWalkthrough title="Circuit breaker states, from resilience.py">
+```python
+class CircuitState(StrEnum):
+    CLOSED = "closed"
+    OPEN = "open"
+    HALF_OPEN = "half_open"
+
+@property
+def state(self) -> CircuitState:
+    if self._state is CircuitState.OPEN:
+        if time.monotonic() - self._opened_at >= self.recovery_timeout_seconds:
+            return CircuitState.HALF_OPEN
+    return self._state
+````
+
+The `state` property computes `HALF_OPEN` on read rather than storing it — the circuit doesn't need
+a timer or background task to "wake up," it just checks elapsed time whenever anyone asks. One
+probe request is allowed through in `HALF_OPEN` (guarded by an `asyncio.Lock`, in the full
+implementation) to test recovery without letting a thundering herd of retries all hit the
+recovering provider at once.
+
+</CodeWalkthrough>
+
+## Production Example
+
+Graceful shutdown is where a lot of "it works in dev" Python services fall apart in production —
+a rolling deploy sends SIGTERM, and if in-flight requests aren't drained, they get killed mid-response.
+Here's the real pattern from [`draining.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/draining.py):
+
+```python
+@asynccontextmanager
+async def request(self):
+    async with self._condition:
+        if not self._accepting:
+            raise RuntimeError("Gateway is draining")
+        self._active += 1
+    try:
+        yield
+    finally:
+        async with self._condition:
+            self._active -= 1
+            if self._active == 0:
+                self._condition.notify_all()
+
+async def drain(self, timeout_seconds: float = 30.0) -> bool:
+    async with self._condition:
+        self._accepting = False
+        if self._active == 0:
+            return True
+        try:
+            async with asyncio.timeout(timeout_seconds):
+                await self._condition.wait_for(lambda: self._active == 0)
+            return True
+        except TimeoutError:
+            return False
+```
+
+The shape: every request registers itself as "active" on entry and deregisters on exit — success or
+failure, via the `finally` block. `drain()` flips readiness to false (so a load balancer stops
+routing new traffic once it notices), then waits, bounded by a timeout, for the active count to hit
+zero. If the timeout fires first, `drain()` returns `False` — an explicit, checkable signal that
+some requests were forcibly cut off, rather than a silent process kill with no record of what was
+lost.
+
+## Failure Modes
+
+<FailureMode title="Blocking the event loop">
+  A synchronous HTTP client, blocking file I/O, or a CPU-heavy parsing loop called directly inside
+  an `async def` function freezes every other coroutine sharing that event loop — not just the slow
+  request. Blocking work belongs in a thread-pool executor (`loop.run_in_executor`) or a separate
+  process, never inline.
+</FailureMode>
+
+<FailureMode title="Unbounded fan-out">
+  `asyncio.gather()` over an unbounded list of coroutines can exhaust connections, provider quotas,
+  memory, and downstream capacity in one call. The semaphore in the Architecture section exists
+  specifically to prevent this — an unbounded `gather()` bypasses it entirely if the tasks aren't
+  each individually going through `_admit()`.
+</FailureMode>
+
+<FailureMode title="Retry storms">
+  Immediate, synchronized retries across many concurrent requests amplify an outage instead of
+  recovering from it — this is exactly why `gateway.py` uses `random.uniform(0, backoff)` jitter
+  rather than a fixed backoff, and why the circuit breaker exists at all: past a failure threshold,
+  stop retrying and fail fast instead of adding more load to an already-struggling provider.
+</FailureMode>
+
+<FailureMode title="Leaked resources">
+  Unclosed HTTP clients, streams, or sockets — or a semaphore `acquire()` without a matching
+  `release()` on every exit path — cause connection exhaustion and unpredictable shutdown behavior
+  under load, often hours after the code that leaked them shipped.
+</FailureMode>
+
+<FailureMode title="Hidden queueing">
+  Latency can accumulate *before* a request even starts executing. If you only measure wall-clock
+  latency, a system stuck queueing for concurrency slots looks identical to one that's actually slow
+  to process — measure queue-wait time separately from provider execution time, or you'll optimize
+  the wrong thing.
+</FailureMode>
+
+<Warning title="Average latency hides the failure">
+  A p50 latency dashboard can look perfectly healthy while p99 latency — the requests actually
+  timing out or getting retried — is climbing. Track p95/p99, concurrency saturation, and
+  cancellation/timeout counts as first-class metrics, not just mean latency.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="In-process vs. distributed rate limiting">
+  [`rate_limit.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/rate_limit.py)'s
+  `TenantRateLimiter` is an in-process token bucket — correct and fast for a single-process lab, but
+  wrong for a multi-replica deployment: each replica enforces the quota independently, so a tenant
+  effectively gets `replica_count ×` their real limit. The lab's own distributed limiter
+  (Redis-backed, atomic refill-and-consume in one Lua script) fixes that at the cost of a new
+  dependency and a new failure mode — what happens to enforcement when Redis itself is unavailable.
+  Neither option is strictly better; the in-process version is the right *default* until you have
+  more than one replica.
+</TradeOff>
+
+<TradeOff title="asyncio vs. threads vs. processes">
+  Async wins for high-concurrency I/O-bound work with async-native libraries. Threads earn their
+  keep only when a required library is blocking with no async equivalent — they don't improve
+  pure-Python CPU throughput because of the GIL. Processes are the right (and only) answer for
+  CPU-bound Python work, at the cost of serialization and startup overhead per process.
+</TradeOff>
+
+<TradeOff title="Strict typing overhead vs. velocity">
+  Pydantic models and full type annotations catch a class of bugs before they reach production and
+  make a codebase navigable by someone who didn't write it — at the cost of upfront ceremony that
+  feels like friction on a throwaway script. The right line: typed at every service boundary
+  (request/response models, provider interfaces), looser inside a single function's local logic.
+</TradeOff>
+
+## Security
+
+- **Dependency supply chain.** Lockfiles (`uv.lock`, `poetry.lock`, or pinned `requirements.txt`)
+  and a CI step that actually checks them, not just a `pip install` with no version pins.
+- **Secrets never in code or config committed to the repo.** Environment variables or a secrets
+  manager, injected at runtime — see the lab's own [`SECURITY_AND_RUNTIME.md`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/SECURITY_AND_RUNTIME.md)
+  for the concrete JWT-secret handling this applies to.
+- **Input validation at every boundary.** Pydantic models on request bodies, not manual dict
+  parsing — reject malformed input before it reaches business logic, not after.
+- **Never deserialize untrusted input with `pickle`, and avoid `eval`/`exec` on anything that
+  touches user input** — both are common in "quick" Python scripts and both are remote-code-execution
+  risks in a service that accepts external requests.
+- **SSRF risk in outbound HTTP clients.** A gateway that lets a caller influence which upstream URL
+  it calls (directly or via a redirect it follows) can be turned into a proxy for internal network
+  scanning — validate and allowlist upstream targets.
+
+## Performance
+
+- **Profile before optimizing** — `py-spy` for production-safe sampling profiling without code
+  changes, `cProfile` for development, and asyncio's own debug mode (`PYTHONASYNCIODEBUG=1`) to
+  catch coroutines that block the loop for too long.
+- **Decompose latency, don't just measure it end-to-end** — connect time, queue wait, provider
+  execution time, serialization, and streaming duration are each worth their own metric; a single
+  "request latency" number hides which one actually needs fixing.
+- **Connection pooling** — reuse `httpx.AsyncClient` instances (they pool connections internally)
+  instead of creating a new client per request, which pays connection-setup cost on every call.
+- **`uvloop`** as a drop-in event loop replacement gives a meaningful throughput improvement for
+  I/O-heavy workloads with near-zero code change — worth enabling by default in any production
+  asyncio service.
+
+## Scaling
+
+- **Horizontally scale stateless workers first** — the gateway pattern in this module is designed
+  to be replica-safe _except_ for anything kept in-process (the in-process rate limiter from the
+  Trade-offs section is exactly the kind of state that breaks this assumption at scale).
+- **Autoscale on saturation signals, not CPU.** Queue depth, semaphore wait time, and p99 latency
+  are leading indicators of overload; CPU usage on an I/O-bound async service is often flat right
+  up until it falls over.
+- **Multi-process, shared-nothing** for CPU-bound components (embedding generation, batch
+  inference) — scale these as a separate worker fleet from the async request-handling gateway,
+  not inside the same event loop.
+- **Watch for exhaustion at the edges as concurrency grows** — thread pools, database connection
+  pools, and file descriptor limits all have ceilings that a purely "add more semaphore capacity"
+  mindset will eventually hit.
+
+## Interview Questions
+
+<InterviewQuestion
+  difficulty="foundational"
+  title="Walk me through what happens when you call time.sleep() inside an async function."
+>
+  It blocks the entire event loop — every other coroutine scheduled on that loop stalls for the full
+  duration, because `time.sleep()` is synchronous and gives control back to nothing. `await
+  asyncio.sleep()` is the async-native equivalent that yields control back to the loop.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="intermediate"
+  title="How would you bound concurrency to protect a downstream dependency?"
+>
+  A bounded `asyncio.Semaphore` sized to the downstream's real capacity, acquired before the call
+  and released in a `finally` block — exactly the `_admit()`/`generate()` pattern from this module's
+  Implementation section. Bonus depth: distinguish this from rate limiting (bounds *arrival rate*) —
+  production systems usually need both, enforced at different points.
+</InterviewQuestion>
+
+<InterviewAnswer title="Why both, concretely">
+  A semaphore limits how much work is in flight *right now*; a token bucket limits how fast new work
+  is *admitted* over time. A burst of 1000 requests in one second with a semaphore of 32 and no rate
+  limiter still queues all 1000 — the semaphore doesn't reject anything, it just serializes access.
+  Add a token bucket to reject excess arrivals outright instead of queueing them indefinitely.
+</InterviewAnswer>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="How do you handle partial failures in a fan-out of concurrent calls?"
+>
+  Prefer `asyncio.TaskGroup` (structured concurrency) over bare `asyncio.gather()` when a failure in
+  one task should cancel its siblings; use `gather(..., return_exceptions=True)` deliberately when
+  partial results are acceptable and each result needs individual inspection — never let a single
+  failed task's exception silently vanish because it wasn't awaited or inspected.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="How do you shut a Python async service down safely?"
+>
+  Stop accepting new traffic (flip readiness false so the load balancer notices), drain in-flight
+  requests with a bounded timeout, cancel background tasks, flush telemetry buffers, close clients
+  and connection pools, then exit — the exact sequence the `DrainManager` in this module's
+  Production Example implements, with an explicit "did draining actually finish" signal rather than
+  a silent kill.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+<LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
+  Every pattern in this module — bounded concurrency, deadlines, retry with jitter, circuit
+  breaking, distributed rate limiting, graceful draining — is implemented and tested here, not
+  described in the abstract. [Read the full lab documentation →](/build/labs/async-ai-gateway/)
+</LabCallout>
+
+<Exercise title="Extend the gateway's failure handling" difficulty="advanced">
+  Clone [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) and add a metric for queue-wait
+  time, separate from total request latency (the exact distinction called out in this module's
+  Failure Modes section as "hidden queueing"). Write a test that asserts queue-wait time is reported
+  even when the eventual provider call succeeds quickly — proving the metric captures admission
+  delay, not just execution time.
+</Exercise>
+
+<Checklist title="Before calling an async Python service production-ready">
+  - Every remote call has an explicit timeout — connect, read, and total, not just "the default" -
+  Concurrency is bounded with a semaphore sized to a measured downstream capacity, not a guess -
+  Retries use capped exponential backoff with jitter, and respect a request-scoped deadline - Every
+  `finally` block releases what its matching `try` acquired — semaphores, locks, connections -
+  Cancellation (`asyncio.CancelledError`) is re-raised, never swallowed - p95/p99 latency,
+  queue-wait time, and cancellation/timeout counts are tracked as metrics - Shutdown drains
+  in-flight requests within a bounded timeout before the process exits
+</Checklist>
+
+## References
+
+- [`asyncio` documentation](https://docs.python.org/3/library/asyncio.html), especially the
+  Tasks and Streams sections.
+- [PEP 3156](https://peps.python.org/pep-3156/) — the original asyncio proposal, still the clearest
+  explanation of _why_ the event loop is designed the way it is.
+- Nathaniel J. Smith, ["Notes on structured concurrency, or: Go statement considered harmful"](https://vorpus.org/blog/notes-on-structured-concurrency-or-go-statement-considered-harmful/)
+- Caleb Hattingh, _Using Asyncio in Python_ (O'Reilly) — a concise, practical treatment of the
+  concurrency models compared in this module's Mental Model section.
+- [`uvloop`](https://github.com/MagicStack/uvloop) documentation and its benchmarks against the
+  standard library event loop.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — every code example in this module, in
+  its full, tested context.
+
+## Revision History
+
+| Version | Date       | Change                                                                                                                    |
+| ------- | ---------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 1.0.0   | 2026-08-05 | Initial publication, expanded from the retired static-prototype draft and grounded in the real async-ai-gateway lab code. |

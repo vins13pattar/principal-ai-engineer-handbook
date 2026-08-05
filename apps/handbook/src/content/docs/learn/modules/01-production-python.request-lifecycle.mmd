@@ -1,0 +1,15 @@
+flowchart TD
+    A[Request arrives] --> B{Rate limiter has tokens?}
+    B -->|No| R1[Reject: rate limited]
+    B -->|Yes| C{Semaphore has capacity within queue-wait timeout?}
+    C -->|No| R2[Reject: gateway overloaded]
+    C -->|Yes| D[asyncio.timeout deadline starts]
+    D --> E[Select provider]
+    E --> F[Await provider call]
+    F -->|Success| G[Record success, release capacity]
+    F -->|ConnectionError or TimeoutError| H{Attempts remaining and provider not pinned?}
+    H -->|Yes| I[Jittered exponential backoff, retry]
+    I --> E
+    H -->|No| J[Record failure, release capacity]
+    G --> K[Return response]
+    J --> R3[Raise to caller]

@@ -1,0 +1,12 @@
+flowchart TD
+    A[Ambiguous problem surfaces] --> B[Frame the problem and constraints]
+    B --> C[Draft options, including a deliberately simple baseline]
+    C --> D[Write it down: RFC or ADR draft]
+    D --> E{Reversible? Type 1 vs Type 2}
+    E -->|Type 2, reversible| F[Async written review]
+    E -->|Type 1, hard to reverse| G[Synchronous design review]
+    F --> H[Decision recorded with consequences]
+    G --> H
+    H --> I[Implementation]
+    I --> J[Revisit trigger defined up front]
+    J -->|Trigger fires| B
