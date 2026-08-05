@@ -24,6 +24,7 @@
     "test:e2e": "pnpm --filter @handbook/site test:e2e",
     "lint:content": "node --experimental-strip-types scripts/lint-content-structure.ts",
     "check:links": "pnpm --filter @handbook/site check:links",
+    "preview:cf": "wrangler pages dev apps/handbook/dist",
     "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm test && pnpm build"
   },
   "devDependencies": {
@@ -37,6 +38,7 @@
     "prettier": "3.9.6",
     "prettier-plugin-astro": "0.14.1",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "wrangler": "4.118.0"
   }
 }

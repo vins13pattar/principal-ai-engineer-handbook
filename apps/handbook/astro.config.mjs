@@ -6,9 +6,15 @@ import starlightLinksValidator from "starlight-links-validator";
 
 const REPO = "https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook";
 
+// Cloudflare Pages serves every deployment (production and preview) from a domain root, so this
+// site has no `base` path. `CF_PAGES_URL` is set automatically by Cloudflare's build environment
+// to the exact URL of the current deployment (production or a per-branch preview); the fallback
+// below only matters for local builds. Update it once a production domain (a custom domain or the
+// final *.pages.dev project name) is chosen. See ADR-0005.
+const site = process.env.CF_PAGES_URL ?? "https://principal-ai-engineer-handbook.pages.dev";
+
 export default defineConfig({
-  site: "https://vins13pattar.github.io",
-  base: "/Principal-AI-Engineer-Interview-Handbook",
+  site,
   vite: {
     plugins: [tailwindcss()],
   },

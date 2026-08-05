@@ -1,0 +1,9 @@
+## Cloudflare Pages configuration.
+##
+## The Cloudflare dashboard's git integration (Workers & Pages -> Create -> Pages -> Connect to
+## Git) is the actual deployment mechanism for this project — see docs/DEVELOPMENT.md and
+## ADR-0005. This file exists so `pages_build_output_dir` is explicit and version-controlled, and
+## so `wrangler pages dev` can serve a local build the same way Cloudflare does in production.
+name = "principal-ai-engineer-handbook"
+pages_build_output_dir = "apps/handbook/dist"
+compatibility_date = "2026-08-05"

@@ -9,14 +9,14 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: `http://127.0.0.1:${PORT}/Principal-AI-Engineer-Interview-Handbook/`,
+    baseURL: `http://127.0.0.1:${PORT}/`,
     trace: "on-first-retry",
   },
   webServer: {
     // Assumes `pnpm build` has already produced `dist/` — run it first locally;
     // CI runs it as a separate step so the build itself is checked independently.
     command: "pnpm preview",
-    url: `http://127.0.0.1:${PORT}/Principal-AI-Engineer-Interview-Handbook/`,
+    url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

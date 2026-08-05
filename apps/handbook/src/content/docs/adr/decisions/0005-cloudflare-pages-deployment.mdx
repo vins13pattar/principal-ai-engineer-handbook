@@ -1,0 +1,97 @@
+---
+title: "ADR-0005: Deploy via Cloudflare Pages git integration instead of GitHub Pages"
+description: Why the site deploys through Cloudflare Pages' own git integration rather than a GitHub Actions workflow pushing to GitHub Pages, and what that changes about the site's base path.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 5
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={5} status="accepted" date={new Date("2026-08-05")} />
+
+## Status
+
+Accepted. Implemented by removing `.github/workflows/deploy.yml`, removing `base` from
+`apps/handbook/astro.config.mjs`, and adding `wrangler.toml`.
+
+## Context
+
+The platform originally deployed to GitHub Pages: a GitHub Actions workflow
+(`.github/workflows/deploy.yml`) built the site and pushed it to Pages. Because GitHub Pages serves
+a project repository (one not named `<user>.github.io`) from a subpath —
+`https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/` — the site had to set
+`base: "/Principal-AI-Engineer-Interview-Handbook"` in `astro.config.mjs`, and every hand-written
+internal link in MDX content had to repeat that prefix (`[Learn](/Principal-AI-Engineer-Interview-Handbook/learn/)`),
+since Astro only applies `base` automatically to framework-generated URLs (sidebar, pagination,
+asset paths), not to literal hrefs authors write in content — see the trade-off called out in
+[ADR-0001](/adr/decisions/0001-astro-starlight-platform/).
+
+## Problem
+
+The project is moving to Cloudflare Pages, connected directly to the GitHub repository through
+Cloudflare's own git integration (not a GitHub Actions workflow). Cloudflare Pages serves every
+deployment — production and per-branch previews — from a domain root
+(`https://<project>.pages.dev` or a custom domain), never from a subpath. A site built with a
+GitHub-Pages-shaped `base` would 404 on every internal link once deployed there.
+
+## Options
+
+- **Keep the GitHub Pages subpath `base` and rewrite it per environment.** Astro's `base` can be set
+  conditionally at build time, but the ~40 literal internal links already baked into MDX content
+  (not templated) would still need per-environment rewriting, which means either shipping two
+  content trees or a build step that rewrites links — more moving parts than the problem justifies
+  for a single-maintainer OSS site.
+- **Keep GitHub Pages as the deployment target and give it a custom domain at the root**, so both
+  targets could share one root-relative link scheme. Rejected for now: it adds a domain purchase
+  and DNS dependency to what should be a zero-cost documentation site, and Cloudflare Pages'
+  per-PR preview deployments are a real capability GitHub Pages doesn't offer without extra
+  tooling.
+- **Move to Cloudflare Pages, serve from the root, and drop the base path entirely.** Every internal
+  link becomes root-relative with no prefix, matching how the site is actually served in every
+  environment (local dev, Cloudflare preview, Cloudflare production).
+
+## Decision
+
+Deploy exclusively through Cloudflare Pages' git integration. Remove `base` from
+`astro.config.mjs` (Astro defaults to `/`), remove `.github/workflows/deploy.yml`, and strip the
+`/Principal-AI-Engineer-Interview-Handbook` prefix from every internal link across the content
+tree. `site` is now `process.env.CF_PAGES_URL` when present — the exact URL Cloudflare's build
+environment provides for the deployment being built, production or preview — falling back to a
+placeholder domain for local builds.
+
+Cloudflare project settings (configured in the dashboard, not in this repository): build command
+`pnpm build`, build output directory `apps/handbook/dist`, root directory `/` (repository root, so
+the pnpm workspace resolves correctly). Node version comes from `.nvmrc`; the package manager is
+auto-detected from `pnpm-lock.yaml`.
+
+## Consequences
+
+- Internal links are simpler and environment-agnostic (`/learn/` works identically in dev, preview,
+  and production) — no base-path bugs are possible because there's no base path.
+- Every pull request against `main` gets a real, browsable Cloudflare Pages preview URL, which the
+  previous GitHub Pages setup didn't provide — `.github/workflows/site-ci.yml`'s build-artifact
+  upload remains as a CI gate but is no longer the way to preview a change.
+- `.github/workflows/site-ci.yml` now only verifies the build (lint, typecheck, test, build,
+  link-check, e2e); it no longer deploys anything. Cloudflare owns deployment end to end, which
+  means a Cloudflare account/dashboard configuration this repository's CI cannot verify — a broken
+  Cloudflare project setting fails silently from GitHub's perspective. There is no workflow-based
+  safety net for that; the site's live deployment status has to be checked in Cloudflare's own
+  dashboard.
+- Moving to a different static host again (or back to GitHub Pages under a subpath) would mean
+  reintroducing a `base` and re-adding the prefix to every internal link — the same one-time cost
+  paid here, in reverse.
+
+## References
+
+- [Cloudflare Pages: Git integration](https://developers.cloudflare.com/pages/get-started/git-integration/)
+- [Cloudflare Pages environment variables](https://developers.cloudflare.com/pages/configuration/build-configuration/#environment-variables), including `CF_PAGES_URL`
+- [ADR-0001](/adr/decisions/0001-astro-starlight-platform/), which first documented the base-path
+  link-prefixing trade-off this ADR removes

@@ -1,8 +1,8 @@
 # Content authoring guide
 
 This is the practical reference for adding a page to the handbook. For _why_ the content model is
-shaped this way, see the ADRs in [`/adr/`](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/adr/),
-especially [ADR-0004](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0004-single-docs-collection-schema/).
+shaped this way, see the ADRs in [`/adr/`](https://principal-ai-engineer-handbook.pages.dev/adr/),
+especially [ADR-0004](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0004-single-docs-collection-schema/).
 
 ## Where a page lives
 
@@ -127,7 +127,7 @@ import { TradeOff, InterviewQuestion } from "@handbook/components";
 
 Keep Mermaid source in its own `.mmd` file next to the page and import it as raw text — do not put
 diagram source in the component's slot (see the doc comment in
-`packages/diagrams/src/Mermaid.astro` and [ADR-0003](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0003-client-side-mermaid-rendering/) for why).
+`packages/diagrams/src/Mermaid.astro` and [ADR-0003](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0003-client-side-mermaid-rendering/) for why).
 
 ```mdx
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
@@ -138,16 +138,16 @@ import flow from "./my-page.request-flow.mmd?raw";
 
 ## Internal links
 
-This site deploys under a base path (`/Principal-AI-Engineer-Interview-Handbook`). Sidebar links
-configured in `astro.config.mjs` handle this automatically, but hand-written links inside MDX body
-content do not — write them with the base path included:
+The site has no base path — it deploys to a domain root on Cloudflare Pages (see
+[ADR-0005](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0005-cloudflare-pages-deployment/)).
+Write internal links root-relative, with no prefix:
 
 ```md
-[Learn](/Principal-AI-Engineer-Interview-Handbook/learn/)
+[Learn](/learn/)
 ```
 
-`starlight-links-validator` fails the build on a broken or base-less internal link, so a mistake
-here is caught in CI, not in production.
+`starlight-links-validator` fails the build on a broken internal link, so a mistake here is caught
+in CI, not in production.
 
 ## Before opening a PR
 

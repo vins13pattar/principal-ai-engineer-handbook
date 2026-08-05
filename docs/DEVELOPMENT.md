@@ -16,7 +16,7 @@ legacy/               Retired static-HTML prototype, kept for content migration 
 
 `apps/*` and `packages/*` are a pnpm workspace (`pnpm-workspace.yaml`); `labs/*` is intentionally
 outside it — each lab is its own Python project with its own `pyproject.toml` and CI job (see
-[ADR-0002](https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0002-pnpm-monorepo-layout/)).
+[ADR-0002](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0002-pnpm-monorepo-layout/)).
 
 ## Setup
 
@@ -25,6 +25,32 @@ pnpm install
 ```
 
 Requires Node 20+ and pnpm 9+ (see `.nvmrc` and the `packageManager` field in `package.json`).
+
+## Deployment
+
+The site deploys via [Cloudflare Pages](https://pages.cloudflare.com/) git integration — Cloudflare
+builds and deploys directly from this repository; there is no deploy step in
+`.github/workflows/`. See [ADR-0005](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0005-cloudflare-pages-deployment/)
+for why.
+
+To connect the repository in the Cloudflare dashboard (**Workers & Pages → Create → Pages →
+Connect to Git**), use these build settings:
+
+| Setting                | Value                                                                       |
+| ---------------------- | --------------------------------------------------------------------------- |
+| Framework preset       | `Astro` (or `None` — the settings below are explicit either way)            |
+| Build command          | `pnpm build`                                                                |
+| Build output directory | `apps/handbook/dist`                                                        |
+| Root directory         | `/` (repository root — this is a pnpm workspace, not a single-package repo) |
+
+Node version and package manager are picked up automatically from `.nvmrc` and
+`pnpm-lock.yaml`; no `NODE_VERSION` environment variable is required. Every push to `main` deploys
+to production; every pull request gets its own preview URL automatically — no additional
+configuration needed for either.
+
+`wrangler.toml` at the repository root pins `pages_build_output_dir` for parity with the dashboard
+settings and enables local testing with `pnpm exec wrangler pages dev apps/handbook/dist` after a
+build.
 
 ## Common commands
 

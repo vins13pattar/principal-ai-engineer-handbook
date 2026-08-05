@@ -1,12 +1,16 @@
 ---
 title: Architecture Decision Records
 description: Why the handbook platform and its labs are built the way they are, and what would change our minds.
-version: 1.0.0
-lastUpdated: 2026-08-04
+version: 1.1.0
+lastUpdated: 2026-08-05
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
     change: Published the ADR section overview and the platform's first four decision records.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-05
+    change: Added ADR-0005 (Cloudflare Pages deployment).
     author: vinod
 category: section-overview
 ---
@@ -14,7 +18,7 @@ category: section-overview
 An ADR records a decision, the options it was weighed against, and the consequences of picking one
 — so a future maintainer (including a future version of whoever wrote it) can tell whether the
 reasoning still holds before reversing it. This section holds ADRs for the handbook platform
-itself and for the labs in [Build](/Principal-AI-Engineer-Interview-Handbook/build/); it's a working example of the format as much as it is
+itself and for the labs in [Build](/build/); it's a working example of the format as much as it is
 a record.
 
 ## Required structure
@@ -32,9 +36,10 @@ one is missing.
 
 ## Decisions
 
-| ADR                                                                                                 | Title                                                                 | Status   |
-| --------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | -------- |
-| [0001](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0001-astro-starlight-platform/)      | Use Astro + Starlight for the documentation platform                  | Accepted |
-| [0002](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0002-pnpm-monorepo-layout/)          | Use a pnpm workspace monorepo for site, packages, and labs            | Accepted |
-| [0003](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0003-client-side-mermaid-rendering/) | Render Mermaid diagrams client-side instead of at build time          | Accepted |
-| [0004](/Principal-AI-Engineer-Interview-Handbook/adr/decisions/0004-single-docs-collection-schema/) | Use one permissive Starlight schema plus a separate structural linter | Accepted |
+| ADR                                                        | Title                                                                 | Status   |
+| ---------------------------------------------------------- | --------------------------------------------------------------------- | -------- |
+| [0001](/adr/decisions/0001-astro-starlight-platform/)      | Use Astro + Starlight for the documentation platform                  | Accepted |
+| [0002](/adr/decisions/0002-pnpm-monorepo-layout/)          | Use a pnpm workspace monorepo for site, packages, and labs            | Accepted |
+| [0003](/adr/decisions/0003-client-side-mermaid-rendering/) | Render Mermaid diagrams client-side instead of at build time          | Accepted |
+| [0004](/adr/decisions/0004-single-docs-collection-schema/) | Use one permissive Starlight schema plus a separate structural linter | Accepted |
+| [0005](/adr/decisions/0005-cloudflare-pages-deployment/)   | Deploy via Cloudflare Pages git integration instead of GitHub Pages   | Accepted |
