@@ -1,0 +1,10 @@
+flowchart LR
+    subgraph Host["Host application (e.g. an IDE or chat client)"]
+        C1[Client 1]
+        C2[Client 2]
+    end
+
+    C1 <-->|"JSON-RPC over stdio"| S1["Server: filesystem\n(exposes Resources)"]
+    C2 <-->|"JSON-RPC over Streamable HTTP"| S2["Server: GitHub\n(exposes Tools)"]
+
+    Host -->|"aggregated tools + resources + prompts"| Model[Model]

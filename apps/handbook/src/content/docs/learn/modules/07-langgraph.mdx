@@ -1,0 +1,341 @@
+---
+title: "Module 7: LangGraph"
+description: Building the agent loop as an explicit, checkpointed state graph — state and reducers, conditional edges, and how checkpointing turns human-in-the-loop and crash recovery into the same mechanism.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 7
+difficulty: advanced
+estimatedMinutes: 45
+prerequisites:
+  - 06-mcp
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import checkpointedGraph from "./07-langgraph.checkpointed-graph.mmd?raw";
+
+## Executive Summary
+
+[Module 5](/learn/modules/05-agent-engineering/) built the agent loop by hand: a `while` loop, a
+step budget, and a tool executor. LangGraph builds the same loop as an explicit, typed state
+graph instead — and the reason that's worth learning as its own thing, not just a stylistic
+preference, is what falls out of making control flow into data: automatic checkpointing after
+every step, which turns "resume after a crash" and "pause for human approval" into the exact same
+mechanism instead of two separate ones you'd otherwise have to build.
+
+## Mental Model
+
+Every piece of Module 5's agent loop maps directly onto three LangGraph concepts:
+
+| Module 5's loop                         | LangGraph concept                                                                 |
+| --------------------------------------- | --------------------------------------------------------------------------------- |
+| The shared context passed between steps | **State** — a typed structure every node reads and updates                        |
+| The decide/act steps                    | **Nodes** — functions computing a partial state update                            |
+| "loop back or finish"                   | **Edges**, including conditional edges that inspect state to choose the next node |
+
+The shift that matters isn't syntax — it's that control flow becomes **data**: an explicit graph
+structure you can inspect, visualize, and — critically — checkpoint after every step, rather than
+control flow implicit in a loop's code structure that only exists while the process is running.
+
+<PrincipalPerspective title="The framework earns its complexity from checkpointing, not from the graph syntax">
+  A `StateGraph` isn't inherently better than Module 5's hand-rolled loop — it's more code to learn
+  for the same observe-decide-act shape. What justifies the framework is what you get for free once
+  state transitions are explicit: persistence, resumability, and human-in-the-loop, covered in Deep
+  Dive below. If you don't need any of those, the hand-rolled loop is a perfectly reasonable choice.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={checkpointedGraph}
+  title="The same agent loop as Module 5, expressed as a checkpointed StateGraph"
+/>
+
+Compare this directly to [Module 5](/learn/modules/05-agent-engineering/)'s agent-loop diagram —
+it's the same shape (decide, route, act, loop back), with one addition: a checkpointer persisting
+state after every node executes. That single addition is what the rest of this module's Deep Dive
+and Production Example sections are actually about.
+
+## Deep Dive
+
+**State and reducers.** A graph's state is typically a `TypedDict`, and each key can declare a
+_reducer_ controlling how a node's partial update merges into existing state. The default is
+overwrite; a common non-default is append (e.g. for a message history list) — and forgetting to
+declare an append reducer on a list-valued key is the single most common LangGraph bug: each node's
+update silently _replaces_ the message history instead of extending it (see Failure Modes).
+
+**Nodes as partial-update functions.** A node takes the current state and returns a `dict` of
+_updates_, not the full state — the graph's runtime merges those updates in (via each key's
+reducer) before the next step. This "super-step" model — schedule the next set of nodes, run them,
+merge their updates, repeat — is what makes parallel branches within one step a natural extension
+rather than a special case.
+
+**Conditional edges.** A conditional edge is a function that inspects the current state and returns
+the name of the next node (or a terminal `END`) — this is exactly Module 5's "decide: loop again or
+finish" branch, now an explicit, inspectable function instead of an `if` statement buried inside a
+loop body.
+
+**Checkpointing is the actual payoff.** After every super-step, the graph's checkpointer persists
+the full state, keyed by a thread ID. Two capabilities fall out of that one mechanism, essentially
+for free:
+
+- **Crash recovery** — resuming a graph run after a process restart is "load the last checkpoint
+  for this thread ID," the same recovery requirement [Module 2](/learn/modules/02-distributed-systems/)
+  covers for any distributed system, now with a concrete, built-in implementation.
+- **Human-in-the-loop** — pausing before or after a specific node and waiting for external
+  approval is the same mechanism as crash recovery: the graph's state is persisted at the pause
+  point, and resuming after a human approves is just continuing from that checkpoint. This is the
+  concrete implementation of [Module 5](/learn/modules/05-agent-engineering/)'s human-approval-gate
+  trade-off.
+
+**Multi-agent as a supervisor pattern.** A "supervisor" node's conditional edge routes to different
+specialized agent nodes (or entire subgraphs) based on state — [Module 5](/learn/modules/05-agent-engineering/#trade-offs)'s
+"multiple specialized agents" option, implemented via conditional edges instead of bespoke
+coordination code.
+
+<ResearchNote source="LangGraph documentation, langchain-ai.github.io/langgraph">
+  The canonical reference for the exact `StateGraph` API, reducer syntax (`Annotated[list,
+  add_messages]` and similar), and the specific checkpointer backends available (in-memory, SQLite,
+  Postgres) — this module covers the architecture and its trade-offs; the docs cover the current API
+  surface.
+</ResearchNote>
+
+## Implementation
+
+The shape of a minimal checkpointed agent graph — illustrative of the concepts above, not a
+verbatim copy of any specific LangGraph version's exact API:
+
+<CodeWalkthrough title="A minimal StateGraph with a reducer and a conditional loop-back edge">
+```python
+from typing import Annotated, TypedDict
+from operator import add
+
+from langgraph.graph import StateGraph, START, END
+from langgraph.checkpoint.memory import MemorySaver
+
+
+class AgentState(TypedDict):
+    # Without the `add` reducer, each node's update would *replace* this list
+    # instead of appending to it — see this module's Failure Modes section.
+    messages: Annotated[list[str], add]
+    steps_taken: int
+
+
+def decide(state: AgentState) -> dict:
+    # In a real graph this calls a model with `state["messages"]` and returns
+    # either a tool-call request or a final answer as the next message.
+    next_message = model_decide(state["messages"])
+    return {"messages": [next_message], "steps_taken": state["steps_taken"] + 1}
+
+
+def execute_tool(state: AgentState) -> dict:
+    observation = run_requested_tool(state["messages"][-1])
+    return {"messages": [observation]}
+
+
+def route(state: AgentState) -> str:
+    if state["steps_taken"] >= 8:
+        return END
+    if requested_a_tool(state["messages"][-1]):
+        return "tools"
+    return END
+
+
+graph = StateGraph(AgentState)
+graph.add_node("decide", decide)
+graph.add_node("tools", execute_tool)
+graph.add_edge(START, "decide")
+graph.add_conditional_edges("decide", route, {"tools": "tools", END: END})
+graph.add_edge("tools", "decide")
+
+app = graph.compile(checkpointer=MemorySaver())
+```
+
+The `route` function's step-count check is the same runaway-loop guard from
+[Module 5](/learn/modules/05-agent-engineering/)'s `BoundedAgentLoop` — LangGraph also enforces its
+own recursion limit as a backstop, but relying on that backstop instead of an explicit budget check
+is the framework equivalent of "the model should know when to stop."
+</CodeWalkthrough>
+
+## Production Example
+
+A graph is compiled with `interrupt_before=["send_email"]` — it will pause immediately before the
+`send_email` node runs, no matter what state led there. A run reaches that point, the checkpointer
+persists the full state (including the drafted email in `messages`), and the graph run stops,
+waiting. A human reviews the pending action against the persisted state — exactly what would be
+sent, to whom — and either approves (resuming the run, which continues from that exact checkpoint
+into `send_email`) or rejects it (updating state and routing elsewhere instead). Crash recovery and
+human approval are the same mechanism here: in both cases, "resume" means "load the checkpoint and
+continue," whether the pause was because a human hadn't approved yet or because the process
+restarted.
+
+## Failure Modes
+
+<FailureMode title="Forgetting a reducer on a list-valued state key">
+  Without an append reducer (like `add` or `add_messages`), a node's update *overwrites* the
+  existing list instead of extending it — the agent silently loses its message history on the very
+  next node, a bug that's easy to miss in testing because a single-node graph run never exposes it.
+</FailureMode>
+
+<FailureMode title="A conditional edge with no path to END">
+  A routing function with a bug — or one that legitimately can't decide to stop under some state —
+  produces the exact runaway loop [Module 5](/learn/modules/05-agent-engineering/#failure-modes)
+  warns about. LangGraph's built-in recursion limit is a backstop, not a substitute for an explicit
+  termination condition in the routing logic itself.
+</FailureMode>
+
+<FailureMode title="An in-memory checkpointer in production">
+  `MemorySaver` loses all checkpointed state on process restart — fine for local development,
+  exactly the same "in-process state doesn't survive past one replica" problem
+  [Module 2](/learn/modules/02-distributed-systems/) covers for the gateway's rate limiter. Any
+  production deployment needs a durable checkpointer backend (SQLite for single-instance, Postgres
+  for anything replicated).
+</FailureMode>
+
+<Warning title="Checkpoint cost scales with state size">
+  Every super-step re-persists the full state — a graph carrying large objects (full documents,
+  large tool outputs) in its state pays that serialization cost on every single step. Keep state
+  lean (references or IDs rather than full payloads where possible); this is the same context-growth
+  cost concern from [Module 5](/learn/modules/05-agent-engineering/#performance), now showing up as
+  checkpoint-write latency and storage cost instead of prompt token cost.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="A StateGraph vs. a hand-rolled loop">
+  A hand-rolled loop (Module 5's `BoundedAgentLoop`) has no framework to learn and full control over
+  every detail. A `StateGraph` costs that learning curve and buys checkpointing, visualization, and
+  human-in-the-loop support essentially for free. If none of those are needed, the hand-rolled loop
+  isn't a worse choice — it's a simpler one for a narrower job.
+</TradeOff>
+
+<TradeOff title="Fine-grained nodes vs. coarse-grained nodes">
+  Many small nodes give finer-grained checkpoint and visualization resolution — you can resume from
+  closer to the exact point of interruption — at the cost of a more complex graph to reason about.
+  Fewer, coarser nodes are simpler to read but checkpoint (and resume) at a coarser granularity.
+</TradeOff>
+
+<TradeOff title="In-memory vs. durable checkpointer backend">
+  `MemorySaver` is fast and needs no external dependency, appropriate for development and testing.
+  A durable backend (Postgres, for instance) is required for anything production and long-running,
+  at the cost of a new dependency and failure mode — the same trade-off
+  [Module 2](/learn/modules/02-distributed-systems/) covers for the gateway's Redis-backed rate
+  limiter, applied to graph state instead of quota counters.
+</TradeOff>
+
+## Security
+
+- **Human-in-the-loop interrupts are the concrete mechanism for [Module 5](/learn/modules/05-agent-engineering/#security)'s
+  approval-gate requirement** — `interrupt_before` on any node with a real side effect is how that
+  requirement actually gets enforced in a LangGraph-based agent, not a separate bolt-on.
+- **Checkpointed state can contain sensitive data** — full conversation history, tool arguments,
+  intermediate results — and the checkpointer's storage backend needs the same access-control and
+  encryption discipline as any other datastore holding that data, not an exemption because it's
+  "just framework internals."
+- **Tool permission scoping and least privilege still apply** exactly as in Module 5 — LangGraph
+  changes how the loop is structured, not what a tool is allowed to do.
+
+## Performance
+
+- **Checkpoint write cost scales with state size**, per the Failure Modes warning above — measure
+  it, especially for graphs carrying large objects in state.
+- **The super-step model parallelizes naturally** — independent branches scheduled in the same step
+  run together rather than needing to be manually parallelized the way a hand-rolled loop would
+  require ([Module 5](/learn/modules/05-agent-engineering/#performance)'s "parallelize independent
+  tool calls" advice is close to automatic here, if the graph is structured to express the
+  independence).
+- **Streaming state updates** as the graph executes gives the same time-to-first-useful-output
+  benefit [Module 3](/learn/modules/03-networking/) covers for token streaming, applied to
+  intermediate graph state instead of model tokens.
+
+## Scaling
+
+- **Many concurrent graph runs (many thread IDs)** need a checkpointer backend that scales with
+  concurrent writes — the same distributed-state considerations from
+  [Module 2](/learn/modules/02-distributed-systems/), now applied to graph state instead of quota
+  counters.
+- **Long-paused human-in-the-loop threads** — a thread waiting days for human approval needs a
+  checkpointer that isn't in-memory, per the Failure Modes section; this is where "in-memory is
+  fine for now" stops being true even for otherwise low-traffic use cases.
+- **Multi-agent supervisor graphs** scale in the number of specialized sub-agents the same way
+  [Module 5](/learn/modules/05-agent-engineering/#trade-offs)'s specialization trade-off describes —
+  more sub-agents means more routing complexity in the supervisor's conditional edge, not a free
+  scaling dimension.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How does LangGraph's checkpointing enable human-in-the-loop?">
+  Checkpointing persists full state after every node. An interrupt before a sensitive node simply
+  stops execution there with state already persisted; resuming after human approval is identical
+  to resuming after a crash — both just continue from the last saved checkpoint.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What's a reducer, and why does forgetting one cause bugs?">
+  A reducer controls how a node's partial state update merges with existing state. Without an
+  append reducer on a list-valued key (like message history), each update overwrites the list
+  instead of extending it, silently losing prior context — the most common LangGraph-specific bug.
+</InterviewQuestion>
+
+<InterviewAnswer title="Why this bug is easy to miss">
+  It only shows up once a graph actually loops more than once — a single-pass test run never
+  exercises the overwrite-vs-append distinction, so this bug commonly ships past initial testing
+  and surfaces only under multi-step production traffic.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="How would you implement a multi-agent supervisor pattern in LangGraph?">
+  A supervisor node whose conditional edge inspects state and routes to different specialized
+  agent nodes or subgraphs based on task type — the same routing-by-task-type idea from
+  [Module 4](/learn/modules/04-ai-infrastructure/)'s model routing, applied to whole agents instead
+  of model calls.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="How do you prevent an infinite loop in a StateGraph?">
+  An explicit step-count or cost check inside the conditional edge's routing logic, not just
+  reliance on LangGraph's built-in recursion limit as a backstop — the same explicit-budget
+  requirement from Module 5, expressed as routing logic instead of a loop condition.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated LangGraph lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Reimplement the bounded agent loop as a checkpointed graph" difficulty="advanced">
+  Take [Module 5](/learn/modules/05-agent-engineering/)'s `BoundedAgentLoop` and reimplement it as a
+  `StateGraph` using the pattern in this module's Implementation section, with a durable
+  checkpointer (SQLite is enough for this exercise). Kill the process mid-run and confirm the graph
+  resumes from its last checkpoint instead of restarting from scratch — the concrete proof that
+  checkpointing delivers the crash-recovery property this module claims.
+</Exercise>
+
+## References
+
+- [LangGraph documentation](https://langchain-ai.github.io/langgraph/) — the canonical source for
+  the current `StateGraph` API, reducers, and checkpointer backends.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the hand-rolled agent loop
+  this module reimplements as a graph.
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — the recovery and durable-state concepts checkpointing implements concretely.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication. |

@@ -1,0 +1,11 @@
+flowchart TD
+    Start([Task received]) --> Budget{Step or cost budget remaining?}
+    Budget -->|No| Handoff[Stop: hand off to a human, task incomplete]
+    Budget -->|Yes| Decide["Model decides: call a tool, ask a question, or finish"]
+    Decide -->|Final answer| Done([Done])
+    Decide -->|Tool call| Perm{Tool call passes permission and schema check?}
+    Perm -->|No| Reject["Reject: error observation appended to context"]
+    Perm -->|Yes| Exec["Execute tool (sandboxed, idempotency key attached)"]
+    Exec --> Observe["Observation appended to context"]
+    Reject --> Observe
+    Observe --> Budget

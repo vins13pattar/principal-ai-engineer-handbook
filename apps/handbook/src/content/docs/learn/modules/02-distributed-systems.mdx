@@ -154,17 +154,20 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+
 class TaskState(StrEnum):
-PENDING = "pending"
-COMPLETE = "complete"
+    PENDING = "pending"
+    COMPLETE = "complete"
+
 
 @dataclass
 class TaskRecord:
-state: TaskState
-result: Any | None = None
+    state: TaskState
+    result: Any | None = None
+
 
 class IdempotentTaskStore:
-"""Illustrative reference implementation, not a load-tested production store.
+    """Illustrative reference implementation, not a load-tested production store.
 
     A real deployment would back this with Redis (SET NX for the atomic claim) or a
     database unique constraint, not an in-process dict guarded by one lock.
@@ -188,17 +191,17 @@ class IdempotentTaskStore:
         async with self._lock:
             self._records[idempotency_key] = TaskRecord(state=TaskState.COMPLETE, result=result)
 
+
 async def submit_task(store: IdempotentTaskStore, idempotency_key: str, work: Any) -> Any:
-existing = await store.claim(idempotency_key)
-if existing is not None:
-if existing.state is TaskState.COMPLETE:
-return existing.result
-raise RuntimeError("task already in progress — retry after a backoff, don't resubmit")
+    existing = await store.claim(idempotency_key)
+    if existing is not None:
+        if existing.state is TaskState.COMPLETE:
+            return existing.result
+        raise RuntimeError("task already in progress — retry after a backoff, don't resubmit")
 
     result = await execute(work)
     await store.complete(idempotency_key, result)
     return result
-
 ```
 
 The `claim()` method is where the whole pattern lives: it checks *and* inserts inside the same
@@ -404,4 +407,3 @@ checkpointed recovery as a full production-grade project.
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-08-05 | Initial publication, expanded from the retired static-prototype draft. |
-```

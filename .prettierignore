@@ -9,3 +9,10 @@ pnpm-lock.yaml
 labs/
 legacy/
 CHANGELOG.md
+
+# Prettier's MDX/remark parser corrupts fenced code blocks that are children of a
+# custom JSX component (e.g. a Python code fence inside <CodeWalkthrough>...</CodeWalkthrough>):
+# it strips indentation from later statements in the block. Content pages routinely nest
+# code fences inside doc components, so hand-format these instead of trusting `prettier --write`.
+# See ADR-0003 for the same class of MDX/JSX-nesting fragility in the Mermaid component.
+apps/handbook/src/content/docs/**/*.mdx

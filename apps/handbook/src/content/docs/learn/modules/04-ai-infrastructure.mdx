@@ -1,0 +1,352 @@
+---
+title: "Module 4: AI Infrastructure"
+description: The layered stack between "a model exists" and "a product reliably uses it" — build-vs-buy, cost modeling, non-determinism, and treating model swaps as deploys.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 4
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 03-networking
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  LabCallout,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import platformStack from "./04-ai-infrastructure.platform-stack.mmd?raw";
+
+## Executive Summary
+
+"AI infrastructure" isn't machine learning research, and it isn't generic backend engineering —
+it's the stack in between: the layer that takes a model (someone else's API or your own) and turns
+it into a product feature that's reliable, affordably priced, and safe to change over time. This
+module is the bridge between the general distributed-systems and networking material in Modules
+2–3 and the AI-specific protocols and frameworks in Modules 5–7: it covers the concerns that show
+up specifically because the "backend" you're calling is a model, not a database.
+
+## Mental Model
+
+An AI platform stack has layers that change at very different rates, and the architecture should
+reflect that mismatch, not fight it:
+
+- **Models and providers** change fastest — new versions, new vendors, pricing changes, sometimes
+  silent quality shifts underneath a stable API.
+- **The gateway/routing layer** (Modules 1–3's material) changes occasionally — new policies, new
+  providers added.
+- **The application** changes slowest — the product surface and prompts built on top.
+
+The core design principle: **treat model and provider choice as a routing decision, not a hardcoded
+dependency.** If swapping the fastest-changing layer requires touching the slowest-changing one,
+the architecture has the dependency direction backwards. This is exactly why
+[`labs/async-ai-gateway`](/build/labs/async-ai-gateway/)'s provider selection is a runtime decision
+(`_select()`, evaluated per-request) rather than a compile-time import — the gateway exists
+specifically to absorb the layer that changes fastest.
+
+<PrincipalPerspective title="The gateway is the seam, not an afterthought">
+  Teams that bolt a provider SDK directly into application code are making a bet that they'll never
+  need to swap providers, add a second one, or route by tenant/cost/latency. That bet is almost
+  always wrong within a year. The gateway layer this module assumes exists isn't extra
+  infrastructure — it's where the "models change fast" reality gets contained before it spreads.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={platformStack}
+  title="The AI platform stack: application, gateway, providers, and an evaluation layer watching all three"
+/>
+
+The evaluation and observability layer wrapping every other layer is deliberate, not decorative:
+unlike a typical backend where "did it work" is a status code, an AI system's failure mode is often
+"it returned 200 with a wrong or low-quality answer" — invisible to conventional monitoring unless
+something is specifically watching for it.
+
+## Deep Dive
+
+**Build vs. buy.** Hosted provider APIs win on time-to-market, no infrastructure to operate, and
+access to frontier model quality without a training budget. Self-hosting wins on cost at
+sufficient scale, latency control (no third-party network hop), data residency and compliance
+requirements, and the ability to fine-tune. The crossover point is a real number, not a vibe —
+model it explicitly: hosted API cost scales linearly with usage; self-hosting has a large fixed
+cost (GPUs, ops headcount) and a much lower marginal cost per request. Below the crossover volume,
+hosted wins; above it, self-hosting wins, assuming the operational capability to run it exists.
+
+**Non-determinism is a first-class engineering concern, not a research detail.** The same prompt
+can produce different outputs on different calls — this breaks the assumption every other module in
+this handbook relies on, that a system under test behaves deterministically. Unit tests that assert
+exact output equality are the wrong tool; the right tool is an evaluation harness that scores
+outputs against a rubric or reference set, run against a fixed test suite on every prompt or model
+change — the AI-specific equivalent of a regression test suite.
+
+**Cost modeling.** Hosted providers typically price input and output tokens separately, with output
+tokens usually costing several times more than input tokens — a detail that changes the economics
+of, say, "summarize this document" (cheap: large input, small output) versus "expand this outline
+into a report" (expensive: small input, large output). Cost needs to be tracked _per request_, not
+just as a monthly bill total, or a single expensive feature can silently dominate spend with no way
+to attribute it.
+
+**A model or prompt change is a deploy, and deserves the same rigor as one.** Swapping a default
+model, bumping a provider's model version, or editing a production prompt changes user-facing
+behavior exactly the way a code deploy does — and deserves the same tools: canary a percentage of
+traffic, compare quality/cost/latency against the baseline, and have a rollback path. Treating a
+prompt edit as "just a config change" with no evaluation gate is how quality regressions ship
+silently.
+
+<ResearchNote source='Chip Huyen, "Building LLM Applications for Production"'>
+  One of the clearest treatments of why traditional software engineering practices (testing,
+  monitoring, deployment) need real adaptation — not abandonment — for AI-backed systems. Directly
+  informs this module's Deep Dive and Failure Modes sections.
+</ResearchNote>
+
+## Implementation
+
+A minimal cost-tracking wrapper — the concrete mechanism behind "track cost per request, not just
+per month" from the Deep Dive section:
+
+<CodeWalkthrough title="Per-request cost tracking">
+```python
+from __future__ import annotations
+
+import time
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+
+# Illustrative pricing table. Real systems load this from a versioned config that
+# changes independently of any code deploy — provider prices change on their schedule,
+# not yours.
+TOKEN_PRICE_PER_1K = {
+    "provider-a/large": {"input": 0.003, "output": 0.015},
+    "provider-b/small": {"input": 0.0005, "output": 0.0015},
+}
+
+
+@dataclass
+class UsageRecord:
+    tenant_id: str
+    provider: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: float
+
+    @property
+    def estimated_cost_usd(self) -> float:
+        price = TOKEN_PRICE_PER_1K.get(self.provider)
+        if price is None:
+            return 0.0
+        return (
+            (self.input_tokens / 1000) * price["input"]
+            + (self.output_tokens / 1000) * price["output"]
+        )
+
+
+async def track_usage(
+    tenant_id: str,
+    provider: str,
+    call: Callable[[], Awaitable[tuple[str, int, int]]],
+    emit: Callable[[UsageRecord], None],
+) -> str:
+    started = time.perf_counter()
+    text, input_tokens, output_tokens = await call()
+    emit(UsageRecord(
+        tenant_id=tenant_id, provider=provider,
+        input_tokens=input_tokens, output_tokens=output_tokens,
+        latency_ms=(time.perf_counter() - started) * 1000,
+    ))
+    return text
+```
+
+`estimated_cost_usd` is a property, computed on demand from the pricing table, rather than baked in
+at call time — so historical usage records can be re-priced if the pricing table is corrected, and
+so the pricing table itself stays the single source of truth instead of drifting across call sites.
+</CodeWalkthrough>
+
+## Production Example
+
+A team wants to switch their default provider from Provider A to a cheaper Provider B. Done naively
+("just change the config and deploy"), a quality regression reaches 100% of traffic before anyone
+notices. Done per this module's Deep Dive: route 5% of traffic to Provider B, run the evaluation
+harness's rubric against both arms' outputs for a fixed period, compare quality score, p95 latency,
+and cost per request side by side. If Provider B holds up, ramp to 25%, then 100%; if quality drops
+below a defined threshold, roll back to 100% Provider A — the same canary-and-rollback shape any
+other production deploy would use, applied to a model swap instead of a code change.
+
+## Failure Modes
+
+<FailureMode title="Silent model degradation">
+  A provider updates the model version behind a stable API endpoint, and output quality shifts —
+  sometimes for the worse — with no error, no status code change, nothing a conventional monitor
+  would catch. Only a running evaluation harness comparing current output quality against a
+  baseline can detect this.
+</FailureMode>
+
+<FailureMode title="Cost runaway from unbounded generation length">
+  A request with no `max_tokens` cap, or a prompt that induces unusually long output, can turn a
+  routine request into a disproportionately expensive one — especially given output tokens' higher
+  price per the Deep Dive section. Cap output length explicitly; don't rely on the model to stop at
+  a "reasonable" length.
+</FailureMode>
+
+<FailureMode title="Evaluation blind spots">
+  An evaluation suite that only tests happy-path prompts misses the failure modes that actually
+  matter in production — adversarial inputs, edge-case formatting requests, and the tail of real
+  user queries the design didn't anticipate. An evaluation suite is only as good as its coverage of
+  what real traffic actually looks like.
+</FailureMode>
+
+<Warning title="Prompt injection is a reliability issue, not just a security one">
+  A model that follows instructions embedded in untrusted input (a document it's summarizing, a
+  webpage it's reading) can be steered into unexpected behavior even without malicious intent
+  behind the input — this shows up as "broken" behavior in evaluation and production monitoring
+  well before anyone frames it as a security finding. See Security, below, for the mitigation side.
+</Warning>
+
+<FailureMode title="Vendor rate-limit surprises during traffic spikes">
+  A provider's rate limit that was never a constraint at normal traffic becomes a hard ceiling
+  during a spike, with the gateway's own admission control (Module 1) doing nothing to prevent
+  it — the constraint lives on the provider's side, not the gateway's, and needs to be modeled and
+  monitored as its own capacity limit.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Hosted API vs. self-hosted model">
+  Hosted wins on speed to ship and zero infrastructure ownership; self-hosted wins on cost at scale,
+  latency control, and compliance/data-residency requirements. Model the crossover volume
+  explicitly (Deep Dive) rather than defaulting to whichever a team is more comfortable with.
+</TradeOff>
+
+<TradeOff title="Synchronous vs. sampled evaluation">
+  Evaluating every production response in real time is the most thorough option but adds latency
+  and cost to every request. Sampling a percentage of traffic for evaluation is cheaper and
+  faster but trades completeness for cost — appropriate once a system has enough volume that a
+  representative sample is statistically meaningful.
+</TradeOff>
+
+<TradeOff title="One large general model vs. several smaller specialized ones, routed by task">
+  A single large model is simpler to operate and reason about. Multiple smaller, cheaper models
+  routed by task (classification-style requests to a cheap fast model, complex reasoning to an
+  expensive capable one) can meaningfully cut cost and latency at the expense of routing complexity
+  and more evaluation surface area to maintain.
+</TradeOff>
+
+## Security
+
+- **Prompt injection**: untrusted content a model processes (documents, web pages, tool outputs)
+  can contain instructions that steer its behavior. Mitigate with clear separation between
+  trusted instructions and untrusted data in the prompt structure, and least-privilege on what
+  tools or data a given model call can actually reach.
+- **Data exfiltration via model output**: a model with access to sensitive context and an output
+  channel (even just its response text) can be tricked into leaking that context — scope what
+  context any single call has access to, matching the actual task's need.
+- **PII in prompts and logs**: prompts and responses often contain user-supplied personal data;
+  logging and observability pipelines need the same PII handling discipline as any other system
+  that touches that data, not an exemption because "it's just a prompt."
+
+## Performance
+
+- **Time-to-first-token vs. tokens/sec throughput** are different numbers that matter for different
+  reasons — the former drives perceived responsiveness (Module 3), the latter drives total request
+  duration for long outputs.
+- **The cost-latency-quality triangle**: cheaper and faster models are usually lower quality, and
+  pushing on any one corner costs on the other two. Make this trade-off an explicit, measured
+  decision per use case rather than a single global default model.
+- **Caching** — semantic or exact-match caching of repeated or similar requests is a real lever for
+  both cost and latency, covered in depth by the planned Semantic Cache lab (see Hands-on Lab).
+
+## Scaling
+
+- **Provider quota management across multiple providers** becomes a real scheduling problem at
+  scale — knowing each provider's remaining quota and routing accordingly, not just falling back
+  reactively after a 429.
+- **Fallback chains need to scale with traffic**, not just exist as a static ordered list — a
+  fallback provider sized for occasional overflow can itself become overwhelmed if the primary
+  degrades under the exact conditions (a broad outage) that push traffic to it.
+- **Multi-region model availability** — not every provider or model is available, or priced the
+  same, in every region, which turns "scale to a new region" into a routing-policy problem, not
+  just an infrastructure one.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How do you decide between a hosted API and self-hosting a model?">
+  Model the crossover point explicitly: hosted cost scales linearly with usage, self-hosting has a
+  large fixed cost and lower marginal cost. Below the crossover volume hosted wins; above it,
+  self-hosting wins if the operational capability exists. Compliance and latency-control
+  requirements can override the pure cost calculation either direction.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How would you detect a provider silently degrading model quality behind a stable API?">
+  A running evaluation harness comparing current output against a quality baseline, on a fixed
+  schedule or sampled traffic — conventional monitoring (status codes, latency) won't catch a
+  "successful but lower quality" response.
+</InterviewQuestion>
+
+<InterviewAnswer title="What the harness actually needs">
+  A fixed set of representative prompts, a scoring rubric (or reference outputs), and a dashboard
+  tracking the score trend over time — the same shape as a regression test suite, but scoring
+  quality instead of asserting exact equality, because the output isn't deterministic.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="intermediate" title="How do you control cost for an LLM-backed feature?">
+  Track cost per request (not just monthly totals), cap output length explicitly, use cheaper
+  models for lower-complexity requests via task-based routing, and cache repeated or
+  semantically similar requests rather than regenerating them.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you evaluate a new model before fully switching to it?">
+  Canary a small percentage of traffic, run the evaluation harness against both arms in parallel,
+  compare quality, latency, and cost side by side, and ramp up gradually with a defined rollback
+  trigger — treat it as a deploy, per this module's Production Example.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+<LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
+  The gateway *is* this module's routing layer — health-aware provider selection and explicit
+  provider requests are the concrete mechanism behind "treat model choice as a routing decision."
+  [Read the full lab documentation →](/build/labs/async-ai-gateway/)
+</LabCallout>
+
+The planned **Model Router** and **Semantic Cache** labs (see the [Roadmap](/roadmap/)) will cover
+task-based routing and request caching from this module in full depth as dedicated projects.
+
+<Exercise title="Add cost tracking to the gateway" difficulty="intermediate">
+  Wire the `UsageRecord` pattern from this module's Implementation section into
+  [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/), emitting a cost-per-request metric
+  alongside its existing RED metrics. Write a test asserting that a request routed through a
+  cheaper provider is reflected as a lower estimated cost than the same request routed through a
+  more expensive one.
+</Exercise>
+
+## References
+
+- Chip Huyen, ["Building LLM Applications for Production"](https://huyenchip.com/2023/04/11/llm-engineering.html)
+- Chip Huyen, *Designing Machine Learning Systems* (O'Reilly)
+- Simon Willison, ["Prompt injection: what's the worst that can happen?"](https://simonwillison.net/2023/Apr/14/worst-that-can-happen/) — the widely-cited original treatment of the failure mode covered in this module's Security section.
+- Eugene Yan, [applied-ml writing on evaluation and LLM system design](https://eugeneyan.com/) — practitioner-level detail on evaluation harness design.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the routing layer this module's Architecture section is built around.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication. |

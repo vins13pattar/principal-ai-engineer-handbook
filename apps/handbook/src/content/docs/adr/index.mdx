@@ -1,7 +1,7 @@
 ---
 title: Architecture Decision Records
 description: Why the handbook platform and its labs are built the way they are, and what would change our minds.
-version: 1.1.0
+version: 1.2.0
 lastUpdated: 2026-08-05
 revisionHistory:
   - version: 1.0.0
@@ -11,6 +11,10 @@ revisionHistory:
   - version: 1.1.0
     date: 2026-08-05
     change: Added ADR-0005 (Cloudflare Pages deployment).
+    author: vinod
+  - version: 1.2.0
+    date: 2026-08-05
+    change: Added ADR-0006 (excluding content MDX from Prettier).
     author: vinod
 category: section-overview
 ---
@@ -43,3 +47,4 @@ one is missing.
 | [0003](/adr/decisions/0003-client-side-mermaid-rendering/) | Render Mermaid diagrams client-side instead of at build time          | Accepted |
 | [0004](/adr/decisions/0004-single-docs-collection-schema/) | Use one permissive Starlight schema plus a separate structural linter | Accepted |
 | [0005](/adr/decisions/0005-cloudflare-pages-deployment/)   | Deploy via Cloudflare Pages git integration instead of GitHub Pages   | Accepted |
+| [0006](/adr/decisions/0006-exclude-content-mdx-from-prettier/) | Exclude content/docs MDX files from Prettier | Accepted |

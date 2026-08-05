@@ -151,33 +151,32 @@ async def _admit(self) -> None:
         raise GatewayOverloadedError("Gateway concurrency limit reached") from exc
 
 async def generate(
-self, prompt: str, _, provider_name: str | None = None, timeout_seconds: float = 15.0,
+    self, prompt: str, *, provider_name: str | None = None, timeout_seconds: float = 15.0,
 ) -> GenerateResponse:
-started = time.perf_counter()
-await self.\_admit()
-try:
-async with asyncio.timeout(timeout_seconds):
-last_error: Exception | None = None
-for attempt in range(1, self.\_max_attempts + 1):
-provider = self.\_select(provider_name)
-try:
-result = await provider.generate(prompt)
-return GenerateResponse(
-provider=result.provider, text=result.text,
-attempts=attempt, latency_ms=(time.perf_counter() - started) _ 1000,
-)
-except (ConnectionError, TimeoutError) as exc:
-last_error = exc
-if provider_name is not None or attempt == self.\_max_attempts:
-raise
-backoff = self.\_base_backoff_seconds \* (2 \*\* (attempt - 1))
-await asyncio.sleep(random.uniform(0, backoff))
-if last_error is not None:
-raise last_error
-finally:
-self.\_capacity.release()
-
-````
+    started = time.perf_counter()
+    await self._admit()
+    try:
+        async with asyncio.timeout(timeout_seconds):
+            last_error: Exception | None = None
+            for attempt in range(1, self._max_attempts + 1):
+                provider = self._select(provider_name)
+                try:
+                    result = await provider.generate(prompt)
+                    return GenerateResponse(
+                        provider=result.provider, text=result.text,
+                        attempts=attempt, latency_ms=(time.perf_counter() - started) * 1000,
+                    )
+                except (ConnectionError, TimeoutError) as exc:
+                    last_error = exc
+                    if provider_name is not None or attempt == self._max_attempts:
+                        raise
+                    backoff = self._base_backoff_seconds * (2 ** (attempt - 1))
+                    await asyncio.sleep(random.uniform(0, backoff))
+            if last_error is not None:
+                raise last_error
+    finally:
+        self._capacity.release()
+```
 
 Two details that separate this from a "works on my machine" version: rate limiting happens before
 the semaphore acquire (rejected requests don't consume concurrency capacity), and an explicitly

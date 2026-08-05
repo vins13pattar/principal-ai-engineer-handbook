@@ -136,6 +136,22 @@ import flow from "./my-page.request-flow.mmd?raw";
 <Mermaid code={flow} title="Descriptive, accessible title" />
 ```
 
+## Code examples inside doc components
+
+Content pages under `apps/handbook/src/content/docs/**` are excluded from Prettier (see
+`.prettierignore` and [ADR-0006](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0006-exclude-content-mdx-from-prettier/)):
+Prettier's MDX formatter was found silently corrupting fenced code blocks nested inside a JSX
+component (like `<CodeWalkthrough>`) — stripping indentation and escaping underscores as Markdown
+syntax — once a blank line appeared inside the fence. Never run `pnpm format` (or your editor's
+format-on-save) against these files. After writing or editing a code example, verify it parses:
+
+````bash
+python3 -c "import ast; ast.parse(open('/dev/stdin').read())" <<< "$(sed -n '/```python/,/```/p' path/to/page.mdx | sed '1d;$d')"
+````
+
+or, more simply, copy the block into a scratch `.py` file and run `python3 -m py_compile` on it
+before committing.
+
 ## Internal links
 
 The site has no base path — it deploys to a domain root on Cloudflare Pages (see

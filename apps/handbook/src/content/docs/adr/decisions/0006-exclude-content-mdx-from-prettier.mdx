@@ -1,0 +1,93 @@
+---
+title: "ADR-0006: Exclude content/docs MDX files from Prettier"
+description: Why Prettier no longer formats content pages, after its MDX/remark parser was found silently corrupting fenced code blocks nested inside JSX doc components.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Accepted.
+    author: vinod
+category: adr
+adrNumber: 6
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={6} status="accepted" date={new Date("2026-08-05")} />
+
+## Status
+
+Accepted. Implemented by adding `apps/handbook/src/content/docs/**/*.mdx` to `.prettierignore`,
+and by repairing six already-corrupted module pages.
+
+## Context
+
+Six Learn module pages (Modules 1, 2, 4, 5, 6, and 7) contain Python code examples inside
+`<CodeWalkthrough>` components — a fenced code block as a child of a custom JSX/MDX component,
+rather than at the top level of the document. Running `pnpm format` (Prettier, `--write`) across
+the repository silently rewrote several of these blocks: indentation was stripped from statements
+following a blank line inside the fence, comments got merged onto the preceding code line, and
+underscores/asterisks in identifiers (`__init__`, `self._admit`) were backslash-escaped as if they
+were Markdown emphasis syntax. The result was Python that no longer parsed, shipped past
+`pnpm format` and `pnpm build` because neither checks that a fenced code block's *contents* are
+valid code in their declared language — only `scripts/lint-content-structure.ts`'s required-heading
+check and Astro's frontmatter schema ran against these pages, and neither would have caught this.
+
+## Problem
+
+Prettier's MDX/remark-based formatter treats a fenced code block nested inside a custom JSX
+component's children differently from one at a document's top level, and — specifically once a
+blank line appears inside that nested fence — drifts from treating the block as an opaque code
+fence into treating some of its lines as Markdown prose (applying Markdown escaping rules to
+underscores and asterisks, and losing the leading whitespace a prose paragraph would ordinarily be
+reflowed without). A minimal reproduction confirmed this: an identical code fence with a blank line
+inside it was left untouched at the top level of an `.mdx` file, but corrupted when the same fence
+was made a child of a JSX component. How do we keep the reliability Prettier gives the rest of the
+codebase without exposing content authors to a formatter that can silently break their code
+examples?
+
+## Options
+
+- **Never put a blank line inside a nested fenced code block.** Technically avoids the trigger, but
+  makes it a landmine for every future contributor who doesn't know the rule, with no lint rule
+  enforcing it and a failure mode (corrupted, unparseable code, not a formatting diff) severe
+  enough that "just don't do the thing" isn't an adequate mitigation on its own.
+- **Stop wrapping code examples in `<CodeWalkthrough>` and other components**, keeping every fence
+  at the document's top level. This works around the bug but gives up the narrative framing
+  `CodeWalkthrough` and similar components provide, for every future code example in the handbook,
+  not just the ones already affected.
+- **Exclude `apps/handbook/src/content/docs/**/*.mdx` from Prettier entirely.** Content pages lose
+  automatic prose/JSX formatting, but authors already control formatting inside fenced code blocks
+  by hand (they're excerpts from real source or illustrative examples, not generated), so the
+  practical loss is address only cosmetic JSX/Markdown formatting outside of code fences — nothing
+  Prettier does inside a `.mdx` file's code fences today can be trusted anyway.
+
+## Decision
+
+Exclude every file under `apps/handbook/src/content/docs/` from Prettier via `.prettierignore`.
+Content authors are responsible for their own formatting in `.mdx` files; `pnpm lint:content` and
+Astro's build-time frontmatter schema remain the automated checks for these pages. The six affected
+pages were repaired by hand and verified by parsing every fenced Python block with Python's own
+`ast.parse()` — a check strong enough to catch this exact failure mode, which neither Prettier nor
+the existing content linter would.
+
+## Consequences
+
+- Content `.mdx` files no longer get automatic formatting — inconsistent spacing or line-wrapping
+  in prose or JSX won't be caught by `pnpm format:check`. This is a real, accepted cost, traded
+  against a bug that silently breaks code correctness rather than just cosmetics.
+- Every future code example nested inside a doc component (`CodeWalkthrough` or otherwise) needs to
+  be verified by the author, not assumed safe because `pnpm format` ran clean — `pnpm verify`
+  passing does not mean a fenced code block's contents are syntactically valid, since nothing in
+  this repository's CI actually parses code inside Markdown/MDX fences today.
+- This ADR is itself evidence for the fix: if Prettier is ever re-enabled for content pages
+  (a newer version fixing the underlying bug, for instance), re-verify with the same
+  `ast.parse()`-per-block check before trusting it, rather than assuming a version bump alone fixed
+  it.
+
+## References
+
+- [Prettier's Markdown/MDX printer](https://github.com/prettier/prettier/tree/main/src/language-markdown) — the component responsible for the behavior described here.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/), [Module 7: LangGraph](/learn/modules/07-langgraph/) — two of the six pages whose code examples this bug corrupted and this ADR's fix repaired.

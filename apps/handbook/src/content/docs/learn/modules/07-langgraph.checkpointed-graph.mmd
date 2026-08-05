@@ -1,0 +1,11 @@
+flowchart TD
+    START([START]) --> Decide["decide node\n(calls the model)"]
+    Decide -->|conditional edge| Route{route on state}
+    Route -->|"tool call requested"| Tools["tools node\n(executes tool call)"]
+    Route -->|"final answer"| END([END])
+    Tools --> Decide
+
+    CP[("Checkpointer\n(persists state after every node)")]
+    Decide -.saves state after.-> CP
+    Tools -.saves state after.-> CP
+    CP -.->|"resume from here after\na crash or a human-in-the-loop pause"| Decide

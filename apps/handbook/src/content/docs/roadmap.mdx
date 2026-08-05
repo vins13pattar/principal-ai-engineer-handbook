@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 1.2.0
+version: 1.3.0
 lastUpdated: 2026-08-05
 revisionHistory:
   - version: 1.0.0
@@ -16,16 +16,22 @@ revisionHistory:
     date: 2026-08-05
     change: Marked v0.3 shipped (Module 2, Module 3, and the first Architecture page published).
     author: vinod
+  - version: 1.3.0
+    date: 2026-08-05
+    change: Marked v0.4 shipped for Modules 4-7. Split the labs schedule out of the version table since a lab is a much larger unit of work than a module and shouldn't gate a version bump.
+    author: vinod
 category: section-overview
 ---
 
-## Current version: v0.3.0 — Distributed Systems, Networking, and the first Architecture page
+## Current version: v0.4.0 — AI Infrastructure, Agent Engineering, MCP, and LangGraph
 
-The documentation platform (v0.1.0) and the first four Learn modules are complete:
+The documentation platform (v0.1.0) and the first eight Learn modules are complete:
 [Module 0](/learn/modules/00-principal-engineer-mindset/) · [Module 1](/learn/modules/01-production-python/) ·
-[Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) ·
-[Module 3: Networking](/learn/modules/03-networking/). The
-[Architecture](/architecture/) section also has its first page:
+[Module 2](/learn/modules/02-distributed-systems/) · [Module 3](/learn/modules/03-networking/) ·
+[Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) ·
+[Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) ·
+[Module 6: MCP](/learn/modules/06-mcp/) · [Module 7: LangGraph](/learn/modules/07-langgraph/). The
+[Architecture](/architecture/) section has its first page:
 [Async AI Gateway](/architecture/systems/async-ai-gateway/), a design-review-style companion to the
 [Build](/build/) section's lab documentation for the same system.
 
@@ -35,20 +41,35 @@ The documentation platform (v0.1.0) and the first four Learn modules are complet
 | ---------- | ------------------------------------------------------------------------------------------------------------ |
 | ~~`v0.2`~~ | ~~Learn Module 0 (Principal Engineer Mindset) and Module 1 (Production Python)~~ — shipped 2026-08-05        |
 | ~~`v0.3`~~ | ~~Learn Modules 2–3 (Distributed Systems, Networking) and the first Architecture page~~ — shipped 2026-08-05 |
-| `v0.4`     | Learn Modules 4–7 (AI Infrastructure, Agent Engineering, MCP, LangGraph) and the Agent Registry lab          |
-| `v0.5`     | Learn Modules 8–9 (RAG, Model Serving) and the Enterprise RAG / Model Router labs                            |
+| ~~`v0.4`~~ | ~~Learn Modules 4–7 (AI Infrastructure, Agent Engineering, MCP, LangGraph)~~ — shipped 2026-08-05            |
+| `v0.5`     | Learn Modules 8–9 (RAG, Model Serving)                                                                       |
 | `v0.6`     | Learn Modules 10–11 (Kubernetes, Cloud)                                                                      |
-| `v0.7`     | Learn Module 12 (Observability) and the Evaluation Platform lab                                              |
+| `v0.7`     | Learn Module 12 (Observability)                                                                              |
 | `v0.8`     | Learn Modules 13–14 (System Design, Leadership) and the Interview section tracks                             |
 | `v0.9`     | Reference lookups and Cheat Sheets for every topic introduced so far                                         |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
+
+Every module below also has a companion lab planned in [Build](/build/), tracked separately since a
+production-quality lab is a much larger unit of work than a module and shouldn't gate a version
+bump the way a module does:
+
+| Lab                                               | Companion module | Status           |
+| ------------------------------------------------- | ---------------- | ---------------- |
+| [Async AI Gateway](/build/labs/async-ai-gateway/) | Module 1, 3      | Production-ready |
+| Distributed Task Engine                           | Module 2         | Planned          |
+| Agent Registry                                    | Module 5         | Planned          |
+| Model Router                                      | Module 4         | Planned          |
+| Semantic Cache                                    | Module 4         | Planned          |
+| Evaluation Platform                               | Module 4, 12     | Planned          |
 
 ## How this roadmap works
 
 Each version bump ships complete modules, not partial ones — a module isn't "in progress" on this
 roadmap, it's either published (with every required section from the [Learn](/learn/) structure)
 or not started. `scripts/lint-content-structure.ts` enforces that a merged module page has every
-required section, so the roadmap can't silently drift from what's actually on the site.
+required section, so the roadmap can't silently drift from what's actually on the site. Labs follow
+their own schedule in the table above rather than gating a module's version bump — a module ships
+once its content is complete, whether or not its companion lab exists yet.
 
 Track progress against this roadmap through the repository's
 [releases](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/releases) and

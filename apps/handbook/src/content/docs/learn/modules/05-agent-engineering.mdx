@@ -1,0 +1,376 @@
+---
+title: "Module 5: Agent Engineering"
+description: The agent loop as a bounded control loop — tool calling, planning vs. execution, memory, termination, and the safety boundaries that keep it from becoming a liability.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 5
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 04-ai-infrastructure
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import agentLoop from "./05-agent-engineering.agent-loop.mmd?raw";
+
+## Executive Summary
+
+An agent is not a smarter model — it's a control loop that lets a model take actions in the world
+and observe the results, repeated until a task finishes or a limit is reached. Agent engineering is
+the discipline of making that loop safe, bounded, and debuggable. Every hard problem that shows up
+in this module — runaway execution, side effects that need to be retry-safe, permission boundaries,
+partial failure — is a control-systems problem the rest of this handbook has already built the
+vocabulary for; agents just apply it to a loop where the "logic" is a model's output instead of
+code you wrote.
+
+## Mental Model
+
+The agent loop, stripped to its essentials: **observe** the current context and state, **decide**
+the next action (call a tool, ask a clarifying question, or declare the task finished), **act** by
+executing that decision, **observe** the result, and repeat. Nothing about this loop is
+mysterious — it's the same observe-decide-act-observe shape as any control system — except that
+the "decide" step is a model call instead of deterministic code, which means every other step has
+to compensate for that non-determinism with structure the model itself doesn't provide.
+
+<EngineeringNote title="The model never executes anything">
+  A model producing a tool call doesn't run code — it emits a structured request (a function name
+  and arguments). Your system validates that request, executes it, and feeds the result back in as
+  the next observation. Every trust and safety boundary in this module exists at that exact seam —
+  between the model's *request* to act and your system's *decision* to actually act on it.
+</EngineeringNote>
+
+## Architecture
+
+<Mermaid
+  code={agentLoop}
+  title="The agent loop as a bounded control loop with permission checks and a step budget"
+/>
+
+Two guards in this diagram are what separate a production agent loop from a demo: the **step/cost
+budget check** runs before every decision, not just at the start — an agent without an enforced
+budget is a resource-usage risk, not a reliability feature. And the **permission and schema check**
+sits between the model's decision and actual execution — the model requesting a tool call is not
+the same as the system agreeing to run it.
+
+## Deep Dive
+
+**Tool calling mechanics.** The model is given a schema describing available tools (name,
+description, argument types) and emits a structured call matching that schema when it decides to
+use one. Your code validates the call against the schema — malformed or hallucinated tool calls
+(a tool name that doesn't exist, or arguments that don't match) get rejected _before_ execution,
+with the rejection fed back as an observation the model can react to, not silently ignored or
+crashed on.
+
+**Planning vs. execution separation.** Some architectures have the model produce a full plan
+upfront, then execute it step by step — more predictable and easier for a human to review before
+anything happens, but less adaptive when reality diverges from the plan mid-execution. Others
+interleave planning and acting every step (the ReAct pattern: reason about the next step, act, observe,
+reason again) — more adaptive to new information, harder to review ahead of time since there's no
+fixed plan to inspect. Neither is strictly better; the right choice depends on how reviewable the
+task needs to be before it starts versus how much it needs to adapt mid-flight.
+
+**Memory: short-term vs. long-term.** Short-term memory is the conversation/context window itself —
+bounded, and expensive to fill (every token in context costs money and latency on every subsequent
+call). Long-term memory is retrieval from an external store (Module 8 covers this in depth). An
+agent that treats its context window as the only memory it has either runs out of room on long
+tasks or pays to re-send everything every turn; one that never uses the context window loses the
+immediate continuity a task needs. Production agents need both, used for what each is actually
+good at.
+
+**Termination conditions.** A step budget (maximum loop iterations), a cost budget (maximum
+estimated spend, per Module 4's cost tracking), a wall-clock timeout, and an explicit "done" signal
+the model can emit are the four levers that keep a loop from running forever. All four should exist
+simultaneously — relying on the model to "know when to stop" is not a termination condition, it's a
+hope.
+
+<ResearchNote source='Yao et al., "ReAct: Synergizing Reasoning and Acting in Language Models"'>
+  The paper that named and popularized the reason-act-observe loop this module's Mental Model
+  section describes — worth reading for how interleaving reasoning traces with actions improves both
+  performance and interpretability over acting without an explicit reasoning step.
+</ResearchNote>
+
+## Implementation
+
+A minimal, bounded agent loop with a step budget and a permission-checked tool executor — the two
+guards from the Architecture diagram, made concrete:
+
+<CodeWalkthrough title="A bounded agent loop with permission-checked tool execution">
+```python
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass, field
+from typing import Any
+
+
+class ToolCallRejected(RuntimeError):
+    pass
+
+
+@dataclass
+class ToolCall:
+    name: str
+    arguments: dict[str, Any]
+
+
+@dataclass
+class AgentStep:
+    kind: str  # "tool_call" | "final_answer"
+    tool_call: ToolCall | None = None
+    final_answer: str | None = None
+
+
+@dataclass
+class Tool:
+    name: str
+    handler: Callable[[dict[str, Any]], Awaitable[str]]
+    allowed_for_task_types: set[str] = field(default_factory=set)
+
+
+class BoundedAgentLoop:
+    def __init__(self, tools: dict[str, Tool], max_steps: int = 8) -> None:
+        self._tools = tools
+        self._max_steps = max_steps
+
+    async def run(
+        self,
+        task_type: str,
+        decide: Callable[[list[str]], Awaitable[AgentStep]],
+    ) -> str:
+        observations: list[str] = []
+
+        for _ in range(self._max_steps):
+            step = await decide(observations)
+
+            if step.kind == "final_answer":
+                return step.final_answer or ""
+
+            assert step.tool_call is not None
+            observations.append(await self._execute(step.tool_call, task_type))
+
+        return "incomplete: step budget exhausted, handing off to a human"
+
+    async def _execute(self, call: ToolCall, task_type: str) -> str:
+        tool = self._tools.get(call.name)
+        if tool is None:
+            return f"error: unknown tool '{call.name}'"
+        if task_type not in tool.allowed_for_task_types:
+            return f"error: tool '{call.name}' not permitted for task type '{task_type}'"
+
+        try:
+            return await tool.handler(call.arguments)
+        except Exception as exc:
+            return f"error: tool '{call.name}' failed: {exc}"
+```
+
+Every failure path — an unknown tool, a permission denial, a tool that raises — returns a string
+observation rather than raising out of the loop. That's deliberate: the model gets to see and react
+to failures the same way it sees successes, instead of the whole task crashing because one tool
+call didn't work. The `allowed_for_task_types` set on each `Tool` is the permission boundary from
+the Architecture diagram, enforced in code, not left to the model's judgment about what it should
+or shouldn't do.
+</CodeWalkthrough>
+
+## Production Example
+
+An agent is tasked with resolving a support ticket, with tools to search a knowledge base, draft a
+reply, and escalate to a human. One loop iteration: the model decides to call `search_kb` with the
+ticket's error message; the tool executes and returns three matching articles as the observation;
+the model, now with that context, decides to call `draft_reply` referencing one of them.
+
+Now the failure case: `draft_reply` raises because the templating service is briefly down. Per the
+Implementation section, that failure becomes an observation — `"error: tool 'draft_reply' failed:
+..."` — not a crashed task. The model, seeing the failure, might retry, might try a different tool,
+or might reach the step budget without resolving the ticket, at which point the loop's fallback
+(`"incomplete: step budget exhausted, handing off to a human"`) fires — a graceful, informative
+stop instead of a silent hang or an unbounded retry storm.
+
+## Failure Modes
+
+<FailureMode title="Runaway loops with no enforced budget">
+  An agent with no step or cost budget can loop indefinitely on a task it can't actually complete,
+  consuming model calls (and their cost) the whole time. The budget check in this module's
+  Architecture section exists specifically to bound this — "the model should know when to stop" is
+  not a mitigation.
+</FailureMode>
+
+<FailureMode title="Tool call hallucination">
+  A model can emit a call to a tool that doesn't exist, or with arguments that don't match the
+  expected schema. Validate every tool call against its schema before execution — never
+  `getattr()` or dynamically dispatch based on unchecked model output.
+</FailureMode>
+
+<FailureMode title="Side-effecting tool calls retried without idempotency">
+  If a tool call with a real side effect (send an email, charge a payment) fails ambiguously — the
+  exact ambiguous-timeout problem from [Module 2](/learn/modules/02-distributed-systems/) — and the
+  agent retries it, the side effect can execute twice. Any tool with a real-world side effect needs
+  the same idempotency-key discipline Module 2 covers for any other distributed system.
+</FailureMode>
+
+<Warning title="Context window overflow silently drops earlier context">
+  A long-running agent task can exceed its context window, silently truncating early context the
+  model actually needed — with no error, just degraded behavior that looks like the model
+  "forgetting" something it was told several steps ago. Long-running tasks need an explicit
+  summarization or offload-to-long-term-memory strategy before hitting that limit, not a hope that
+  it won't come up.
+</Warning>
+
+<FailureMode title="Confident progression past a failed step">
+  A model that treats a failed tool call as a minor setback and proceeds anyway — rather than
+  surfacing the uncertainty or stopping — can produce a confident-sounding final answer built on a
+  step that never actually succeeded. Surfacing failed steps explicitly in the final output (or
+  routing to a human when a required step failed) is safer than letting the model paper over it.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Upfront planning vs. interleaved plan-and-act">
+  A full upfront plan is easier to review before execution starts and gives clearer visibility into
+  what the agent intends to do — at the cost of being less adaptive when the plan doesn't survive
+  contact with real tool results. Interleaved ReAct-style planning adapts step by step, at the cost
+  of having no fixed plan a human can review before anything happens.
+</TradeOff>
+
+<TradeOff title="Full autonomy vs. human-in-the-loop approval gates">
+  Full autonomy is faster and requires no human availability, but every action executes without a
+  check — appropriate for low-risk, easily reversible actions. A human approval gate before
+  high-risk or irreversible actions (sending an email, spending money, deleting data) adds latency
+  and requires a human to be available, in exchange for a real safety backstop the loop itself
+  can't provide.
+</TradeOff>
+
+<TradeOff title="One agent with many tools vs. multiple specialized agents">
+  A single agent with a large tool set is simpler to operate as one system, but its context grows
+  with every tool description and its decision quality can degrade with too many options to choose
+  from. Multiple specialized agents, each with a narrow tool set, coordinated via the ownership and
+  lease patterns from [Module 2](/learn/modules/02-distributed-systems/#interview-questions), scale
+  better in tool-set size at the cost of needing real coordination machinery between them.
+</TradeOff>
+
+## Security
+
+- **Least-privilege tool scoping**: a tool available to an agent should be scoped to exactly what
+  the task needs — the `allowed_for_task_types` check in this module's Implementation section is
+  the concrete mechanism, not an afterthought bolted onto a tool that can already do more.
+- **Human approval gates for irreversible or high-risk actions** — sending external communication,
+  spending money, deleting data — as a hard requirement, not a configurable nicety.
+- **Sandbox any code-execution tool** completely, with no access to the host filesystem, network,
+  or credentials beyond what the specific task explicitly requires.
+- **Prompt injection via tool outputs**: content returned by a tool (a fetched webpage, a document)
+  can contain instructions that steer the *next* loop iteration — the same failure mode
+  [Module 4](/learn/modules/04-ai-infrastructure/) covers for direct prompts, but arriving through
+  an observation instead of the initial prompt, which makes it easy to overlook.
+
+## Performance
+
+- **Context grows every iteration** — each loop step adds tokens to the running context, so cost
+  and latency compound over a long task; summarizing or pruning older observations is often
+  necessary well before hitting the hard context-window limit.
+- **Parallelize independent tool calls** rather than serializing them by default — if a step's
+  decision genuinely doesn't depend on another pending call's result, running them concurrently
+  (bounded, per [Module 1](/learn/modules/01-production-python/)) cuts wall-clock time directly.
+- **Budget per-step latency separately from total task latency** — a single slow tool call
+  shouldn't be allowed to consume the entire task's time budget unnoticed.
+
+## Scaling
+
+- **Many concurrent agent sessions** need the same bounded-concurrency discipline as any other
+  I/O-heavy workload — see [Module 1](/learn/modules/01-production-python/)'s treatment of
+  semaphores and admission control, applied to sessions instead of individual requests.
+- **Long-running tasks need durable, checkpointed state** so a process restart doesn't lose
+  in-progress work — the same recovery requirements [Module 2](/learn/modules/02-distributed-systems/)
+  covers for any distributed system, applied to an agent's own task state.
+- **Multi-agent coordination at scale** needs the same ownership-lease and durable-workflow-state
+  patterns Module 2 covers for coordinating any concurrent workers, not a bespoke agent-specific
+  mechanism.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="foundational" title="Walk me through the agent loop.">
+  Observe the current context, the model decides an action (tool call, clarifying question, or
+  final answer), the system validates and executes that action if it's a tool call, the result
+  becomes the next observation, and the loop repeats until a termination condition fires.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you prevent an agent from looping forever or running up cost?">
+  An enforced step budget, a cost budget tied to estimated spend, and a wall-clock timeout — all
+  three checked before every decision, not just at the start, with a defined graceful-stop behavior
+  (hand off to a human) rather than an abrupt failure.
+</InterviewQuestion>
+
+<InterviewAnswer title="Why three separate budgets, not one">
+  Each catches a different runaway pattern: a step budget catches infinite tool-call loops even if
+  each call is cheap; a cost budget catches a small number of very expensive calls a step budget
+  wouldn't flag; a wall-clock timeout catches a loop that's technically making progress but too
+  slowly to be useful. Relying on only one leaves the other two failure shapes uncovered.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="How do you make a tool call with a real side effect safe to retry?">
+  The same idempotency-key pattern from [Module 2](/learn/modules/02-distributed-systems/) — the
+  tool call carries a stable key, and the tool's handler checks for a prior execution with that key
+  before acting, so a retry (from the agent or from ambiguous failure) doesn't double-execute the
+  side effect.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="When would you use multiple specialized agents instead of one agent with many tools?">
+  When a single agent's tool set has grown large enough to degrade its decision quality, or when
+  different parts of a task genuinely benefit from different context/instructions — at the cost of
+  needing real coordination (ownership, leases, shared durable state) between the agents, which is
+  not free.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated lab exists for this module yet — the **Agent Registry** lab on the
+[Roadmap](/roadmap/) will cover tool registration, permission scoping, and multi-agent coordination
+as a full production-grade project.
+
+<Exercise title="Add idempotent tool execution to the bounded agent loop" difficulty="advanced">
+  Extend the `BoundedAgentLoop` from this module's Implementation section so that `ToolCall` carries
+  an idempotency key, and `_execute` checks a durable store (reusing the
+  `IdempotentTaskStore` pattern from [Module 2](/learn/modules/02-distributed-systems/)) before
+  running a tool's handler. Write a test that retries the same tool call twice with the same key
+  and asserts the handler executes exactly once.
+</Exercise>
+
+<Checklist title="Before running an agent loop against real tools in production">
+- Every tool call is validated against its schema before execution, never dynamically dispatched
+- A step budget, a cost budget, and a wall-clock timeout are all enforced, not just one
+- Every tool is scoped to least privilege for the task type that uses it
+- Irreversible or high-risk actions require a human approval gate
+- Tool calls with real side effects carry an idempotency key
+- Failed steps are surfaced in the final output or routed to a human, not silently papered over
+</Checklist>
+
+## References
+
+- Yao et al., ["ReAct: Synergizing Reasoning and Acting in Language Models"](https://arxiv.org/abs/2210.03629)
+- Anthropic, ["Building Effective Agents"](https://www.anthropic.com/research/building-effective-agents)
+- [OpenAI function calling documentation](https://platform.openai.com/docs/guides/function-calling) — the schema-and-structured-call mechanics referenced in this module's Deep Dive.
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — the idempotency and recovery patterns this module applies to agent tool calls.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication. |

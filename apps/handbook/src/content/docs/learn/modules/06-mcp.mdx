@@ -1,0 +1,331 @@
+---
+title: "Module 6: MCP"
+description: The Model Context Protocol's host/client/server architecture — tools, resources, and prompts as three distinct primitives with three different owners of the invocation decision.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 6
+difficulty: intermediate
+estimatedMinutes: 40
+prerequisites:
+  - 05-agent-engineering
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import hostClientServer from "./06-mcp.host-client-server.mmd?raw";
+
+## Executive Summary
+
+Before MCP, every application that wanted to connect a model to external tools and data wrote its
+own bespoke integration for each one — a filesystem integration for one app, a GitHub integration
+for another, neither reusable by anyone else. The Model Context Protocol (MCP) standardizes that
+connection so an integration written once, as an MCP server, works with any compliant host. This
+module covers MCP's architecture — the host/client/server split, its three primitives, and the
+security model that split enables.
+
+## Mental Model
+
+MCP separates three roles, and the split is the whole design:
+
+- **Host** — the application orchestrating one or more model conversations (a chat client, an IDE).
+  It owns the user-facing experience and the decision to connect to any given server.
+- **Client** — a 1:1 connection manager living inside the host, one per connected server. It
+  handles the protocol mechanics so the host doesn't have to.
+- **Server** — a separate process exposing capabilities (tools, resources, prompts) over the
+  protocol. Servers are meant to be small and focused — one server per integration, not one
+  server trying to expose everything.
+
+This should feel familiar: it's the same aggregation pattern as
+[`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) aggregating multiple LLM providers behind
+one interface, applied to _tool integrations_ instead of model providers. A host connects to many
+independently-maintained MCP servers and presents their combined capabilities to the model as one
+coherent context — the same "many small, focused things behind one aggregation point" shape as
+[Module 4](/learn/modules/04-ai-infrastructure/)'s gateway layer.
+
+## Architecture
+
+<Mermaid
+  code={hostClientServer}
+  title="A host maintains a separate client per connected MCP server, then aggregates their capabilities for the model"
+/>
+
+The one-client-per-server design is deliberate: each connection is independently established
+(its own `initialize` handshake, its own capability negotiation), independently scoped (a
+compromised or misbehaving server affects only its own client, not the whole host), and
+independently transported — nothing requires every server to use the same transport, as the
+diagram's stdio-and-HTTP mix shows.
+
+## Deep Dive
+
+**Three primitives, three different owners of the invocation decision.** This is the detail most
+worth internalizing, because it's a security boundary, not just a taxonomy:
+
+- **Tools** are model-invokable — the model decides to call one, the same function-calling
+  mechanics [Module 5](/learn/modules/05-agent-engineering/) covers, just standardized across
+  servers.
+- **Resources** are application-controlled data — files, database rows, search results — that the
+  _host_, not the model, decides to attach to context (though some hosts also let the model
+  request a resource read explicitly).
+- **Prompts** are user-controlled templates — often surfaced as slash commands or menu items in a
+  host's UI — that the _user_, not the model or the application, decides to invoke.
+
+Choosing the right primitive for a capability is itself a design decision: exposing "read this
+file" as a resource keeps the read under host/user control, while exposing it as a tool hands the
+model autonomy to decide when to read it — a real trade-off covered below.
+
+**Transport.** Every MCP message is JSON-RPC 2.0, carried over one of two transports: **stdio**,
+where the server runs as a local subprocess and communicates over its own stdin/stdout — the
+simplest option, since the process lifecycle _is_ the connection lifecycle and no network auth is
+needed — or **Streamable HTTP**, needed for a remote or shared server, which brings its own session
+and authentication concerns the local case doesn't have.
+
+**Lifecycle.** A connection begins with an `initialize` handshake where client and server declare
+which capabilities they support, proceeds through normal operation, and ends with an explicit
+shutdown. Discovery within each primitive follows the same consistent shape: list, then
+invoke — `tools/list` then `tools/call`, `resources/list` then `resources/read`, `prompts/list`
+then `prompts/get`.
+
+<ResearchNote source="Model Context Protocol specification, modelcontextprotocol.io">
+  The canonical source for the exact JSON-RPC message shapes, capability negotiation fields, and the
+  full list of what each primitive supports — this module covers the architecture; the spec covers
+  the wire format.
+</ResearchNote>
+
+## Implementation
+
+The shape of a minimal MCP tool definition — illustrative of the protocol's structure, not a
+copy of any specific SDK's API surface:
+
+<CodeWalkthrough title="A single tool exposed by an MCP server">
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+
+@dataclass
+class ToolDefinition:
+    name: str
+    description: str
+    input_schema: dict[str, Any]  # JSON Schema describing expected arguments
+
+
+async def handle_tools_list() -> list[ToolDefinition]:
+    return [
+        ToolDefinition(
+            name="search_issues",
+            description="Search open issues in the configured repository by keyword.",
+            input_schema={
+                "type": "object",
+                "properties": {"query": {"type": "string"}},
+                "required": ["query"],
+            },
+        ),
+    ]
+
+
+async def handle_tools_call(name: str, arguments: dict[str, Any]) -> str:
+    if name != "search_issues":
+        raise ValueError(f"unknown tool: {name}")
+
+    query = arguments.get("query")
+    if not isinstance(query, str) or not query.strip():
+        raise ValueError("'query' must be a non-empty string")
+
+    results = await search_issues(query)  # the server's own integration logic
+    return format_results(results)
+```
+
+`handle_tools_call` validates `arguments` explicitly rather than trusting that the model produced
+well-formed input matching the schema it was given — the schema in `tools/list` is a hint to the
+model, not a guarantee the server can skip validating against. This is the exact server-side
+discipline covered in this module's Security section.
+</CodeWalkthrough>
+
+## Production Example
+
+An IDE host connects to two MCP servers for one coding task: a filesystem server exposing the
+current project as **resources**, and a GitHub server exposing **tools** to search issues and open
+pull requests. The user attaches a specific file as context (a resource, under the host/user's
+control per this module's Deep Dive) — the model reads its content, understands the bug being
+fixed, then *decides* to call the GitHub server's `create_pull_request` tool once it has a fix
+ready. Two independently-maintained servers, two different primitive types matching who should
+control each action, aggregated into one coherent task for the model — the production shape the
+Architecture section's diagram describes.
+
+## Failure Modes
+
+<FailureMode title="Tool poisoning via adversarial descriptions">
+  A malicious or compromised server can write a tool description crafted to manipulate the model's
+  behavior beyond what the tool actually does — since tool descriptions are part of the model's
+  context, this is the same prompt-injection risk
+  [Module 4](/learn/modules/04-ai-infrastructure/#security) covers, arriving through a server's
+  self-reported metadata instead of user input. Only connect to servers whose provenance you trust.
+</FailureMode>
+
+<FailureMode title="Servers trusting model-supplied arguments">
+  A server that skips validating `tools/call` arguments against its own schema — assuming the model
+  always produces well-formed input because it was given a schema — is one hallucinated or
+  adversarial argument away from a bug or a security incident. Validate server-side, always, per
+  this module's Implementation section.
+</FailureMode>
+
+<FailureMode title="Missing consent before sensitive tool invocation">
+  A host that invokes any tool — especially a destructive or high-cost one — without a
+  human-in-the-loop approval step for sensitive operations is skipping the exact safety gate
+  [Module 5](/learn/modules/05-agent-engineering/#trade-offs) argues for. This is a host
+  responsibility MCP itself doesn't enforce; a naive host integration can easily omit it.
+</FailureMode>
+
+<FailureMode title="A crashed stdio server with no reconnect logic">
+  Since a stdio server's process lifecycle *is* its connection lifecycle, a crashed server process
+  silently ends that connection. A host with no detection or reconnect logic for this just loses
+  that server's capabilities mid-session with no visible error.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="stdio vs. Streamable HTTP transport">
+  stdio is simpler — no network, no authentication, the process lifecycle IS the connection — but
+  only works for a server running locally alongside the host. Streamable HTTP supports remote and
+  shared servers serving multiple hosts or sessions, at the cost of needing real session and
+  authentication handling the local case never has to think about.
+</TradeOff>
+
+<TradeOff title="One focused server per integration vs. one server exposing everything">
+  Many small, focused servers (the pattern this module's Mental Model section recommends) keep each
+  integration's blast radius small and let hosts connect only to what a task needs. One monolithic
+  server exposing many unrelated capabilities is simpler to deploy as a single unit, but a
+  compromise or bug in it affects everything it exposes at once — the same specialization
+  trade-off [Module 5](/learn/modules/05-agent-engineering/#trade-offs) covers for agents
+  themselves.
+</TradeOff>
+
+<TradeOff title="Exposing a capability as a tool vs. a resource">
+  The same underlying capability — say, "read this file" — can be exposed as a resource (host/user
+  decides when to attach it) or a tool (model decides when to call it). Resources keep a human or
+  the host application in control of what enters context; tools give the model autonomy to fetch
+  what it decides it needs, at the cost of less predictable context growth and a wider action
+  surface for the model to misuse.
+</TradeOff>
+
+## Security
+
+- **Tool and resource descriptions are part of the model's context** — treat an untrusted server's
+  self-reported metadata with the same suspicion as any other untrusted input, per the tool
+  poisoning failure mode above.
+- **Validate every `tools/call` argument server-side**, regardless of the schema the model was
+  given — the schema constrains what a well-behaved client sends, not what a server should assume
+  it received.
+- **Require host-level consent for sensitive operations** — write actions, destructive operations,
+  anything with real-world cost — as a non-optional gate, not a configuration flag defaulting to
+  off.
+- **Scope each server connection to least privilege** — a host shouldn't connect to a server with
+  broader capability (filesystem access, API scope) than the current task actually needs.
+
+## Performance
+
+- **stdio subprocess startup cost** matters if servers are spawned fresh per session rather than
+  reused across a host's lifetime — the same connection-reuse logic
+  [Module 3](/learn/modules/03-networking/) covers for network connections applies to process
+  spawning here.
+- **`tools/list` response size grows with every connected server**, and that whole list typically
+  enters the model's context on each call — the same context-growth cost
+  [Module 5](/learn/modules/05-agent-engineering/#performance) covers for agent loops, driven here
+  by how many servers a host has connected to rather than how many loop iterations have run.
+- **Resource read latency** depends entirely on what's behind the resource — a slow API-backed
+  resource server blocks exactly like any other slow dependency, and needs the same timeout and
+  bounded-concurrency discipline from [Module 1](/learn/modules/01-production-python/).
+
+## Scaling
+
+- **A host connecting to many MCP servers simultaneously** needs the same bounded-concurrency
+  thinking as any fan-out of concurrent connections — see
+  [Module 1](/learn/modules/01-production-python/)'s treatment of semaphores, applied to server
+  connections instead of individual requests.
+- **A shared, remote MCP server serving many hosts or sessions** is a multi-tenant service and
+  needs the same per-tenant isolation [Module 2](/learn/modules/02-distributed-systems/) covers for
+  any shared backend — one host's heavy usage shouldn't degrade another's.
+- **Tool and resource list growth across many connected servers** eventually needs curation — not
+  every capability from every connected server belongs in every model call's context; selective or
+  dynamic exposure becomes necessary well before a host is connected to more than a handful of
+  servers.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="Explain the host/client/server split in MCP and why it exists.">
+  The host orchestrates the overall experience and decides what to connect to; a client is a 1:1
+  connection manager per server, isolating one server's connection from another's; the server
+  exposes capabilities over a standard protocol so it can be reused across any compliant host. The
+  split keeps a misbehaving or compromised server's blast radius limited to its own client
+  connection.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What's the difference between a tool, a resource, and a prompt in MCP?">
+  They differ in who decides to invoke them: the model decides for tools, the host or user decides
+  for resources, and the user explicitly decides for prompts (often via a UI affordance like a
+  slash command). The right primitive for a capability depends on who should control that decision.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How would you secure a host connecting to third-party MCP servers?">
+  Treat every server's tool/resource descriptions as untrusted input (tool poisoning), require
+  human approval gates before sensitive tool invocations, scope each connection to least privilege,
+  and validate that servers you don't control are actually validating their own inputs before
+  trusting their behavior at all.
+</InterviewQuestion>
+
+<InterviewAnswer title="The provenance question interviewers are actually probing for">
+  A strong answer distinguishes servers you wrote and control (lower risk, you validated the code)
+  from third-party servers (higher risk — you're trusting their tool descriptions, their input
+  validation, and their actual behavior sight-unseen). Treating every connected server as equally
+  trustworthy regardless of provenance is the gap this question is checking for.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="foundational" title="When would you choose stdio vs. HTTP transport for an MCP server?">
+  stdio for a server running locally alongside its host, with no need for remote access or multiple
+  simultaneous clients — simpler, no auth needed. Streamable HTTP when the server needs to be
+  remote, shared across multiple hosts, or accessed over a network at all.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated MCP lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Wrap a gateway capability as an MCP tool" difficulty="intermediate">
+  Expose [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/)'s `/v1/generate` endpoint as an
+  MCP tool server with a single tool (`generate_completion`), validating its input schema
+  server-side per this module's Implementation section. Connect it to any MCP-compliant host and
+  confirm the tool is discoverable via `tools/list` and callable via `tools/call`.
+</Exercise>
+
+## References
+
+- [Model Context Protocol specification](https://modelcontextprotocol.io/) — the canonical
+  reference for message shapes, transports, and capability negotiation.
+- Anthropic, ["Introducing the Model Context Protocol"](https://www.anthropic.com/news/model-context-protocol)
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the tool-calling mechanics MCP standardizes across servers.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication. |

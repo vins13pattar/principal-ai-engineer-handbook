@@ -1,0 +1,14 @@
+flowchart TB
+    App["Application (prompts, product logic)"] --> GW["Gateway: routing, policy, quota"]
+    GW --> P1["Hosted provider A"]
+    GW --> P2["Hosted provider B"]
+    GW --> P3["Self-hosted model"]
+
+    Eval["Evaluation and observability\n(quality, cost, latency per request)"] -. watches .-> App
+    Eval -. watches .-> GW
+    Eval -. watches .-> P1
+    Eval -. watches .-> P2
+    Eval -. watches .-> P3
+
+    classDef fast fill:#f4f0ff,stroke:#6c5ce7;
+    class P1,P2,P3 fast;
