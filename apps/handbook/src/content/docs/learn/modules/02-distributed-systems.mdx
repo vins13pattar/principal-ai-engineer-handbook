@@ -1,0 +1,407 @@
+---
+title: "Module 2: Distributed Systems"
+description: Reasoning about partial failure, delivery semantics, consistency, backpressure, and recovery in systems that span services, queues, and regions.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication. Expanded from the retired static-prototype draft (legacy/static-prototype/modules/02-distributed-systems/).
+    author: vinod
+category: learn-module
+moduleNumber: 2
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 01-production-python
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import idempotentRetry from "./02-distributed-systems.idempotent-retry.mmd?raw";
+
+## Executive Summary
+
+Inside a single process, success and failure are usually visible: a function returns, throws, or
+the process crashes. Across a network, a timeout tells you none of those things — the request may
+have failed before reaching the server, succeeded and the response was lost, or still be running
+right now. Distributed systems design isn't about eliminating this ambiguity — you can't — it's
+about building systems that stay correct and recover cleanly _despite_ it. This module covers the
+five ideas that make that possible: partial failure, delivery semantics, consistency-per-invariant,
+backpressure, and recovery.
+
+## Mental Model
+
+**Networks turn ordinary failures into ambiguous failures.** That single sentence should change how
+you write every network call from here on. A local function call has three outcomes: it returned a
+value, it threw, or the process is still running. A network call has a fourth outcome a local call
+never has: _you don't know which of the first three happened_. The request might never have
+reached the server. It might have executed successfully and the response was lost on the way back.
+It might still be executing right now.
+
+Every pattern in this module is a way of removing that ambiguity, cheaply, at the one layer that
+actually needs it — not by making the network reliable (you can't), but by making the _application_
+tolerant of its unreliability:
+
+- **Idempotency** removes the ambiguity of retries — it no longer matters whether the first attempt
+  secretly succeeded, because executing it twice has the same effect as executing it once.
+- **Durable state with checkpoints** removes the ambiguity of "did we crash mid-task" — recovery
+  resumes from the last checkpoint instead of guessing.
+- **Explicit delivery semantics** remove the ambiguity of "did the message arrive" by naming the
+  contract (at-most-once, at-least-once, effectively-once) instead of leaving it implicit.
+
+<EngineeringNote title="Ambiguity is the default, not the exception">
+  A junior engineer's instinct is to treat a timeout as "probably failed, retry it." A Principal
+  Engineer's instinct is to ask: what happens to *my* system if that request actually succeeded and
+  I retry anyway? If the answer is "it double-charges a customer" or "it double-books a resource,"
+  the bug isn't in the network — it's in the assumption that a timeout means failure.
+</EngineeringNote>
+
+## Architecture
+
+The single most common distributed-systems bug in production AI infrastructure is a retried
+request executing twice. Here's the shape of the fix — an idempotency key, checked against a
+durable store _before_ work starts, so a retry of an already-in-flight or already-completed request
+returns the original result instead of re-executing:
+
+<Mermaid
+  code={idempotentRetry}
+  title="An idempotency key deduplicates a retried request instead of executing it twice"
+/>
+
+The architectural decision worth naming explicitly: the compare-and-swap insert into the
+idempotency store happens _before_ the task executes, not after. If it happened after, two
+concurrent retries could both pass the "have I seen this key" check and both execute — the whole
+point of the pattern is that the _first_ thing that happens with a new request is claiming its key,
+atomically, so a concurrent duplicate sees it's already claimed.
+
+## Deep Dive
+
+**Time and ordering.** Clock skew between machines makes wall-clock timestamps unreliable for
+ordering events across a distributed system — two events on different machines can have timestamps
+that disagree with the order they actually happened in. Logical clocks (Lamport timestamps, vector
+clocks) capture _causal_ order — "this event happened because of that one" — without relying on
+synchronized wall clocks. Most systems don't need full vector clocks; they need to know that event
+B depended on event A, which a monotonically increasing version number per entity usually captures
+well enough.
+
+**Delivery semantics are an application contract, not a queue feature.** No message queue delivers
+"exactly once" for free — despite what marketing sometimes implies. What's actually achievable:
+
+- **At-most-once** — a message might be lost, but never duplicated. Cheap, but silently drops work
+  on failure — rarely acceptable for anything that matters.
+- **At-least-once** — a message might be delivered more than once, but never lost. The practical
+  default for anything durable — but it pushes the deduplication problem to the consumer.
+- **Effectively-once** — at-least-once delivery plus idempotent processing at the consumer, which
+  is what the Architecture section's diagram actually implements. This is the only version of
+  "exactly once" that holds up under real network partitions.
+
+**Consistency is chosen per invariant, not globally.** "Should this system be strongly or
+eventually consistent" is the wrong question — a payment ledger and a search index in the _same_
+system usually need different answers. Strong consistency (every reader sees the latest write) is
+worth its coordination cost for invariants like account balances or resource ownership, where being
+wrong is expensive. Eventual consistency is enough — and much cheaper — for things like search
+indexes or activity feeds, where staleness is a minor UX issue, not a correctness bug.
+
+<TradeOff title="CAP, applied per-operation">
+  Under a network partition, a system must choose between consistency (reject the operation, or
+  return possibly-stale data honestly labeled as stale) and availability (serve a response that
+  might be wrong). Most production systems don't make this choice once for the whole system — they
+  make it per operation. A payment debit chooses consistency (reject rather than risk
+  double-spending); a "show cached recommendations" read chooses availability (stale is fine,
+  unavailable is not).
+</TradeOff>
+
+**Backpressure.** When a consumer falls behind a producer, there are exactly four options: block
+the producer, shed load (drop or reject new work), buffer within a bounded limit, or degrade
+service quality. An _unbounded_ queue is not a fifth option — it's a deferred version of the same
+failure, arriving later as an out-of-memory crash instead of a clean, immediate rejection.
+
+**Recovery.** A system recovers cleanly from a crash only if it has: durable state (survives the
+crash), a defined replay boundary (where to resume from), idempotent handlers (so replayed work
+doesn't double-execute — tying directly back to the Architecture section), and operator-visible
+progress (so a human can tell recovery is happening and how far along it is).
+
+<ResearchNote source='Pat Helland, "Life Beyond Distributed Transactions: An Apostate&apos;s Opinion"'>
+  The paper that made "at-least-once delivery plus idempotent processing" the accepted alternative
+  to distributed transactions across service boundaries — required reading for why this module
+  doesn't spend time on two-phase commit.
+</ResearchNote>
+
+## Implementation
+
+A minimal, correct idempotency store using compare-and-swap semantics — the pattern the
+Architecture diagram shows, made concrete:
+
+<CodeWalkthrough title="Idempotent task submission with a compare-and-swap store">
+```python
+from __future__ import annotations
+
+import asyncio
+from dataclasses import dataclass
+from enum import StrEnum
+from typing import Any
+
+class TaskState(StrEnum):
+PENDING = "pending"
+COMPLETE = "complete"
+
+@dataclass
+class TaskRecord:
+state: TaskState
+result: Any | None = None
+
+class IdempotentTaskStore:
+"""Illustrative reference implementation, not a load-tested production store.
+
+    A real deployment would back this with Redis (SET NX for the atomic claim) or a
+    database unique constraint, not an in-process dict guarded by one lock.
+    """
+
+    def __init__(self) -> None:
+        self._records: dict[str, TaskRecord] = {}
+        self._lock = asyncio.Lock()
+
+    async def claim(self, idempotency_key: str) -> TaskRecord | None:
+        """Atomically claims a key for a new task. Returns None if newly claimed,
+        or the existing record if this key has already been submitted."""
+        async with self._lock:
+            existing = self._records.get(idempotency_key)
+            if existing is not None:
+                return existing
+            self._records[idempotency_key] = TaskRecord(state=TaskState.PENDING)
+            return None
+
+    async def complete(self, idempotency_key: str, result: Any) -> None:
+        async with self._lock:
+            self._records[idempotency_key] = TaskRecord(state=TaskState.COMPLETE, result=result)
+
+async def submit_task(store: IdempotentTaskStore, idempotency_key: str, work: Any) -> Any:
+existing = await store.claim(idempotency_key)
+if existing is not None:
+if existing.state is TaskState.COMPLETE:
+return existing.result
+raise RuntimeError("task already in progress — retry after a backoff, don't resubmit")
+
+    result = await execute(work)
+    await store.complete(idempotency_key, result)
+    return result
+
+```
+
+The `claim()` method is where the whole pattern lives: it checks *and* inserts inside the same
+lock, so two concurrent calls with the same key can never both see "not found" — exactly the
+concurrent-retry race the Architecture section's diagram calls out. Everything downstream of that
+one atomic operation follows naturally.
+</CodeWalkthrough>
+
+<Warning title="This lock doesn't survive a process restart">
+  An `asyncio.Lock` and an in-process `dict` are fine for demonstrating the pattern, but they're
+  gone the moment the process restarts — which defeats the purpose for a store whose entire job is
+  surviving retries across failures. A real deployment needs the claim-and-check to be atomic
+  *and* durable: a Redis `SET key value NX` (set-if-not-exists), or a unique constraint in a
+  relational database, both of which survive the process that wrote them.
+</Warning>
+
+## Production Example
+
+A worker crashes midway through processing a task, after doing the expensive work but before
+acknowledging the message. The queue, seeing no acknowledgment within its visibility timeout,
+redelivers the message to a different worker. Without idempotency, the task executes twice — if
+it's "charge a customer" or "send a notification," that's now a visible, embarrassing bug.
+
+Walk it through the pattern above: the redelivered message carries the same idempotency key as the
+original. The new worker calls `claim()`, which returns the *existing* `PENDING` record from the
+crashed attempt — not `None` — so the new worker knows not to blindly re-execute. Depending on the
+system's requirements, it either waits and retries the claim check (if the crashed worker's work
+might still complete via some other recovery path) or takes over the task after confirming via a
+lease/heartbeat mechanism that the original worker is actually dead, not just slow.
+
+This is exactly why the roadmap's planned **Distributed Task Engine** lab (see the
+[Roadmap](/roadmap/)) exists as a dedicated hands-on project — this pattern, plus leases,
+dead-letter handling, and checkpointed recovery, is enough surface area for a full production-grade
+lab on its own.
+
+## Failure Modes
+
+<FailureMode title="Retry storms">
+  Synchronized retries across many failed requests amplify an outage instead of recovering from
+  it — the same failure mode covered in Module 1's Python-specific treatment, but here it's a
+  system-wide property: if every client retries on the same schedule, the "recovered" dependency
+  gets hit with a synchronized spike the moment it comes back up.
+</FailureMode>
+
+<FailureMode title="Split brain">
+  Two nodes both believe they're the leader/owner of a resource, usually after a network partition
+  heals ambiguously. Prevented with fencing tokens (a monotonically increasing value the true
+  owner must present) — not with "just elect a new leader," which is exactly how split brain
+  happens in the first place.
+</FailureMode>
+
+<FailureMode title="Unbounded queues">
+  A queue with no bound "handles" backpressure by deferring the failure from an immediate,
+  clean rejection to a later, messier out-of-memory crash — see the Backpressure discussion in
+  Deep Dive. An unbounded queue isn't a mitigation; it's a delay.
+</FailureMode>
+
+<FailureMode title="Silent data loss from at-most-once assumptions">
+  A system built assuming "the message probably arrived" without an acknowledgment protocol loses
+  data invisibly under load or during deploys — no error, no log line, just missing work that
+  nobody notices until a downstream report doesn't add up.
+</FailureMode>
+
+<FailureMode title="Cascading failures without bulkheads">
+  One slow or failing dependency exhausts a shared resource pool (threads, connections, memory)
+  that healthy requests to *other* dependencies also need — turning one component's failure into
+  an outage for components that had nothing to do with it. Bulkheads (separate resource pools per
+  dependency) contain the blast radius.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Synchronous calls vs. asynchronous messaging">
+  Synchronous calls (HTTP, gRPC) give an immediate answer and a simple mental model, at the cost of
+  coupling the caller's availability to the callee's. Asynchronous messaging decouples them —
+  the caller can proceed even if the consumer is temporarily down — at the cost of a harder
+  debugging story (where is my message right now?) and needing the recovery machinery this module
+  covers. Use synchronous for anything the caller needs an answer to *now*; asynchronous for
+  anything that can tolerate eventual completion.
+</TradeOff>
+
+<TradeOff title="Kafka-style logs vs. RabbitMQ-style queues">
+  A Kafka-style append-only log gives cheap replay (re-read from any offset) and strict per-partition
+  ordering, at the cost of consumers managing their own offsets and read position. A RabbitMQ-style
+  queue gives flexible routing and simpler per-message acknowledgment, at the cost of losing a
+  message once it's acked — no built-in replay. Choose based on whether "replay history" or
+  "flexible routing to many consumer types" matters more for the workload.
+</TradeOff>
+
+<TradeOff title="Strong vs. eventual consistency, revisited">
+  Strong consistency costs latency and availability under partition (a write must be confirmed by
+  enough replicas before it's considered durable). Eventual consistency costs correctness windows
+  (a reader might see stale data for some bounded — or unbounded — time). Per the Deep Dive
+  section, this is a per-invariant decision, not a system-wide one.
+</TradeOff>
+
+## Security
+
+- **Idempotency keys as an information-disclosure and enumeration risk.** A key that's guessable
+  or not scoped to an authenticated tenant lets one caller probe or replay another tenant's
+  requests. Scope every idempotency key to the authenticated identity that created it, and reject a
+  key reused across a different tenant.
+- **Message queue access control.** Topic- or queue-level ACLs so a compromised consumer can't
+  read or publish to topics it has no business touching — least privilege applies to queues the
+  same way it applies to APIs.
+- **Poison-pill messages.** A malformed or adversarially crafted message that crashes every
+  consumer that tries to process it can take down an entire consumer group. Validate and
+  dead-letter malformed messages instead of letting them repeatedly crash consumers.
+- **Encryption in transit and at rest** for any queue carrying sensitive payloads — this is often
+  overlooked because "it's just internal infrastructure," which is exactly the assumption that
+  turns an internal breach into a data-exposure incident.
+
+## Performance
+
+- **Queue depth and consumer lag** are the leading indicators of a system falling behind — by the
+  time end-to-end latency visibly degrades, the queue has usually already been growing for a while.
+- **Head-of-line blocking** in strictly ordered partitions — one slow or stuck message blocks every
+  message behind it in the same partition, even if they're unrelated. Partition by a key that
+  spreads unrelated work across partitions, not by something that clusters it into one.
+- **Batching vs. latency.** Batching amortizes per-message overhead and improves throughput, at the
+  direct cost of per-message latency — the first message in a batch waits for the batch to fill (or
+  its timeout to fire) before any of them are processed.
+
+## Scaling
+
+- **Partition/shard key selection determines whether scaling out actually helps.** A hot key (one
+  tenant, one entity) that all traffic routes through doesn't get faster by adding more
+  partitions — it gets a bigger share of a single partition's ceiling.
+- **Consumer group rebalancing pauses.** Adding or removing consumers in many queue systems
+  triggers a rebalance that briefly pauses processing across the whole group — a scaling operation
+  that's supposed to relieve pressure can itself cause a short latency spike.
+- **Cross-region replication lag** becomes a first-class consistency concern once a system spans
+  regions — "eventually consistent" now has a concrete, measurable lag number that shows up in
+  user-visible staleness, not just an abstract property.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How do you make retries safe?">
+  Idempotency keys with a claim-before-execute pattern (this module's Implementation section),
+  a deduplication window sized to the maximum plausible retry delay, side-effect isolation (don't
+  let a partial execution leave visible partial state), a bounded retry budget, and observability
+  on retry rate as its own metric — a spike in retries is often the earliest signal of a brewing
+  incident.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Kafka or RabbitMQ?">
+  Not answerable in the abstract — compare replay needs, ordering guarantees required, routing
+  complexity, throughput, how much state consumers need to track, and the team's operational
+  familiarity with each. A strong answer names the actual workload characteristics that would
+  tip the decision either way, per this module's Trade-offs section.
+</InterviewQuestion>
+
+<InterviewAnswer title="A concrete tip-the-scale example">
+  "If we need strict ordering and cheap replay for reprocessing historical events, that's Kafka's
+  strength. If we need flexible routing — one event fanning out to different queues based on
+  content — with simpler per-message ack semantics, that's RabbitMQ's strength. Given [workload],
+  I'd choose [X] because [specific requirement] outweighs [the cost we're accepting]."
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="How do you prevent queue collapse under load?">
+  Bound producer rates before they reach the queue, scale consumers proactively on lag (not
+  reactively after collapse), prioritize or shed lower-value traffic first, expire stale work that's
+  no longer useful to process, isolate tenants so one noisy tenant can't starve others, and shed
+  load explicitly before the system saturates — an explicit rejection is always better than an
+  unbounded queue quietly growing toward an OOM crash.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="How would you coordinate multiple agents working on a shared task?">
+  Separate durable workflow state (what's the plan, what's been done) from transient messages
+  (an agent's in-progress reasoning), use ownership leases so two agents don't act on the same
+  sub-task simultaneously, checkpoint progress so a crashed agent's work can be resumed rather than
+  restarted, and design an explicit compensation path for actions that can't simply be retried
+  (anything with a real-world side effect).
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated lab exists for this module yet — the **Distributed Task Engine** lab on the
+[Roadmap](/roadmap/) will cover idempotent submission, leases, retries, dead-letter handling, and
+checkpointed recovery as a full production-grade project.
+
+<Exercise title="Make the reference idempotency store durable" difficulty="advanced">
+  Take the `IdempotentTaskStore` from this module's Implementation section and reimplement its
+  `claim()` method against Redis, using `SET key value NX` for the atomic claim-if-absent
+  operation instead of an in-process `asyncio.Lock`. Write a test that starts two concurrent
+  `submit_task()` calls with the same idempotency key and asserts the underlying work executes
+  exactly once — the property this whole module is built around.
+</Exercise>
+
+## References
+
+- Martin Kleppmann, *Designing Data-Intensive Applications* — chapters 8 and 9 (distributed
+  systems trouble, consistency and consensus) are the deepest treatment of this module's topics
+  available in one book.
+- Leslie Lamport, ["Time, Clocks, and the Ordering of Events in a Distributed System"](https://lamport.azurewebsites.net/pubs/time-clocks.pdf) — the original logical-clocks paper.
+- Pat Helland, ["Life Beyond Distributed Transactions: An Apostate's Opinion"](https://www.ics.uci.edu/~cs223/papers/cidr07p15.pdf)
+- The [AWS Builders' Library](https://aws.amazon.com/builders-library/) articles on retries,
+  exponential backoff and jitter, and idempotency — practitioner-level detail, not just theory.
+- Google, *Site Reliability Engineering* — chapter 22, "Addressing Cascading Failures."
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication, expanded from the retired static-prototype draft. |
+```

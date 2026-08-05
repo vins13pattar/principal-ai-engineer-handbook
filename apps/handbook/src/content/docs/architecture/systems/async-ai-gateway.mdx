@@ -1,0 +1,250 @@
+---
+title: "Architecture: Async AI Gateway"
+description: A reference architecture for a multi-tenant gateway in front of multiple LLM providers — request flow, failure modes, cost, and production deployment.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication, backed by the labs/async-ai-gateway implementation.
+    author: vinod
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import requestFlow from "../../build/labs/async-ai-gateway.request-flow.mmd?raw";
+
+## Problem
+
+An application that calls an LLM provider directly inherits every one of that provider's failure
+modes with none of the protection a gateway would add: a slow provider makes every caller slow, a
+provider outage is a full outage, and nothing stops one caller's traffic spike from starving every
+other caller sharing the same upstream quota. The problem this architecture solves: sit a gateway
+between application traffic and multiple LLM providers that protects itself, protects the providers
+behind it, and gives every tenant a fair, isolated share of capacity — without becoming so complex
+that operating it is harder than the problem it solves.
+
+## Requirements
+
+**Functional:**
+
+- Route a request to a specific provider (explicit selection) or let the gateway choose the
+  healthiest available one (automatic selection).
+- Support both request/response completions and token-by-token streaming.
+- Resolve tenant identity from verified credentials, not a trusted header alone.
+
+**Non-functional:**
+
+- Bounded p99 latency under load — a caller should get a fast, honest rejection before an
+  unboundedly slow success.
+- Bounded blast radius — one misbehaving provider or one noisy tenant must not degrade service for
+  everyone else.
+- Horizontally scalable across stateless replicas, with no single replica as a bottleneck.
+- Safe to redeploy at any time — in-flight requests drain cleanly instead of being killed mid-response.
+
+## Constraints
+
+- Runs as multiple stateless replicas behind a load balancer; nothing can be safely kept in one
+  replica's memory if it needs to be correct across all of them (see Module 2's treatment of this
+  exact constraint for the rate limiter, below).
+- Every LLM provider is a third-party HTTP API with its own rate limits, no uptime SLA the gateway
+  controls, and latency the gateway cannot influence — only route around.
+- No single piece of supporting infrastructure (a Redis instance, say) may become a hard dependency
+  whose outage is a full gateway outage; every such dependency needs an explicit degraded-mode
+  behavior.
+- Tenant identity in the production-hardened path comes from a verified JWT — an
+  easily-spoofed header is acceptable only for the unauthenticated demo path, never the real one.
+
+## Request Flow
+
+<Mermaid
+  code={requestFlow}
+  title="A request's path through the gateway, from identity verification to response"
+/>
+
+The order of these steps is the architecture, not an implementation detail: identity is verified
+_before_ quota is checked (an unauthenticated caller shouldn't consume a tenant's quota), quota is
+checked _before_ admission control (a rejected-for-quota request shouldn't occupy a concurrency
+slot), and the deadline wraps the entire retry loop rather than each individual attempt (a caller's
+timeout budget is a budget for the whole operation, retries included) — see
+[Module 1](/learn/modules/01-production-python/)'s Architecture section for the code-level version
+of this same reasoning.
+
+## Failure Modes
+
+<FailureMode title="A provider degrades without fully failing">
+  The harder case is not a provider returning errors — that's easy to detect — but a provider that
+  stays up while getting slower. Health-aware selection tracks latency, not just error rate,
+  specifically so a "technically successful but too slow" provider gets deprioritized before it
+  drags down every request routed to it.
+</FailureMode>
+
+<FailureMode title="Redis becomes unavailable">
+  If distributed rate limiting depends on Redis and Redis goes down, the gateway must make an
+  explicit choice, not an accidental one: fail closed (protect spend and quota controls, at the cost
+  of availability) or fail open with a tighter local emergency limit (protect availability, at the
+  cost of weaker quota enforcement). Silently doing neither — crashing, or hanging on a Redis call
+  with no timeout — is the actual failure mode to design against.
+</FailureMode>
+
+<FailureMode title="One tenant's traffic spike starves another tenant">
+  Without per-tenant isolation, a single tenant's burst can consume the shared concurrency pool and
+  shared provider quota that every other tenant also depends on. Per-tenant rate limiting (see
+  Trade-offs, below) exists specifically to contain this.
+</FailureMode>
+
+<FailureMode title="A rolling deploy kills in-flight requests">
+  A replica that receives SIGTERM and exits immediately drops every request it was mid-processing.
+  Graceful draining — stop accepting new traffic, wait for active requests to finish within a
+  bounded timeout, then exit — is what turns a routine deploy from a guaranteed blip into a
+  non-event. See [Module 1](/learn/modules/01-production-python/)'s Production Example for the
+  actual draining implementation this depends on.
+</FailureMode>
+
+## Scaling
+
+- **Stateless replicas scale horizontally** by design — the harder scaling question is what state
+  _isn't_ actually stateless. An in-process, per-replica rate limiter is the concrete example: it
+  scales the wrong way, silently multiplying each tenant's effective quota by the replica count
+  (`replica_count ×` their real limit) — the exact trade-off [Module 2](/learn/modules/02-distributed-systems/)
+  walks through in detail.
+- **Outbound connections to providers can hit ephemeral-port or connection-pool ceilings** at high
+  fan-out, particularly behind NAT — a scaling failure mode that shows up as intermittent
+  connection errors under load, not a clean capacity error (see
+  [Module 3](/learn/modules/03-networking/)'s Scaling section).
+- **Autoscale on saturation, not CPU.** Queue-wait time and concurrency-slot saturation are leading
+  indicators of overload for an I/O-bound gateway; CPU usage tends to stay flat right up until the
+  system falls over.
+
+## Security
+
+- Tenant identity from a verified JWT (issuer, audience, expiry, key rotation via JWKS in
+  production) — never a client-supplied header alone.
+- Tenant-tier-scoped provider and model access policy, enforced at the routing layer, not left to
+  the caller's honesty.
+- Secrets (JWT signing keys, Redis credentials, provider API keys) injected at runtime from a
+  secrets manager or environment, never committed to configuration.
+- Redis connections authenticated and encrypted in transit in any real deployment — an internal
+  cache is still a credential and quota store, not a throwaway component.
+- Audit events emitted for policy denials and any privileged provider selection, so "who was denied
+  what, and why" is answerable after the fact.
+
+## Trade-offs
+
+<TradeOff title="A demo entry point vs. a security-hardened entry point">
+  Keeping an unauthenticated demo path (`x-tenant-id` header, no verification) separate from the
+  JWT-and-policy-aware production path keeps the reliability patterns (bounded concurrency,
+  deadlines, retries, health-aware routing) legible on their own, without every example also
+  threading through an identity provider. A real deployment collapses these into one app with the
+  security layer always on — the split exists for teaching clarity, not as a recommended production
+  topology.
+</TradeOff>
+
+<TradeOff title="In-process vs. distributed rate limiting">
+  Covered in full in [Module 2](/learn/modules/02-distributed-systems/): in-process is simpler and
+  has no external dependency, but is wrong the moment there's more than one replica. Distributed
+  (Redis-backed) rate limiting is correct across replicas at the cost of a new dependency and a new
+  failure mode — what enforcement does when that dependency is unavailable (see Failure Modes,
+  above).
+</TradeOff>
+
+<TradeOff title="Automatic provider fallback vs. an explicit provider request">
+  Automatic fallback maximizes availability — if the requested provider is unhealthy, try another.
+  But a caller who explicitly requested a specific provider (for cost, compliance, or data-residency
+  reasons) should never be silently rerouted; this architecture only auto-falls-back when no
+  specific provider was requested, treating an explicit request as an intent that overrides
+  availability optimization.
+</TradeOff>
+
+## Cost
+
+- **Upstream provider cost (tokens/API calls) is almost always the dominant line item** — far
+  exceeding the compute cost of running the gateway itself. Architecture decisions that reduce
+  wasted provider calls have outsized cost leverage compared to gateway-side optimization.
+- **Circuit breaking avoids paying for calls to a provider that's already failing** — every call a
+  broken circuit prevents is a call that would have been billed and still failed.
+- **Disconnect detection on streaming responses avoids paying for abandoned work** — a client that
+  closes its connection mid-stream shouldn't keep the gateway pulling (and paying for) tokens no
+  one will see; see [Module 3](/learn/modules/03-networking/)'s Production Example for the exact
+  mechanism.
+- **Redis and observability infrastructure are real but secondary costs** — worth optimizing only
+  after the provider-cost and wasted-work levers above have been addressed.
+
+## Observability
+
+- **RED metrics** (rate, errors, duration) per provider and per tenant, not just globally — a
+  single aggregate latency number hides which tenant or provider is actually degraded.
+- **Queue-wait time tracked separately from provider execution time** — otherwise a system stuck
+  queueing for concurrency slots looks identical to one that's genuinely slow to process (see
+  [Module 1](/learn/modules/01-production-python/)'s Failure Modes section).
+- **Distributed traces spanning identity verification, quota decision, routing, retries, and the
+  outbound provider call** — enough to answer "where did this specific slow request actually spend
+  its time" without guessing.
+- **Streaming-specific telemetry**: time-to-first-token and stream duration as separate percentile
+  distributions, plus a disconnect-rate counter distinct from the completion-rate counter (see
+  [Module 3](/learn/modules/03-networking/)'s Implementation section).
+- **Structured logs correlated by request and trace ID**, deliberately excluding prompt or response
+  content to avoid leaking sensitive data into log storage.
+
+## Production Deployment
+
+<Checklist title="Before this architecture is production-ready">
+  - Rolling or canary rollout with automatic rollback criteria tied to error-rate/latency SLO breach
+  - Graceful draining wired into the deploy process, not just implemented in code - Pod disruption
+  budgets and topology spread configured if running on Kubernetes - Secrets (JWT keys, Redis
+  credentials, provider API keys) sourced from a secrets manager, rotated on a schedule - Runbooks
+  written for: provider outage, Redis outage, a tenant quota incident, and general overload -
+  On-call ownership and escalation path documented, not assumed
+</Checklist>
+
+This checklist mirrors the lab's own
+[`PRODUCTION_READINESS.md`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/PRODUCTION_READINESS.md) —
+treat an unchecked item there as a known gap against this architecture, not an oversight.
+
+## Interview Questions
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="Design a multi-tenant gateway in front of several LLM providers, from scratch."
+>
+  A strong answer walks the Request Flow order above and explains *why* that order (identity before
+  quota, quota before admission, deadline wrapping retries) rather than just listing the components.
+  Weak answers list technologies (Redis, JWT, circuit breaker) without explaining the ordering that
+  makes them work together correctly.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="How do you decide fail-open vs. fail-closed when a supporting dependency like Redis goes down?"
+>
+  Anchor the answer to what the dependency protects: if it's protecting spend or hard abuse limits,
+  fail closed. If it's protecting a soft quota where availability matters more than perfect
+  enforcement, fail open with a tighter local emergency limit. The wrong answer is "it depends" with
+  nothing after it — name the concrete factor that decides it.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="How would this architecture change to serve multiple regions?"
+>
+  Expect a candidate to raise: per-region gateway deployments to keep provider calls low-latency,
+  what tenant quota state needs to be globally consistent versus region-local, and how health-aware
+  provider selection interacts with region-specific provider availability and pricing. There's no
+  single right answer — the interview signal is whether the candidate identifies which pieces of
+  this architecture are the ones that get harder, rather than assuming multi-region is a free
+  scaling dimension.
+</InterviewQuestion>
+
+<LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
+  This architecture is backed by a real, tested implementation, not a diagram alone. [Read the lab
+  documentation →](/build/labs/async-ai-gateway/)
+</LabCallout>

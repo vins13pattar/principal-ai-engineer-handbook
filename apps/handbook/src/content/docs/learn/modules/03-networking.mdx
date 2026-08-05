@@ -1,0 +1,383 @@
+---
+title: "Module 3: Networking"
+description: The connection lifecycle, streaming protocols, load balancing, and latency budgets that shape production AI infrastructure — from TLS handshakes to token-by-token streaming.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 3
+difficulty: intermediate
+estimatedMinutes: 45
+prerequisites:
+  - 02-distributed-systems
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  LabCallout,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import streamingPath from "./03-networking.streaming-path.mmd?raw";
+
+## Executive Summary
+
+"It's just HTTP" undersells what actually happens between a client request and a response —
+especially for AI infrastructure, where responses increasingly stream token-by-token instead of
+arriving all at once. This module covers the network layer decisions that determine whether that
+streaming response reaches a user smoothly or gets silently buffered into one big chunk by a proxy
+three hops away: connection lifecycle overhead, streaming protocol choice, load balancing, and the
+latency budget every request actually spends.
+
+## Mental Model
+
+Every network request pays a _setup_ cost before it pays a _work_ cost, and for short requests the
+setup cost often dominates: DNS resolution, then a TCP handshake, then (for HTTPS) a TLS handshake,
+_before_ a single byte of the actual request is sent. Connection reuse (`keep-alive`) is the single
+highest-leverage optimization in this module because it amortizes that setup cost across many
+requests instead of paying it every time.
+
+For streaming responses specifically — the shape of every LLM completion API — add a second mental
+model on top: **time-to-first-byte (or first-token) is a separate, often more important, metric
+than total duration.** A response that takes 8 seconds total but starts streaming within 200ms
+feels fast to a user watching text appear. A response that takes 3 seconds total but arrives as one
+block after a 3-second silence feels slow — even though it's objectively faster end to end.
+
+<EngineeringNote title="Streaming is a UX decision as much as a protocol decision">
+  The reason AI infrastructure cares about this module more than most backend systems:
+  token-by-token streaming is now the default UX for LLM output, and every intermediary between your
+  gateway and the user — proxies, CDNs, load balancers — has to be *streaming-transparent* for that
+  UX to survive the trip. One misconfigured buffering proxy and a beautifully streamed response
+  arrives at the browser as one silent block.
+</EngineeringNote>
+
+## Architecture
+
+The path a streamed LLM response takes from gateway to client, and the two places production
+systems most often get it wrong:
+
+<Mermaid
+  code={streamingPath}
+  title="A streamed response's path from gateway to client, and where streaming silently breaks"
+/>
+
+Two architectural decisions this diagram makes explicit:
+
+1. **Every hop between the gateway and the client has to forward bytes as they arrive**, not buffer
+   the full response first. This is an infrastructure-wide property, not something the application
+   layer can fix alone — a single buffering proxy anywhere in the path defeats streaming for every
+   request that passes through it.
+2. **Disconnect detection happens at the gateway, per chunk**, not just once at the start. A client
+   that closes its connection mid-stream should stop the gateway from continuing to pull (and pay
+   for) tokens from the upstream provider — covered concretely in the Production Example below.
+
+## Deep Dive
+
+**Connection setup cost.** A fresh HTTPS connection pays, in order: DNS resolution (unless cached),
+a TCP handshake (one round trip), and a TLS handshake (one round trip for TLS 1.3, effectively zero
+extra round trips with TLS 1.3's 0-RTT resumption for a previously-seen server). For a request to a
+server one network hop away, that's easily 2-3 round trips of pure setup before any application
+data moves — which is why a service making many short-lived requests to the same upstream should
+almost always reuse connections instead of opening a new one per request.
+
+**HTTP/1.1 vs HTTP/2 vs HTTP/3.** HTTP/1.1 sends one request at a time per connection (pipelining
+existed but was never widely deployed), so clients open multiple connections to get concurrency.
+HTTP/2 multiplexes many requests over _one_ TCP connection — but because it's still built on TCP, a
+single lost packet stalls _every_ multiplexed stream on that connection until it's retransmitted
+(TCP head-of-line blocking, now shared across requests that have nothing to do with each other).
+HTTP/3, built on QUIC over UDP, gives each stream independent loss recovery — a lost packet on one
+stream no longer stalls the others. For AI infrastructure specifically, this matters most when
+multiplexing many concurrent streaming completions over a shared connection.
+
+**DNS resolution and caching.** DNS TTLs create a real trade-off: cache aggressively and save
+resolution round trips, or cache conservatively and pick up infrastructure changes (a failed-over
+load balancer IP, a rotated upstream) quickly. A client that caches a resolved IP far past its TTL
+can keep routing to a dead backend for uncomfortably long after a failover — this is a common,
+confusing production bug ("why is traffic still hitting the old load balancer 20 minutes after we
+switched DNS?").
+
+**Streaming protocol choice: SSE vs. WebSockets vs. gRPC streaming.** Server-Sent Events (SSE) is
+the simplest option for one-directional, server-to-client token streaming — it's plain HTTP
+(`text/event-stream`), works through most existing HTTP infrastructure without special handling,
+and reconnects automatically in browsers. WebSockets give full bidirectional communication, at the
+cost of more infrastructure that needs to explicitly support the protocol upgrade (some proxies and
+load balancers need extra configuration). gRPC streaming is efficient and strongly typed, but
+requires HTTP/2 support end-to-end, including through any intermediary — a much bigger operational
+ask than "just serve `text/event-stream`." For a one-directional LLM completion stream, SSE is
+usually the right default specifically because of how little infrastructure it demands.
+
+**Load balancing: L4 vs. L7.** A Layer 4 (transport-layer) load balancer routes based on IP and
+port without looking at application content — fast, low-overhead, but blind to what's actually
+in the request. A Layer 7 (application-layer) load balancer can route on HTTP headers, paths, or
+even request content — enabling things like routing by tenant or API version — at the cost of
+terminating and inspecting more of the connection, adding latency and CPU cost per request.
+
+<ResearchNote source='Jeff Dean, "Numbers Every Programmer Should Know"'>
+  A round trip within the same datacenter is roughly 0.5ms; a round trip to a different continent is
+  100-150ms. These numbers are decades old and the constants have shifted somewhat, but the *ratios*
+  between them — same-rack vs. same-datacenter vs. cross-region — still shape every latency budget
+  decision in this module.
+</ResearchNote>
+
+## Implementation
+
+The disconnect-aware SSE streaming loop, from the actual production endpoint in
+[`labs/async-ai-gateway`](/build/labs/async-ai-gateway/):
+
+<CodeWalkthrough title="Client-disconnect-aware SSE streaming, from production_app.py">
+```python
+@app.post("/v1/stream")
+async def stream(request: Request, request_body: GenerateRequest, ...) -> StreamingResponse:
+    async def event_stream() -> AsyncIterator[str]:
+        log_event("stream.started", tenant_id=tenant, provider=request_body.provider)
+        try:
+            async for chunk in gateway.stream(request_body.prompt, provider_name=request_body.provider):
+                if await request.is_disconnected():
+                    log_event("stream.client_disconnected", tenant_id=tenant)
+                    break
+                yield format_sse_chunk(chunk)
+        finally:
+            log_event("stream.finished", tenant_id=tenant)
+
+    return StreamingResponse(event_stream(), media_type="text/event-stream")
+
+````
+
+The `is_disconnected()` check runs on *every* chunk, not once at the start — a client can disconnect
+at any point during a long stream, and checking only once would miss every disconnect after the
+first token. This is the direct implementation of the Architecture section's second design
+decision: stop pulling tokens from the upstream provider the moment nobody is listening.
+</CodeWalkthrough>
+
+Pairing that with time-to-first-token measurement — a metric this module's Mental Model section
+argues matters more than total duration — from
+[`stream_telemetry.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/stream_telemetry.py):
+
+```python
+def record_first_token(self, started_at: float) -> None:
+    self.first_token_ms.append((time.perf_counter() - started_at) * 1000)
+````
+
+Tracked as its own percentile distribution (p50/p95/p99), separate from total stream duration — so
+a dashboard can distinguish "streams are starting slowly" from "streams are running long," which
+need entirely different fixes.
+
+## Production Example
+
+A user opens a chat UI, sends a prompt, and closes the browser tab three seconds into a ten-second
+LLM response. Without disconnect detection, the gateway keeps pulling tokens from the upstream
+provider for the full ten seconds — burning real, metered compute cost on a response nobody will
+ever see. With the `is_disconnected()` check from the Implementation section, the gateway notices
+the closed connection on the very next chunk and stops pulling from the provider immediately.
+
+At meaningful scale — thousands of concurrent streams, some fraction of users always closing tabs
+mid-response — this isn't a cleanliness nicety, it's a direct, measurable cost line. This is also
+why `StreamTelemetry` tracks `disconnected` as its own counter, separate from `completed`: a rising
+disconnect rate is a real production signal (are responses too slow to keep users waiting for the
+end? is a client bug closing connections early?) that a "total requests served" metric would
+completely hide.
+
+## Failure Modes
+
+<FailureMode title="Buffering proxies breaking streaming">
+  A reverse proxy configured with response buffering enabled (a common default, e.g. nginx's
+  `proxy_buffering on`) collects the entire upstream response before forwarding any of it — turning
+  a beautifully streamed, token-by-token response into one silent block that arrives all at once.
+  This is the single most common way streaming quietly breaks in production, and it's invisible in
+  local development where the client often talks directly to the gateway with no proxy in between.
+</FailureMode>
+
+<FailureMode title="HTTP/2 head-of-line blocking across multiplexed streams">
+  Multiple concurrent streaming completions sharing one HTTP/2 connection all stall together if a
+  single TCP packet is lost — a completely unrelated slow or congested stream can visibly stutter
+  every other stream sharing that connection, a direct consequence of HTTP/2 being multiplexed over
+  one TCP connection (see Deep Dive).
+</FailureMode>
+
+<FailureMode title="Overly aggressive DNS caching">
+  A client or resolver caching a resolved IP well past its TTL keeps routing to infrastructure that
+  no longer exists after a failover or migration — a confusing failure because it looks like "the
+  new backend isn't working" when the real problem is that some fraction of traffic never
+  re-resolved.
+</FailureMode>
+
+<FailureMode title="Idle connection timeouts closing keep-alive connections mid-use">
+  A load balancer or proxy with an idle timeout shorter than the client's keep-alive assumption
+  closes connections the client believes are still open — producing intermittent "connection reset"
+  errors that look random but correlate exactly with the idle-timeout window whenever you check.
+</FailureMode>
+
+<Warning title="The cold-connection tax on short requests">
+  A service making many short, one-off requests to a downstream that doesn't reuse connections pays
+  the full DNS + TCP + TLS setup cost on *every single request* — often more expensive than the
+  request's actual work. If p50 latency looks suspiciously close to "connection setup time" for a
+  simple request, this is the first thing to check.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="SSE vs. WebSockets vs. gRPC streaming">
+  SSE demands the least from surrounding infrastructure (plain HTTP, works through most existing
+  proxies) but is one-directional only. WebSockets add bidirectional communication at the cost of
+  explicit infrastructure support for the protocol upgrade. gRPC streaming is efficient and typed
+  but requires HTTP/2 end-to-end, including every intermediary — the biggest operational ask of the
+  three. Per the Deep Dive section, SSE is the right default for one-directional LLM token streaming
+  specifically because of how little it demands from the path in between.
+</TradeOff>
+
+<TradeOff title="L4 vs. L7 load balancing">
+  L4 is fast and simple but can't route on request content — no per-tenant or per-API-version
+  routing. L7 enables that richer routing at the cost of terminating and inspecting more of the
+  connection per request, which is real added latency and CPU at scale. Many production topologies
+  use both: an L4 balancer at the edge for raw throughput, L7 routing behind it where the smarter
+  decisions actually need to happen.
+</TradeOff>
+
+<TradeOff title="HTTP/2 multiplexing vs. HTTP/1.1 simplicity">
+  HTTP/2's multiplexing removes the "open many connections for concurrency" workaround HTTP/1.1
+  clients rely on, at the cost of the shared-connection head-of-line blocking covered in Failure
+  Modes. For a service running many concurrent long-lived streams, that trade-off deserves a real
+  look rather than an assumption that "HTTP/2 is strictly better."
+</TradeOff>
+
+## Security
+
+- **TLS everywhere**, including internal service-to-service traffic, not just the public edge —
+  and active monitoring for certificate expiry, which is a boring, entirely preventable cause of
+  production outages.
+- **mTLS for service-to-service communication** in zero-trust network designs, so identity is
+  established cryptographically per-connection rather than assumed from network location.
+- **DNS spoofing and cache poisoning risk** — DNSSEC where the threat model justifies it, and
+  awareness that DNS is a trust boundary, not just a lookup table.
+- **CORS misconfiguration on streaming endpoints** — a permissive `Access-Control-Allow-Origin: *`
+  on an endpoint that also handles authenticated requests is a common, easy-to-miss exposure.
+- **Rate limiting at both the edge and the application layer** — defense in depth, so an
+  application-layer bug in rate limiting isn't the only thing standing between the service and
+  abuse.
+
+## Performance
+
+- **Connection reuse is the highest-leverage latency fix for chatty services** — per the Mental
+  Model section, it removes the DNS/TCP/TLS setup cost from every request after the first.
+- **Time-to-first-byte (or first-token) as a first-class metric**, tracked separately from total
+  duration — exactly what `StreamTelemetry`'s percentile breakdown does, and exactly the distinction
+  the Mental Model section opens with.
+- **Latency budgets should be decomposed by hop** — DNS, TCP/TLS setup, time in a load balancer's
+  queue, upstream processing, and transfer time are each worth their own number; a single
+  end-to-end latency figure can't tell you which hop to fix.
+
+## Scaling
+
+- **Connection pool sizing becomes a real constraint at high fan-out** — too small and requests
+  queue waiting for a connection; too large and you risk exhausting file descriptors or, behind
+  NAT, ephemeral ports (SNAT port exhaustion is a genuinely painful, easy-to-hit ceiling in
+  NAT-heavy cloud network topologies at scale).
+- **Load balancers have their own connection and throughput ceilings** — scaling past them usually
+  means horizontal LB scaling or techniques like Direct Server Return (DSR) that take the load
+  balancer out of the response path.
+- **Multi-region traffic needs latency-aware routing** (geo-DNS, anycast) — without it, a user in
+  one region can be routed to a healthy backend in a _different_ region, trading availability for
+  a much worse latency budget than the Mental Model section's numbers would suggest is necessary.
+
+## Interview Questions
+
+<InterviewQuestion
+  difficulty="foundational"
+  title="Walk me through what happens between a client sending a request and receiving the first byte of response."
+>
+  DNS resolution (or cache hit), TCP handshake, TLS handshake (unless 0-RTT resumption applies),
+  request transmission, server processing, and the first response byte — each a distinct, separately
+  measurable stage per this module's Deep Dive and Performance sections.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="intermediate"
+  title="Why choose SSE over WebSockets for streaming LLM output?"
+>
+  The completion stream is one-directional (server to client) and SSE is plain HTTP that works
+  through existing infrastructure with no special upgrade handling — WebSockets' bidirectional
+  capability is unused overhead for this specific use case, and it demands more from every
+  intermediary in the path.
+</InterviewQuestion>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="How do you detect and handle a client disconnecting mid-stream?"
+>
+  Check the connection's disconnected state on every chunk of the stream — not just once at the
+  start — and stop pulling from the upstream provider the moment it's detected, per this module's
+  Implementation section. Tie it to a metric (a disconnect counter, separate from completions) so a
+  rising disconnect rate is visible as its own signal.
+</InterviewQuestion>
+
+<InterviewAnswer title="Why the cost angle matters here specifically">
+  For AI infrastructure specifically, undetected disconnects aren't just wasted server cycles —
+  they're wasted, metered, per-token upstream provider cost on a response nobody will ever see.
+  That's the detail that separates a generic "networking best practice" answer from one that shows
+  AI-infrastructure-specific judgment.
+</InterviewAnswer>
+
+<InterviewQuestion
+  difficulty="advanced"
+  title="What's HTTP/2 head-of-line blocking, and how does HTTP/3 address it?"
+>
+  HTTP/2 multiplexes many streams over one TCP connection, so a single lost packet stalls every
+  stream on that connection until TCP retransmits it — even streams with no relation to the lost
+  packet. HTTP/3, built on QUIC over UDP, gives each stream independent loss recovery, so a lost
+  packet only stalls the stream it belonged to.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+<LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
+  The gateway's `/v1/stream` endpoint implements exactly the disconnect-aware SSE pattern this
+  module covers, with time-to-first-token and disconnect-rate telemetry already wired up. [Read the
+  full lab documentation →](/build/labs/async-ai-gateway/)
+</LabCallout>
+
+<Exercise title="Reproduce the buffering-proxy failure mode locally" difficulty="intermediate">
+  Put a local nginx instance in front of the gateway's `/v1/stream` endpoint with `proxy_buffering
+  on` (the default) and observe the response arrive as one block instead of streaming. Then set
+  `proxy_buffering off` and `X-Accel-Buffering: no` and confirm streaming behavior returns. This is
+  the single most common way this module's central failure mode shows up in real deployments —
+  reproducing it locally makes it recognizable instantly in production.
+</Exercise>
+
+<Checklist title="Before shipping a streaming endpoint to production">
+  - Every intermediary in the path (proxies, CDN, load balancer) is configured to disable response
+  buffering for this endpoint - The server checks for client disconnect on every chunk, not just at
+  stream start - Time-to-first-byte/token is tracked as a metric separate from total stream duration
+  - A disconnect-rate metric exists and is distinct from the completion-rate metric - Connection
+  reuse (`keep-alive`) is enabled for any downstream connections the endpoint depends on - TLS
+  certificates on every hop are monitored for expiry, not just configured once
+</Checklist>
+
+## References
+
+- Ilya Grigorik, [_High Performance Browser Networking_](https://hpbn.co/) — freely available
+  online, the single best deep treatment of this module's TCP/TLS/HTTP material.
+- [RFC 9113](https://www.rfc-editor.org/rfc/rfc9113) (HTTP/2) and [RFC 9114](https://www.rfc-editor.org/rfc/rfc9114) (HTTP/3), for the multiplexing and head-of-line-blocking details in Deep Dive.
+- [MDN: Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events) — the format and reconnection semantics referenced in this module's Trade-offs section.
+- Jeff Dean's ["Numbers Every Programmer Should Know"](https://colin-scott.github.io/personal_website/research/interactive_latency.html) (interactive version), for the latency-budget reference numbers in Deep Dive.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the disconnect-aware streaming
+  implementation this module's Implementation section is drawn from.
+
+## Revision History
+
+| Version | Date       | Change               |
+| ------- | ---------- | -------------------- |
+| 1.0.0   | 2026-08-05 | Initial publication. |

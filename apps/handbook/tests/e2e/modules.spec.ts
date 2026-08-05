@@ -1,5 +1,33 @@
 import { expect, test } from "@playwright/test";
 
+test.describe("learn modules v0.3", () => {
+  test("Module 2 renders its idempotent-retry sequence diagram", async ({ page }) => {
+    await page.goto("./learn/modules/02-distributed-systems/");
+    await expect(
+      page.getByRole("heading", { name: "Module 2: Distributed Systems", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+
+  test("Module 3 renders its streaming-path diagram", async ({ page }) => {
+    await page.goto("./learn/modules/03-networking/");
+    await expect(
+      page.getByRole("heading", { name: "Module 3: Networking", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+});
+
+test.describe("architecture", () => {
+  test("Async AI Gateway architecture page renders its request-flow diagram", async ({ page }) => {
+    await page.goto("./architecture/systems/async-ai-gateway/");
+    await expect(
+      page.getByRole("heading", { name: "Architecture: Async AI Gateway", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+});
+
 test.describe("learn modules", () => {
   test("Module 0 renders its decision-flow diagram and component callouts", async ({ page }) => {
     await page.goto("./learn/modules/00-principal-engineer-mindset/");

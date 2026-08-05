@@ -1,0 +1,10 @@
+flowchart LR
+    Client[Client] -->|"TLS 1.3, keep-alive"| Edge[Edge / CDN]
+    Edge -->|"L7 load balancer"| LB[Load balancer]
+    LB --> GW[Gateway: text/event-stream]
+    GW -->|"token-by-token SSE chunks"| LB
+    LB --> Edge
+    Edge --> Client
+
+    GW -.->|"is_disconnected() checked every chunk"| GW
+    Edge -.->|"pitfall: buffering proxy holds\nthe full response before forwarding,\nbreaking streaming entirely"| Edge

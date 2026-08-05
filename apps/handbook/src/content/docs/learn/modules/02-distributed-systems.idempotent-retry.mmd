@@ -1,0 +1,22 @@
+sequenceDiagram
+    participant Client
+    participant Gateway
+    participant IdempotencyStore as Idempotency store
+    participant Worker
+
+    Client->>Gateway: POST /tasks (Idempotency-Key: abc123)
+    Gateway->>IdempotencyStore: CAS insert abc123 -> PENDING
+    alt Key already PENDING or COMPLETE
+        IdempotencyStore-->>Gateway: existing record
+        Gateway-->>Client: cached result or 409 in-progress
+    else Key newly inserted
+        IdempotencyStore-->>Gateway: inserted
+        Gateway->>Worker: execute task
+        Note over Worker: Network drops before response reaches Gateway
+        Client->>Gateway: retry POST /tasks (same Idempotency-Key)
+        Gateway->>IdempotencyStore: CAS insert abc123 -> PENDING
+        IdempotencyStore-->>Gateway: already PENDING, wait/return in-progress
+        Worker-->>Gateway: task result
+        Gateway->>IdempotencyStore: abc123 -> COMPLETE, store result
+        Gateway-->>Client: result (from the original request's retry)
+    end

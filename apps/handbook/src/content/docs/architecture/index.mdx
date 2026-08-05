@@ -1,12 +1,16 @@
 ---
 title: Architecture
 description: Reference architectures for recurring AI infrastructure problems, with request flows, failure modes, and production deployment notes.
-version: 1.0.0
-lastUpdated: 2026-08-04
+version: 1.1.0
+lastUpdated: 2026-08-05
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
     change: Published the Architecture section overview as part of the platform rebuild.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-05
+    change: Published the first architecture page (Async AI Gateway) and corrected the required-sections list to match packages/shared's REQUIRED_ARCHITECTURE_SECTIONS (folded the standalone "Diagram" item into "Request Flow").
     author: vinod
 category: section-overview
 ---
@@ -23,19 +27,22 @@ one is missing.
 1. **Problem** — what this architecture exists to solve.
 2. **Requirements** — the functional and non-functional requirements driving the design.
 3. **Constraints** — what's fixed: budget, latency, compliance, existing infrastructure.
-4. **Diagram** — the system, drawn.
-5. **Request Flow** — a single request's path through every component.
-6. **Failure Modes** — what breaks, and what happens when it does.
-7. **Scaling** — what changes at 10x and 100x load.
-8. **Security** — the attack surface and how it's closed.
-9. **Trade-offs** — what this design gives up, and why that's acceptable.
-10. **Cost** — where the money goes, and the levers to reduce it.
-11. **Observability** — what you'd instrument to know this is healthy.
-12. **Production Deployment** — rollout, rollback, and operational ownership.
-13. **Interview Questions** — the questions this architecture actually answers.
+4. **Request Flow** — a single request's path through every component, with a diagram.
+5. **Failure Modes** — what breaks, and what happens when it does.
+6. **Scaling** — what changes at 10x and 100x load.
+7. **Security** — the attack surface and how it's closed.
+8. **Trade-offs** — what this design gives up, and why that's acceptable.
+9. **Cost** — where the money goes, and the levers to reduce it.
+10. **Observability** — what you'd instrument to know this is healthy.
+11. **Production Deployment** — rollout, rollback, and operational ownership.
+12. **Interview Questions** — the questions this architecture actually answers.
 
 ## Systems
 
-No architecture pages are published yet — see the [Roadmap](/roadmap/) for the authoring schedule.
-The [Build](/build/) section's [Async AI Gateway lab](/build/labs/async-ai-gateway/) documents a
-concrete system in the meantime.
+| System                                                      | Maturity  |
+| ----------------------------------------------------------- | --------- |
+| [Async AI Gateway](/architecture/systems/async-ai-gateway/) | Reference |
+
+See the [Roadmap](/roadmap/) for what's next. The [Build](/build/) section's
+[Async AI Gateway lab](/build/labs/async-ai-gateway/) documents the same system from a
+run-it-and-verify-it angle, rather than a design-review angle.
