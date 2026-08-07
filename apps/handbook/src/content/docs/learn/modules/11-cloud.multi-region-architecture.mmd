@@ -1,0 +1,21 @@
+flowchart TB
+    DNS["Global DNS / traffic manager (health-checked failover)"]
+
+    subgraph RegionA["Region A — primary"]
+        ALBA[Load balancer] --> AppA["App tier (private subnet)"]
+        AppA --> DataA[(Primary datastore)]
+        NATA[NAT gateway] --- AppA
+    end
+
+    subgraph RegionB["Region B — standby / DR"]
+        ALBB[Load balancer] --> AppB["App tier (private subnet)"]
+        AppB --> DataB[(Replica datastore)]
+        NATB[NAT gateway] --- AppB
+    end
+
+    DNS -->|active| ALBA
+    DNS -.failover on health-check failure.-> ALBB
+    DataA -.async cross-region replication.-> DataB
+
+    IAM["IAM: per-service roles, least privilege"] -.scopes access to.-> AppA
+    IAM -.scopes access to.-> AppB

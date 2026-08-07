@@ -34,6 +34,22 @@ test.describe("learn modules v0.5", () => {
   });
 });
 
+test.describe("learn modules v0.6", () => {
+  test("Module 10 renders its scheduling-and-scaling diagram", async ({ page }) => {
+    await page.goto("./learn/modules/10-kubernetes/");
+    await expect(
+      page.getByRole("heading", { name: "Module 10: Kubernetes", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+
+  test("Module 11 renders its multi-region architecture diagram", async ({ page }) => {
+    await page.goto("./learn/modules/11-cloud/");
+    await expect(page.getByRole("heading", { name: "Module 11: Cloud", level: 1 })).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+});
+
 test.describe("architecture", () => {
   test("Async AI Gateway architecture page renders its request-flow diagram", async ({ page }) => {
     await page.goto("./architecture/systems/async-ai-gateway/");

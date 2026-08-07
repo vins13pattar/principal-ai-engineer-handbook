@@ -1,0 +1,31 @@
+flowchart TB
+    Client[Client request] --> Ingress[Ingress]
+    Ingress --> Svc[Service]
+    Svc --> Pod1[Pod]
+
+    subgraph Workloads["Workload objects"]
+        HPA["HorizontalPodAutoscaler (watches CPU / GPU / custom metrics)"] --> Deploy[Deployment]
+        Deploy --> RS[ReplicaSet]
+        RS --> Pod1
+        PDB["PodDisruptionBudget (min available)"] -.protects during drain.-> Pod1
+    end
+
+    subgraph ControlPlane["Control plane"]
+        API[API server] --> Etcd[(etcd)]
+        Sched[Scheduler] --> API
+    end
+
+    RS -->|desired replica count| API
+
+    subgraph Nodes["Node pools"]
+        subgraph CPUPool["CPU node pool"]
+            NodeCPU[Node]
+        end
+        subgraph GPUPool["GPU node pool: tainted + nodeSelector"]
+            NodeGPU[Node]
+        end
+    end
+
+    Sched -->|binds pod, no GPU request| NodeCPU
+    Sched -->|binds pod, requests nvidia.com/gpu + toleration| NodeGPU
+    Pod1 -.scheduled onto.-> NodeCPU

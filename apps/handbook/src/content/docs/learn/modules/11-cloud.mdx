@@ -1,0 +1,343 @@
+---
+title: "Module 11: Cloud"
+description: Cloud architecture decisions that outlive any single service — managed vs. self-hosted, VPC and IAM boundaries, multi-region disaster recovery, and cost attribution — applied to AI infrastructure specifically.
+version: 1.0.0
+lastUpdated: 2026-08-07
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-07
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 11
+difficulty: advanced
+estimatedMinutes: 45
+prerequisites:
+  - 04-ai-infrastructure
+  - 10-kubernetes
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import multiRegion from "./11-cloud.multi-region-architecture.mmd?raw";
+
+## Executive Summary
+
+Cloud architecture decisions are expensive to reverse — a network topology, an IAM boundary, or a
+region layout gets baked into every service built on top of it, unlike a code-level choice that a
+refactor can undo. This module covers the decisions that matter most for AI infrastructure
+specifically: when a managed service is worth its premium over self-hosting, how VPC and IAM
+boundaries actually contain a breach instead of just documenting an intention, what "multi-region"
+has to mean operationally rather than just architecturally, and why cost attribution has to exist
+before a GPU bill becomes the reason a project gets cancelled.
+
+## Mental Model
+
+Every cloud architecture decision in this module reduces to trading control for operational burden,
+along three largely independent axes:
+
+- **Build vs. buy** — a managed service (managed vector database, managed Kubernetes control plane,
+  managed model endpoint) trades direct control and per-unit cost for someone else owning
+  availability, patching, and scaling mechanics.
+- **Blast radius** — VPC segmentation and IAM scoping determine how far a single compromised
+  credential or misconfigured service can reach before something stops it.
+- **Recovery, not just redundancy** — multi-region existing in the architecture diagram doesn't mean
+  failover actually works; it means a defined, tested Recovery Time Objective (RTO) and Recovery
+  Point Objective (RPO), and a mechanism that hits them.
+
+<PrincipalPerspective title="Untested disaster recovery is not disaster recovery">
+  A secondary region with a replicated database and a load balancer, that has never actually been
+  failed over to, is an assumption, not a capability. The only way to know an RTO/RPO target is
+  actually achievable is to have exercised the failover — under realistic conditions, not a
+  scheduled maintenance window everyone was already watching — at least once. Everything else is a
+  diagram, not a guarantee.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={multiRegion}
+  title="A primary/standby multi-region layout: DNS-level failover, async cross-region data replication, and an IAM boundary scoping every service's blast radius"
+/>
+
+The IAM boundary in this diagram isn't a separate system bolted onto the network topology — it's
+what actually determines the blast radius if either region's app tier is compromised. A load
+balancer and a private subnet control *network* reachability; IAM controls what a compromised
+service can actually *do* once it's running, which is usually the more consequential boundary in
+a cloud breach.
+
+## Deep Dive
+
+**Managed vs. self-hosted, applied to AI infrastructure.** A managed vector database or managed
+Kubernetes control plane removes an entire category of operational work (patching, HA control-plane
+maintenance, backup mechanics) at a real per-unit cost premium and with less control over tuning.
+Self-hosting the same component gives full control and usually lower steady-state cost at scale, at
+the cost of owning every operational failure mode yourself. The right default for most teams is
+managed until a specific, measured reason (cost at scale, a tuning requirement the managed tier
+can't expose) justifies the switch — not the reverse.
+
+**VPC segmentation.** Public subnets (reachable from the internet, typically just load balancers and
+NAT gateways) and private subnets (application and data tiers, reachable only from inside the VPC)
+are the baseline network segmentation almost every cloud architecture needs. The specific mistake
+this prevents: an application or database tier directly reachable from the internet because it was
+never actually placed in a private subnet, discovered only when it's scanned and exploited.
+
+**IAM as the real blast-radius control.** A per-service IAM role scoped to exactly the resources
+that service needs (one S3 prefix, one DynamoDB table, one KMS key) means a compromised service can
+only reach what its role permits — regardless of what else exists in the account. A shared,
+broadly-scoped role used across many services means compromising any one of them effectively
+compromises all of them. This is the same least-privilege principle [Module 6](/learn/modules/06-mcp/#security)
+applies to tool permissions, applied here to cloud identity.
+
+**RTO and RPO.** Recovery Time Objective is how long you can be down; Recovery Point Objective is
+how much data you can afford to lose, measured in time (the gap since the last successful
+replication or backup). These numbers should come from the business impact of an outage, not from
+whatever the current architecture happens to deliver — and the architecture should then be built to
+hit them, including the replication lag between regions, which directly determines the achievable
+RPO.
+
+**Cost attribution.** Cloud spend without per-team or per-service tagging is a single number nobody
+can act on. Tagging resources (or, more robustly, dedicated accounts/projects per team) enough to
+attribute spend to whoever incurred it is what turns "the cloud bill went up" into "team X's GPU
+usage went up, and here's why" — a prerequisite for any of [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)'s
+per-request cost tracking to matter at an organizational level.
+
+<ResearchNote source="AWS Well-Architected Framework, Reliability and Cost Optimization pillars">
+  Not AI-specific, but the underlying reliability and cost-optimization questions (define RTO/RPO
+  before choosing an architecture; attribute cost before optimizing it) apply directly and are worth
+  reading in the source rather than through a secondary summary.
+</ResearchNote>
+
+## Implementation
+
+A least-privilege IAM policy scoping a model-serving service's role to exactly the resources it
+needs — the concrete version of this module's "IAM as blast-radius control" principle — followed by
+a health-check-driven failover decision, showing RTO/RPO as executable logic rather than a diagram
+label:
+
+<CodeWalkthrough title="Scoped IAM policy and a failover decision that respects a defined RTO">
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadModelArtifacts",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject"],
+      "Resource": "arn:aws:s3:::model-artifacts-prod/model-server/*"
+    },
+    {
+      "Sid": "ReadWriteSessionState",
+      "Effect": "Allow",
+      "Action": ["dynamodb:GetItem", "dynamodb:PutItem"],
+      "Resource": "arn:aws:dynamodb:us-east-1:123456789012:table/model-server-sessions"
+    }
+  ]
+}
+```
+
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from datetime import datetime, timedelta
+
+
+@dataclass
+class HealthCheck:
+    timestamp: datetime
+    healthy: bool
+
+
+@dataclass
+class FailoverController:
+    rto: timedelta
+    checks: list[HealthCheck] = field(default_factory=list)
+
+    def record(self, check: HealthCheck) -> None:
+        self.checks.append(check)
+
+    def should_failover(self, now: datetime) -> bool:
+        window_start = now - self.rto
+        recent = [c for c in self.checks if c.timestamp >= window_start]
+        if not recent:
+            return False
+        return all(not c.healthy for c in recent)
+```
+
+The policy grants exactly two actions against exactly two resources — nothing this service doesn't
+use is reachable through this role, so compromising it doesn't compromise anything else in the
+account. `should_failover` only triggers once every health check inside the RTO window has failed —
+a single transient failure doesn't trigger a failover, but sustained failure for the entire RTO
+window does, tying the failover trigger directly to the RTO number it's meant to honor rather than
+to an arbitrary retry count.
+</CodeWalkthrough>
+
+## Production Example
+
+A team commits to a 15-minute RTO and a 1-minute RPO for a production model-serving system. The
+1-minute RPO requires synchronous or near-synchronous cross-region replication for anything that
+can't tolerate a minute of data loss — asynchronous replication with a 10-minute lag, however
+inexpensive, structurally cannot meet that RPO no matter how fast the failover mechanism itself is.
+This is a common mismatch: teams pick a comfortable-sounding RTO/RPO target and then build with a
+replication strategy that can't actually deliver it, discovering the gap only during a real
+incident.
+
+## Failure Modes
+
+<FailureMode title="Untested failover that doesn't actually work">
+  A standby region exists in the architecture but has never been failed over to — configuration
+  drift between primary and standby (a missing environment variable, an IAM role that was never
+  replicated) surfaces for the first time during a real incident, exactly when it's most expensive
+  to discover. This module's Mental Model section treats a failover as unproven until exercised.
+</FailureMode>
+
+<FailureMode title="Broad IAM roles shared across services">
+  A single IAM role reused across many services because it was easier to set up once means
+  compromising the least-secure service using that role compromises every resource the role can
+  reach — turning a contained incident into an account-wide one.
+</FailureMode>
+
+<FailureMode title="Replication lag exceeding the committed RPO">
+  Asynchronous cross-region replication with real-world lag that exceeds the committed RPO means a
+  failover recovers to a point further in the past than promised — this is a data-loss incident on
+  top of an availability incident, and it's silent until the RPO is actually tested against real
+  replication behavior, not just its documented target.
+</FailureMode>
+
+<Warning title="Public subnet placement for application or data tiers">
+  A service placed in a public subnet by oversight — rather than deliberate design — is directly
+  reachable from the internet regardless of any application-layer authentication, removing the
+  network-level containment this module's Deep Dive section relies on as the first layer of
+  defense, not the only one.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="Managed service vs. self-hosted, for AI infrastructure components">
+  Managed removes operational ownership of availability, patching, and backups at a real cost
+  premium and reduced tuning control. Self-hosted gives full control and typically lower cost at
+  scale, at the cost of owning every failure mode — the right default is managed until a specific,
+  measured reason justifies the switch.
+</TradeOff>
+
+<TradeOff title="Synchronous vs. asynchronous cross-region replication">
+  Synchronous replication can meet a tight RPO but adds write latency and availability risk (a write
+  can't complete if the remote region is unreachable). Asynchronous replication keeps write latency
+  local but caps the achievable RPO at however far behind replication actually runs — the choice has
+  to be driven by the committed RPO, not picked independently of it.
+</TradeOff>
+
+<TradeOff title="Per-resource tagging vs. dedicated accounts for cost attribution">
+  Tagging is cheaper to retrofit onto an existing account structure but depends on tagging discipline
+  being enforced everywhere, which erodes over time. Separate accounts or projects per team enforce
+  cost (and often security) boundaries structurally, at the cost of more infrastructure-as-code
+  overhead to manage them.
+</TradeOff>
+
+## Security
+
+- **IAM least privilege is the primary blast-radius control**, per this module's Deep Dive and
+  Implementation sections — network segmentation alone does not contain what a compromised service
+  can do once it's already running inside the network.
+- **Secrets (API keys, database credentials) belong in a managed secrets store with scoped access**,
+  not in environment variables baked into a container image or committed to a repository — the same
+  credential-scoping discipline this module applies to IAM roles applies to secrets specifically.
+- **Cross-region replication traffic needs to be encrypted in transit** by default, not as an
+  optional hardening step, since it routinely carries the same sensitive data the primary region's
+  access controls were built to protect.
+
+## Performance
+
+- **Cross-region latency is a real, physics-bound cost** that no architecture choice removes — a
+  failover to a standby region in a different geography changes the latency profile for every user
+  whose traffic now routes there, not just for the duration of the incident.
+- **VPC-internal traffic (private subnet to private subnet) is typically far lower latency than any
+  path crossing a public load balancer** — architecture that keeps service-to-service calls inside
+  the VPC avoids paying public-path latency and cost for purely internal traffic.
+- **Replication lag is a performance number with a direct security and reliability consequence** —
+  it isn't just "how fresh is the read replica," it's "how much data would a failover right now
+  actually lose," per this module's Production Example.
+
+## Scaling
+
+- **Multi-region is a scaling strategy for both latency and availability**, not solely a disaster-
+  recovery mechanism — serving users from the nearest region reduces latency independent of whether
+  a failover ever happens, which is often the stronger justification for the investment.
+- **IAM and network segmentation need to scale with organizational growth, not just traffic** — a
+  scoping scheme that worked for five services becomes unmanageable at fifty without a systematic
+  convention (per-team accounts, a consistent tagging and role-naming scheme) established early.
+- **Cost attribution has to scale with the number of teams sharing the cloud footprint** — a tagging
+  scheme adequate for one team's workloads needs deliberate extension, not assumption, as more teams
+  and more GPU-heavy workloads (per [Module 9](/learn/modules/09-model-serving/)) join the same
+  account structure.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How would you design multi-region disaster recovery for a production AI system, and how do you know it actually works?">
+  Start from a business-driven RTO/RPO, choose a replication strategy (sync vs. async) that can
+  actually hit the RPO, and then prove it by executing a real failover, not just reviewing the
+  architecture diagram — an untested failover is an assumption, per this module's Mental Model
+  section, not a working capability.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why is IAM scoping more important than VPC network segmentation for containing a breach?">
+  Network segmentation controls reachability from outside a boundary; IAM controls what a service can
+  do once it's already running inside that boundary, which is exactly the situation after a service
+  is compromised. A broadly-scoped IAM role reachable from a well-segmented network still gives an
+  attacker who compromises that service everything the role can touch.
+</InterviewQuestion>
+
+<InterviewAnswer title="What's the practical difference between RTO and RPO, and why do teams commonly miss the target for one of them?">
+  RTO bounds downtime; RPO bounds data loss, measured as replication or backup lag. Teams commonly
+  commit to a tight RPO without checking that their actual replication mechanism (often async, for
+  cost reasons) can deliver it — the RPO target and the replication strategy have to be chosen
+  together, not independently, per this module's Production Example.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="intermediate" title="How would you decide between a managed vector database and self-hosting one for a RAG system?">
+  Default to managed unless a specific, measured reason — cost at a scale you've actually reached, or
+  a tuning capability the managed tier doesn't expose — justifies the operational burden of
+  self-hosting. See [Module 8](/learn/modules/08-rag/) for what a self-hosted index actually has to
+  get right (sharding, tenant isolation) if that switch is made.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated cloud-architecture lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Prove a failover decision against a committed RTO" difficulty="intermediate">
+  Using this module's `FailoverController`, write a test that feeds it a sequence of health checks
+  spanning slightly less than the configured RTO with one healthy check in the middle — confirm
+  `should_failover` returns `False` — then a sequence spanning the full RTO with every check
+  unhealthy — confirm it returns `True`. This is the same discipline this module argues for: prove
+  the failover trigger actually honors the RTO it's supposed to respect, rather than assuming it
+  does.
+</Exercise>
+
+## References
+
+- AWS Well-Architected Framework, ["Reliability Pillar"](https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/welcome.html) and ["Cost Optimization Pillar"](https://docs.aws.amazon.com/wellarchitected/latest/cost-optimization-pillar/welcome.html)
+- AWS, ["IAM Best Practices"](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html)
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the per-request cost tracking pattern this module's cost attribution section builds on organizationally.
+- [Module 6: MCP](/learn/modules/06-mcp/) — the least-privilege principle this module applies to cloud IAM instead of tool permissions.
+- [Module 9: Model Serving](/learn/modules/09-model-serving/) — the GPU capacity and cold-start constraints this module's scaling section references.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-07 | Initial publication. |

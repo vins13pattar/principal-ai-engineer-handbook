@@ -1,0 +1,388 @@
+---
+title: "Module 10: Kubernetes"
+description: Running AI workloads on Kubernetes — scheduling onto GPU node pools, wiring readiness probes to real drain state, and the autoscaling and disruption-budget mechanics that keep a rollout from becoming an outage.
+version: 1.0.0
+lastUpdated: 2026-08-07
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-07
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 10
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 01-production-python
+  - 09-model-serving
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import schedulingAndScaling from "./10-kubernetes.scheduling-and-scaling.mmd?raw";
+
+## Executive Summary
+
+Kubernetes matters to an AI platform for a specific reason beyond general container orchestration:
+it's the layer that decides which physical GPU a workload lands on, how many replicas of a model
+server exist right now, and whether a rollout can proceed without dropping in-flight requests. Get
+the scheduling, probe, and disruption-budget mechanics wrong and Kubernetes will confidently do the
+wrong thing — schedule a GPU workload onto a CPU node's request queue forever, or roll a deployment
+straight through every replica capable of serving traffic. None of this is exotic; it's the same
+handful of primitives, applied correctly.
+
+## Mental Model
+
+Kubernetes doesn't run anything directly — it continuously reconciles observed cluster state toward
+declared desired state, through a small set of objects that compose:
+
+- **Pod** — the actual running container(s); the unit the scheduler places onto a node.
+- **Deployment → ReplicaSet → Pod** — declares "N copies of this pod should exist"; the ReplicaSet
+  is the reconciliation loop that keeps the pod count correct, the Deployment is what manages
+  rolling updates across ReplicaSets.
+- **Service** — a stable network identity in front of a changing set of pods.
+- **HorizontalPodAutoscaler (HPA)** — adjusts a Deployment's replica count based on observed metrics.
+- **PodDisruptionBudget (PDB)** — a constraint the cluster must respect during *voluntary*
+  disruptions (rollouts, node drains), separate from involuntary ones (a node crashing).
+
+<PrincipalPerspective title="The scheduler only knows what you declare, not what you mean">
+  A pod without a GPU resource request can be scheduled onto a GPU node and silently never use the
+  GPU; a pod with a GPU request but no matching toleration can sit `Pending` forever if the GPU pool
+  is tainted. Kubernetes does exactly what the manifest says, not what the workload actually needs
+  — which is why declaring resource requests and tolerations correctly is a correctness requirement
+  for AI workloads, not an optimization to add later.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={schedulingAndScaling}
+  title="A request's path through Ingress and Service to a Pod, alongside the control plane's scheduling decision between CPU and tainted GPU node pools"
+/>
+
+Two independent reconciliation loops are visible in this diagram: the **scheduler** binding pods to
+nodes (once, at pod creation, based on resource requests and node taints/tolerations) and the
+**HPA** adjusting the Deployment's desired replica count on an ongoing basis (based on live metrics).
+They interact indirectly — a scale-up event from the HPA creates new pods that the scheduler then
+has to place, and if the GPU pool has no capacity left, those new pods stay `Pending` instead of
+serving traffic, an autoscaling event that looks successful (replica count went up) but delivers no
+actual capacity increase.
+
+## Deep Dive
+
+**Resource requests and limits.** A *request* is what the scheduler uses to decide whether a pod
+fits on a node (and reserves that resource on the node accordingly); a *limit* is the hard ceiling
+the container is throttled or killed at. Setting a request too low lets the scheduler over-pack a
+node, causing pods to compete for actual resources at runtime even though the scheduler thought
+there was room; setting a limit lower than the request is invalid configuration, not a safety net.
+For GPU workloads, `nvidia.com/gpu` is typically requested as an integer (fractional GPU requests
+aren't supported the way CPU/memory are) — a pod either gets a whole GPU or none.
+
+**Taints and tolerations, node affinity.** GPU nodes are expensive, so clusters typically taint the
+GPU node pool (`nvidia.com/gpu=present:NoSchedule`) so nothing lands there by accident; a pod that
+actually needs a GPU declares both the resource request and a matching toleration, and usually a
+`nodeSelector` or node affinity rule to be explicit rather than relying on the taint/toleration
+mechanism alone to route it correctly.
+
+**Readiness vs. liveness probes.** A liveness probe answers "is this process alive, or should it be
+restarted?" — failing it kills and restarts the container. A readiness probe answers "should this
+pod currently receive traffic?" — failing it removes the pod from the Service's endpoint list
+*without* restarting it. Conflating the two is a common failure: a pod under temporary load that
+fails a liveness probe gets restarted (losing all in-flight requests) when a readiness probe would
+have correctly just paused new traffic to it until it recovered.
+
+**Rolling updates and PodDisruptionBudgets.** A Deployment's rolling update replaces old pods with
+new ones gradually, controlled by `maxUnavailable`/`maxSurge`. A PodDisruptionBudget sets a floor
+(`minAvailable`) or ceiling (`maxUnavailable`) on how many pods can be down *at once* for voluntary
+disruptions — both a rollout and a node drain (for cluster maintenance or autoscaler node
+replacement) respect it, refusing to proceed if it would violate the budget. Without a PDB, a node
+drain during a deploy can take down every replica of a service simultaneously if they happen to be
+co-located.
+
+**StatefulSets.** Deployments treat pods as interchangeable; a StatefulSet gives each pod a stable,
+ordinal identity (`pod-0`, `pod-1`, ...) and stable storage that follows it across rescheduling.
+This matters for anything that isn't horizontally stateless by default — a self-hosted vector index
+or a model-serving setup relying on sharded, pinned GPU assignment per replica, where "any replica
+can handle any request" (the Deployment assumption) doesn't hold.
+
+<ResearchNote source="Kubernetes documentation, &quot;Assigning Pods to Nodes&quot; and &quot;Pod Disruption Budgets&quot;">
+  Primary references for scheduling constraints and disruption budgets — worth reading directly
+  because the exact interaction between taints, tolerations, and node affinity is easy to
+  misremember, and it's exactly the kind of detail interview questions target.
+</ResearchNote>
+
+## Implementation
+
+The Deployment, HPA, and PodDisruptionBudget for a GPU-backed model server, showing the
+resource-request/toleration pairing this module's Deep Dive covers, followed by a readiness probe
+implementation wired to real in-process drain state rather than a hardcoded `200 OK`:
+
+<CodeWalkthrough title="GPU-scheduled Deployment with autoscaling and a disruption budget">
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: model-server
+spec:
+  replicas: 3
+  selector:
+    matchLabels: { app: model-server }
+  template:
+    metadata:
+      labels: { app: model-server }
+    spec:
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      nodeSelector:
+        cloud.provider/pool: gpu
+      containers:
+        - name: model-server
+          image: registry.example.com/model-server:1.4.0
+          resources:
+            requests: { cpu: "2", memory: "8Gi", nvidia.com/gpu: "1" }
+            limits: { cpu: "4", memory: "16Gi", nvidia.com/gpu: "1" }
+          readinessProbe:
+            httpGet: { path: /readyz, port: 8080 }
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+            periodSeconds: 15
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: model-server
+spec:
+  scaleTargetRef: { apiVersion: apps/v1, kind: Deployment, name: model-server }
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+    - type: Pods
+      pods:
+        metric: { name: inflight_requests_per_pod }
+        target: { type: AverageValue, averageValue: "8" }
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: model-server
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels: { app: model-server }
+```
+
+The `/readyz` endpoint this Deployment probes should reflect real application state, not always
+return success:
+
+```python
+from __future__ import annotations
+
+from fastapi import FastAPI, Response
+
+app = FastAPI()
+draining = False
+
+
+@app.get("/readyz")
+async def readyz() -> Response:
+    if draining:
+        return Response(status_code=503, content="draining")
+    return Response(status_code=200, content="ready")
+
+
+@app.on_event("shutdown")
+async def on_shutdown() -> None:
+    global draining
+    draining = True
+```
+
+Setting `draining = True` on shutdown and failing `/readyz` immediately gives Kubernetes a truthful
+signal to stop routing new traffic to this pod *before* SIGTERM finishes tearing it down — the same
+graceful-drain discipline [Module 1](/learn/modules/01-production-python/#implementation)'s
+`DrainCoordinator` implements at the application level, now surfaced through the readiness probe
+Kubernetes actually checks.
+</CodeWalkthrough>
+
+## Production Example
+
+A model-serving Deployment scales from 3 to 20 replicas under load, per the HPA manifest above. If
+the GPU node pool's autoscaler can't provision new GPU nodes fast enough (GPU capacity is often
+scarcer and slower to provision than CPU capacity), the new pods the HPA created sit `Pending`
+indefinitely — the HPA reports the "correct" desired replica count, dashboards show 20 replicas
+configured, and yet actual serving capacity hasn't increased at all. Diagnosing this requires
+checking pod status (`Pending` vs `Running`), not just the HPA's reported replica count, which is
+precisely why this module's Failure Modes section treats this as its own distinct failure rather
+than folding it into generic "autoscaling."
+
+## Failure Modes
+
+<FailureMode title="GPU pods stuck Pending after a scale-up">
+  The HPA increases desired replicas, new pods are created, but the GPU node pool has no available
+  capacity and the cluster autoscaler hasn't provisioned a new GPU node yet (or can't — GPU quota
+  limits, regional GPU shortages). The Deployment's replica count looks correct while actual serving
+  capacity hasn't moved; this module's Production Example walks through exactly this scenario.
+</FailureMode>
+
+<FailureMode title="Liveness probe misconfigured as a readiness check">
+  A liveness probe that fails under temporary load (a slow but recovering model server) triggers a
+  restart, discarding every in-flight request that pod was serving — when a readiness probe
+  failing would have simply paused new traffic without destroying existing work. This module's Deep
+  Dive section on probes is the fix: know which failure mode each probe type produces before wiring
+  either one to an endpoint that can legitimately be slow sometimes.
+</FailureMode>
+
+<FailureMode title="Rolling update without a PodDisruptionBudget takes down every replica at once">
+  If a node drain (cluster maintenance, autoscaler node replacement) coincides with a rollout and no
+  PDB constrains it, and multiple replicas of the same service happen to be co-located on the
+  draining node, all of them can go down simultaneously — a full outage that a `minAvailable` PDB
+  would have prevented by making the drain wait.
+</FailureMode>
+
+<Warning title="Resource requests set too low for the workload's real usage">
+  A pod whose CPU/memory request understates what it actually needs lets the scheduler pack more
+  pods per node than the node can actually sustain under real load — the failure shows up as
+  throttling or OOM-kills under production traffic that never appeared in a lightly loaded staging
+  environment, because staging never triggered the over-packing.
+</Warning>
+
+<FailureMode title="StatefulSet assumptions applied to a workload that doesn't need them, or vice versa">
+  Running a genuinely stateful workload (a self-hosted vector index shard, per
+  [Module 8](/learn/modules/08-rag/#scaling)) as a Deployment loses the stable identity and storage
+  a rescheduled pod needs to resume correctly; running a genuinely stateless model server as a
+  StatefulSet adds ordinal-identity and storage overhead for no benefit. Match the object to the
+  workload's actual state requirements, not habit.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Separate GPU node pool vs. mixed node pool">
+  A dedicated, tainted GPU node pool keeps GPU capacity from being accidentally consumed by
+  non-GPU workloads and makes GPU cost attribution clean, at the cost of an extra pool to manage
+  and potential GPU idle time if scheduling isn't tight. A mixed pool simplifies cluster topology
+  but risks a non-GPU workload's resource requests crowding out GPU-workload scheduling headroom.
+</TradeOff>
+
+<TradeOff title="Aggressive HPA scale-down vs. keeping headroom">
+  Scaling down quickly after load drops saves cost but risks scaling back up into the same GPU
+  provisioning delay this module's Failure Modes section describes, on the very next traffic spike.
+  Keeping some replica headroom costs more at rest but avoids repeatedly re-paying the GPU cold-start
+  penalty [Module 9](/learn/modules/09-model-serving/#scaling) already covers.
+</TradeOff>
+
+<TradeOff title="Deployment vs. StatefulSet for model servers">
+  A Deployment is simpler to operate and scale when every replica is truly interchangeable.
+  A StatefulSet is required the moment replicas aren't interchangeable — sharded state, pinned
+  GPU-to-shard assignment — at the cost of the extra operational complexity ordinal identity and
+  per-pod storage bring.
+</TradeOff>
+
+## Security
+
+- **Resource requests/limits are a tenant-isolation control, not just a scheduling hint** — a
+  multi-tenant cluster without enforced limits lets one workload's runaway resource usage degrade
+  every other workload scheduled on the same node.
+- **Node taints for GPU pools double as a coarse access-control boundary** — without them, any pod
+  with a sufficiently permissive scheduling policy could land on expensive GPU capacity it was never
+  authorized to consume.
+- **Service accounts and RBAC scoping** for pods that call the Kubernetes API directly (an operator,
+  a controller) need the same least-privilege discipline as any other credential — a pod's default
+  service account should not carry cluster-admin-equivalent permissions by default.
+
+## Performance
+
+- **Probe intervals and timeouts directly affect failover speed** — a readiness probe with a long
+  `periodSeconds` delays how quickly Kubernetes notices a pod should stop receiving traffic,
+  extending the window of failed requests during a real problem.
+- **GPU node provisioning latency is usually the dominant term in autoscaling response time** for
+  AI workloads specifically — CPU autoscaling can provision new capacity in seconds; GPU capacity
+  commonly takes minutes, which is why keep-warm strategies matter more here than for typical
+  stateless web services (see [Module 9](/learn/modules/09-model-serving/#scaling)).
+- **Rolling update `maxSurge`/`maxUnavailable` settings trade rollout speed for spare capacity** —
+  a larger `maxSurge` finishes a rollout faster but temporarily needs more total capacity available.
+
+## Scaling
+
+- **The HPA's target metric matters more than its existence** — scaling on CPU utilization for a
+  request-serving workload whose actual bottleneck is in-flight-request count or GPU memory (per
+  [Module 9](/learn/modules/09-model-serving/)) scales on the wrong signal and lags real demand.
+- **Cluster autoscaler node-pool limits are a hard ceiling independent of the HPA's `maxReplicas`** —
+  an HPA configured for 20 replicas is meaningless if the GPU node pool's autoscaler is capped at
+  capacity for 10; both limits need to be sized against the same capacity plan.
+- **Multi-region or multi-cluster scaling** moves the scaling question up a level — from "how many
+  pods in this cluster" to "how much traffic does each region's cluster serve," a decision this
+  module's Architecture stays within a single cluster's boundary and [Module 11: Cloud](/learn/modules/11-cloud/)
+  picks up.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="A Deployment's HPA reports the desired replica count increased, but latency hasn't improved. How do you debug it?">
+  Check actual pod status, not just the HPA's desired-replica number — `Pending` pods mean the
+  scheduler can't place them, most commonly because the node pool (especially a GPU pool) has no
+  available capacity and the cluster autoscaler hasn't (or can't) provision more nodes. This module's
+  Production Example walks through exactly this failure.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What's the difference between a readiness probe and a liveness probe, and why does mixing them up matter?">
+  A liveness probe failure restarts the container, discarding in-flight work; a readiness probe
+  failure only pauses new traffic to the pod. Wiring a liveness probe to an endpoint that can
+  legitimately be slow under normal load causes unnecessary restarts that destroy in-flight requests
+  a readiness probe would have handled safely.
+</InterviewQuestion>
+
+<InterviewAnswer title="How do PodDisruptionBudgets interact with node drains and rolling updates?">
+  A PDB sets a floor or ceiling on how many pods of a selector can be down simultaneously for
+  voluntary disruptions. Both a rolling update and a node drain check the PDB before proceeding and
+  will pause rather than violate it — without one, a node drain that happens to hold multiple
+  replicas of the same service can take all of them down at once.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="When would you use a StatefulSet instead of a Deployment for a model-serving workload?">
+  When replicas aren't interchangeable — a sharded, self-hosted vector index or any setup with
+  pinned GPU-to-shard assignment needs the stable ordinal identity and storage a StatefulSet
+  provides. A stateless model server where any replica can handle any request has no need for it and
+  should stay a Deployment.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated Kubernetes lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Reproduce GPU pods stuck Pending" difficulty="intermediate">
+  On a local cluster with no real GPU nodes (kind or minikube), apply this module's Deployment
+  manifest unmodified — its `nodeSelector` and `tolerations` target a GPU pool that doesn't exist —
+  and observe every replica sit `Pending` via `kubectl get pods`. Then remove the GPU-specific
+  `nodeSelector`, `tolerations`, and `nvidia.com/gpu` resource request and reapply, confirming the
+  pods schedule successfully — reproducing, on purpose, the exact mismatch this module's Mental
+  Model section warns about.
+</Exercise>
+
+## References
+
+- Kubernetes documentation, ["Assigning Pods to Nodes"](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
+- Kubernetes documentation, ["Pod Disruption Budgets"](https://kubernetes.io/docs/tasks/run-application/configure-pdb/)
+- Kubernetes documentation, ["Configure Liveness, Readiness and Startup Probes"](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
+- [Module 1: Production Python](/learn/modules/01-production-python/) — the `DrainCoordinator` application-level drain logic this module's readiness probe surfaces to Kubernetes.
+- [Module 9: Model Serving](/learn/modules/09-model-serving/) — the GPU cold-start problem this module's autoscaling sections build on.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-07 | Initial publication. |
