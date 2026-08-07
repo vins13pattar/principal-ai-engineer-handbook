@@ -1,0 +1,342 @@
+---
+title: "Module 8: RAG"
+description: Retrieval-augmented generation as two pipelines that must stay in sync — chunking, hybrid retrieval, re-ranking, and why access control belongs at retrieval time, not just at the application layer.
+version: 1.0.0
+lastUpdated: 2026-08-05
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-05
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 8
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 07-langgraph
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import pipelines from "./08-rag.pipelines.mmd?raw";
+
+## Executive Summary
+
+Retrieval-augmented generation exists because a model's training data is fixed at a point in time
+and doesn't include your private documents, and retraining or fine-tuning it every time that data
+changes is slow and expensive. RAG sidesteps both problems: retrieve the relevant pieces of your
+own data at request time, and hand them to the model as context alongside the query. The engineering
+challenge isn't the idea — it's keeping two independent pipelines (index-building and query-time
+retrieval) correctly in sync, and treating retrieval quality as the hard ceiling on answer quality.
+
+## Mental Model
+
+RAG is two pipelines, not one, and almost every RAG failure traces back to them drifting out of
+sync with each other:
+
+- **Ingestion** runs ahead of time: documents are chunked, embedded, and written into a vector
+  index.
+- **Query** runs per request: the incoming query is embedded with the *same* embedding model,
+  compared against the index, and the top matches become context for generation.
+
+<PrincipalPerspective title="Retrieval quality is a ceiling, not a knob">
+  A better model cannot compensate for bad retrieval — if the context handed to the model doesn't
+  contain the answer, no amount of prompting or model capability recovers it. Every effort spent
+  improving generation quality is wasted if retrieval is the actual bottleneck, which is why this
+  module treats retrieval and generation as two separately measured systems, not one blended
+  "RAG quality" number.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={pipelines}
+  title="Ingestion and query pipelines, sharing a vector index that must stay in sync between them"
+/>
+
+The access-control filter sitting inside the query pipeline's retrieval step — not bolted on
+afterward — is the architectural decision this module returns to repeatedly: a retrieval system
+that fetches first and filters for permissions second has already leaked the *existence and
+content* of unauthorized documents into the ranking and, in a naive implementation, into the
+model's context.
+
+## Deep Dive
+
+**Chunking.** Documents are split into chunks small enough to embed and retrieve individually.
+Fixed-size chunking is simple but indifferent to document structure — it can split a table or a
+procedure's steps across two chunks, destroying the context that made either half useful alone.
+Semantic chunking (splitting on paragraph, section, or heading boundaries) respects document
+structure at the cost of variable chunk sizes. Chunk size itself is a tuning trade-off: too small
+loses surrounding context a chunk needed to make sense; too large dilutes relevance (a chunk
+matching on one sentence but mostly irrelevant) and wastes context-window budget. Overlapping
+chunks (a chunk sharing some content with its neighbor) reduce the chance a boundary splits
+something important, at the cost of redundant storage and embedding compute.
+
+**Embeddings and similarity search.** A chunk and a query are both mapped to dense vectors by an
+embedding model; retrieval finds the chunks whose vectors are closest to the query's (typically
+by cosine similarity). Exact nearest-neighbor search doesn't scale past a modest index size, so
+production systems use approximate nearest-neighbor (ANN) index structures — HNSW is the dominant
+one in practice — trading a small amount of recall for a large speed improvement at scale.
+
+**Hybrid retrieval.** Dense (embedding) retrieval is good at conceptual/semantic similarity but can
+miss exact keyword or entity matches a user actually typed (a product SKU, an error code). Sparse
+retrieval (BM25-style keyword matching) is the reverse: excellent at exact matches, blind to
+paraphrasing. Combining both — hybrid search, typically merged via reciprocal rank fusion — usually
+outperforms either alone, because they fail in different, complementary ways.
+
+**Re-ranking.** A common two-stage pattern: cheap ANN retrieval over-fetches a larger candidate set
+(say, top 50) than what's actually needed, then a more expensive cross-encoder re-ranker scores
+that smaller candidate set and reorders it down to the final top-k (say, top 5) that actually goes
+to the model. This trades extra latency and compute for meaningfully better precision than
+single-stage ANN retrieval alone provides.
+
+**Freshness is a consistency problem in disguise.** How stale can the index be relative to the
+source data before it matters? This is exactly [Module 2](/learn/modules/02-distributed-systems/)'s
+per-invariant consistency question, applied to a search index instead of a database: a legal
+document repository probably needs near-real-time reindexing on change, while a general knowledge
+base might tolerate a daily batch reindex just fine.
+
+<ResearchNote source="Lewis et al., &quot;Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks&quot;">
+  The paper that named and formalized RAG — worth reading for the original framing of retrieval as
+  a way to give a model access to knowledge without baking it into model weights.
+</ResearchNote>
+
+## Implementation
+
+The shape of a retrieval query with access control enforced *inside* the search, not after it —
+the concrete implementation of this module's Architecture decision:
+
+<CodeWalkthrough title="Tenant-scoped retrieval with a two-stage rerank">
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Protocol
+
+
+@dataclass
+class Chunk:
+    id: str
+    text: str
+    tenant_id: str
+    source_document: str
+
+
+class VectorIndex(Protocol):
+    async def search(
+        self, query_vector: list[float], top_k: int, tenant_id: str
+    ) -> list[Chunk]:
+        """Implementations MUST filter by tenant_id inside the index query itself —
+        never fetch candidates first and filter afterward in application code."""
+        ...
+
+
+class Reranker(Protocol):
+    async def rerank(self, query: str, candidates: list[Chunk]) -> list[Chunk]:
+        ...
+
+
+async def retrieve(
+    query: str,
+    tenant_id: str,
+    embed: "Callable[[str], list[float]]",
+    index: VectorIndex,
+    reranker: Reranker,
+    candidate_k: int = 50,
+    final_k: int = 5,
+) -> list[Chunk]:
+    query_vector = embed(query)
+    candidates = await index.search(query_vector, top_k=candidate_k, tenant_id=tenant_id)
+    reranked = await reranker.rerank(query, candidates)
+    return reranked[:final_k]
+```
+
+The `VectorIndex.search` signature takes `tenant_id` as a required parameter, not an optional
+filter applied afterward — this is a deliberate API design choice, not a style preference. It makes
+"forgot to filter by tenant" a signature mismatch a type checker catches, instead of a runtime data
+leak a code reviewer has to remember to look for on every call site.
+</CodeWalkthrough>
+
+## Production Example
+
+A support-docs RAG system's source documents get updated throughout the day. Two reindexing
+strategies, with different freshness/cost trade-offs: reindex-on-change (a webhook or change-data-
+capture event triggers re-chunking and re-embedding of just the changed document, near-real-time
+freshness, more moving parts) versus periodic full reindex (rebuild the whole index on a schedule,
+simpler to operate, but any document changed since the last run is served stale until the next
+cycle). A system that silently picked "whatever was easiest to build" without an explicit freshness
+requirement is how a support bot ends up confidently quoting a pricing page that changed yesterday —
+not a generation failure, a retrieval-staleness failure that looks identical to one from the
+outside.
+
+## Failure Modes
+
+<FailureMode title="Irrelevant retrieval producing confident wrong answers">
+  If the retrieved context doesn't actually contain the answer, the model often generates a
+  fluent, confident-sounding response anyway — retrieval quality is genuinely the ceiling on answer
+  quality, per this module's Mental Model section, and no amount of prompt engineering recovers a
+  retrieval miss.
+</FailureMode>
+
+<FailureMode title="Chunk boundaries splitting relevant content">
+  A procedure's numbered steps or a table's rows split across two chunks can each retrieve as
+  individually low-relevance, when the whole would have scored highly and answered the query
+  completely. This is exactly why chunking strategy (Deep Dive) is a real design decision, not an
+  arbitrary implementation detail.
+</FailureMode>
+
+<FailureMode title="Embedding model version mismatch">
+  If the ingestion pipeline re-embeds with a new embedding model version but the existing index
+  isn't fully rebuilt, queries end up comparing new-model query vectors against old-model chunk
+  vectors — similarity scores become meaningless. Any embedding model change requires a full
+  reindex, not an incremental one; this is easy to miss because nothing errors, retrieval quality
+  just quietly degrades.
+</FailureMode>
+
+<Warning title="Missing per-tenant access control at retrieval time">
+  If a vector index doesn't enforce tenant or user permissions inside the search itself — filtering
+  candidates by authorization *after* fetching them, or not at all — a multi-tenant RAG system can
+  retrieve, and hand to the model, content the requesting user was never authorized to see. This is
+  a correctness and security failure simultaneously, and it survives even a well-guarded application
+  layer if the index query itself doesn't enforce it. See this module's Security section.
+</Warning>
+
+<FailureMode title="Stale index after source data changes">
+  Without a defined freshness requirement and a reindexing strategy to match it (this module's
+  Production Example), an index silently drifts from the source of truth — the same distributed-
+  systems staleness problem [Module 2](/learn/modules/02-distributed-systems/) covers generally,
+  showing up here as a search index instead of a replicated database.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Chunk size: small vs. large">
+  Small chunks retrieve precisely but can lose surrounding context a passage needed to make sense
+  standalone. Large chunks preserve more context but dilute relevance scoring and cost more tokens
+  per retrieved item — fewer of them fit in a given context budget.
+</TradeOff>
+
+<TradeOff title="Pure dense retrieval vs. hybrid (dense + sparse)">
+  Dense-only retrieval is simpler to operate (one index, one similarity metric) but misses exact
+  keyword and entity matches. Hybrid retrieval catches both semantic and exact matches at the cost
+  of maintaining two retrieval mechanisms and a fusion strategy between their results.
+</TradeOff>
+
+<TradeOff title="Single-stage retrieval vs. retrieve-then-rerank">
+  Single-stage ANN retrieval is faster and simpler. A second-stage cross-encoder re-rank
+  meaningfully improves precision on the final result set, at the cost of the added latency and
+  compute of scoring every candidate in the larger first-stage set.
+</TradeOff>
+
+## Security
+
+- **Enforce access control inside the retrieval query itself**, per this module's Implementation
+  section — never as a post-filter on results already fetched, and never left entirely to the
+  application layer to remember on every call site.
+- **Prompt injection via retrieved content** — a malicious or compromised document in the corpus
+  can contain instructions the model follows once retrieved into context, the same failure mode
+  [Module 4](/learn/modules/04-ai-infrastructure/#security) and
+  [Module 6](/learn/modules/06-mcp/#failure-modes) cover for other untrusted-content sources,
+  arriving here through the corpus itself.
+- **Embeddings can leak information about source content** even when the index doesn't store raw
+  text — a real, if less common, concern for highly sensitive corpora where even vector proximity
+  could reveal something about restricted content.
+
+## Performance
+
+- **Retrieval latency is part of the overall time-to-first-token budget**, not a separate concern —
+  see [Module 3](/learn/modules/03-networking/)'s treatment of layered latency budgets, applied
+  here to the retrieval step specifically.
+- **ANN index parameters trade recall for speed** — HNSW's tuning knobs directly control how much
+  approximate search sacrifices exact-nearest-neighbor recall for query speed; this is a real,
+  measurable trade-off to tune against your actual latency and quality requirements, not a default
+  to leave untouched.
+- **Query-time embedding computation is a per-request cost**, in both latency and (if using a
+  hosted embedding API) money — track it the same way [Module 4](/learn/modules/04-ai-infrastructure/#implementation)'s
+  cost-tracking pattern tracks generation cost.
+
+## Scaling
+
+- **Index size growth eventually requires sharding** the vector index across multiple nodes,
+  turning "search the index" into a distributed query with its own latency and consistency
+  characteristics.
+- **Ingestion and query workloads scale independently** and have different resource profiles —
+  ingestion is bursty and throughput-oriented (batch-embed a large document set), query is
+  latency-sensitive and needs to scale with request volume, not document volume.
+- **Multi-tenant index isolation** is itself a scaling decision: separate indices per tenant give
+  the cleanest isolation guarantee but multiply operational overhead per tenant, while a shared
+  index with metadata filtering (this module's Implementation section) scales operationally better
+  but puts all the isolation weight on that filter being correct on every single query.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How would you design a RAG system for a multi-tenant SaaS product?">
+  Anchor on access control enforced inside the retrieval query (never a post-filter), an explicit
+  chunking strategy matched to the document types involved, hybrid retrieval if exact-match queries
+  matter, and a defined freshness requirement driving the reindexing strategy — not just "embed the
+  docs and search them."
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="How do you keep a vector index in sync with a changing data source?">
+  Either reindex-on-change (event-driven, near-real-time, more infrastructure) or periodic full
+  reindex (simpler, accepts bounded staleness) — the right choice depends on an explicit freshness
+  requirement, per this module's Production Example, not on whichever is easiest to stand up first.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you evaluate retrieval quality separately from generation quality?">
+  Retrieval evaluation uses recall/precision @k against a labeled set of query-to-relevant-chunk
+  pairs, independent of what the model does with those chunks. Generation evaluation, per
+  [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)'s evaluation harness, scores the final
+  answer. Conflating the two hides which one is actually the bottleneck when quality is poor.
+</InterviewQuestion>
+
+<InterviewAnswer title="Why this separation matters in practice">
+  A system with poor end-to-end answer quality but strong retrieval recall has a generation or
+  prompt-construction problem; the same poor end-to-end quality with weak retrieval recall has a
+  completely different fix. Without separate measurement, teams commonly spend weeks tuning prompts
+  when the actual problem was retrieval the whole time.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="How do you prevent one tenant's documents from leaking into another tenant's retrieval results?">
+  Enforce the tenant filter as a required, non-optional parameter to the index search itself (this
+  module's Implementation section) so it's structurally impossible to call retrieval without it —
+  not a convention documented in a wiki that a future call site can forget.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated RAG lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Prove cross-tenant isolation in a retrieval query" difficulty="advanced">
+  Implement the `VectorIndex` protocol from this module's Implementation section against any
+  embeddable local vector store, seed it with documents from two different `tenant_id` values, and
+  write a test that queries as tenant A with content deliberately similar to tenant B's documents —
+  asserting that no tenant B chunks ever appear in tenant A's results, regardless of similarity
+  score.
+</Exercise>
+
+## References
+
+- Lewis et al., ["Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks"](https://arxiv.org/abs/2005.11401)
+- Anthropic, ["Introducing Contextual Retrieval"](https://www.anthropic.com/news/contextual-retrieval) — a concrete technique for improving chunk retrieval quality by adding chunk-level context before embedding.
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — the consistency and staleness concepts this module applies to index freshness.
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the evaluation harness pattern generation quality is measured against, separately from retrieval.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-05 | Initial publication. |

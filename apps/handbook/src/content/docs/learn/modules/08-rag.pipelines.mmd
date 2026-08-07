@@ -1,0 +1,16 @@
+flowchart TB
+    subgraph Ingestion["Ingestion pipeline (runs ahead of time)"]
+        Docs[Source documents] --> Chunk[Chunk]
+        Chunk --> EmbedIngest[Embed]
+        EmbedIngest --> Index[(Vector index)]
+    end
+
+    subgraph Query["Query pipeline (runs per request)"]
+        Q[User query] --> EmbedQuery[Embed]
+        EmbedQuery --> ANN["ANN search + access-control filter"]
+        Index -.-> ANN
+        ANN --> Rerank["Re-rank (optional second stage)"]
+        Rerank --> Prompt["Construct prompt: instructions + retrieved chunks"]
+        Prompt --> Model[Model]
+        Model --> Response[Response]
+    end

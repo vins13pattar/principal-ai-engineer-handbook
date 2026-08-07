@@ -18,6 +18,22 @@ test.describe("learn modules v0.3", () => {
   });
 });
 
+test.describe("learn modules v0.5", () => {
+  test("Module 8 renders its RAG pipelines diagram", async ({ page }) => {
+    await page.goto("./learn/modules/08-rag/");
+    await expect(page.getByRole("heading", { name: "Module 8: RAG", level: 1 })).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+
+  test("Module 9 renders its serving-pipeline diagram", async ({ page }) => {
+    await page.goto("./learn/modules/09-model-serving/");
+    await expect(
+      page.getByRole("heading", { name: "Module 9: Model Serving", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+});
+
 test.describe("architecture", () => {
   test("Async AI Gateway architecture page renders its request-flow diagram", async ({ page }) => {
     await page.goto("./architecture/systems/async-ai-gateway/");

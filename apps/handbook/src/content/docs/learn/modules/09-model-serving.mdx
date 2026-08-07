@@ -1,0 +1,358 @@
+---
+title: "Module 9: Model Serving"
+description: Why serving an LLM is two different workloads glued together — compute-bound prefill and memory-bandwidth-bound decode — and how continuous batching, KV cache management, and quantization exist to reconcile them.
+version: 1.0.0
+lastUpdated: 2026-08-07
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-07
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 9
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 01-production-python
+  - 04-ai-infrastructure
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import servingPipeline from "./09-model-serving.serving-pipeline.mmd?raw";
+
+## Executive Summary
+
+Serving an LLM efficiently is not "run inference, but faster" — it's reconciling two workloads with
+opposite performance characteristics inside a single request. Processing a prompt (prefill) is
+compute-bound and parallelizes trivially across tokens; generating a response one token at a time
+(decode) is memory-bandwidth-bound and barely uses the GPU's compute at all. Every serving-layer
+technique this module covers — continuous batching, KV cache management, quantization, parallelism
+— exists to keep an expensive GPU busy despite decode's fundamentally low utilization, and every
+serving cost and latency number a principal engineer is asked to explain traces back to this split.
+
+## Mental Model
+
+A request to a model server passes through two phases with different bottlenecks:
+
+- **Prefill** processes the entire input prompt in one forward pass. All prompt tokens are known up
+  front, so this parallelizes across tokens and saturates GPU compute — it's throughput-friendly and
+  fast per token processed.
+- **Decode** generates output one token at a time, and each new token depends on the one before it —
+  it cannot be parallelized across the sequence. Each decode step reads the entire model's weights
+  and the growing KV cache from GPU memory to produce a single token, so decode is bottlenecked on
+  memory bandwidth, not compute. Most of the GPU's compute capacity sits idle during decode.
+
+<PrincipalPerspective title="A GPU serving one request at a time is not GPU-bound, it's memory-bandwidth-bound">
+  This single fact explains why naive single-request serving is so expensive: an idle-looking GPU
+  during decode is still fully occupied moving weights and KV cache through memory for one token at
+  a time. The fix isn't a faster GPU, it's batching more requests' decode steps together so the same
+  memory traffic produces tokens for many requests at once — which is exactly what continuous
+  batching does, and why it's the highest-leverage serving optimization before reaching for anything
+  else.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={servingPipeline}
+  title="A continuous batching scheduler admitting new requests mid-batch, backed by a shared KV cache and an autoscaled fleet"
+/>
+
+Static batching — wait for a full batch of requests, run them together, return all results together
+— wastes GPU time whenever one request in the batch finishes generating before the others: the GPU
+sits there doing nothing useful for that slot until the whole batch completes. Continuous batching
+(the scheduler in this diagram) instead evaluates admission at every decode step, so a finished
+request's slot is immediately replaced by a new request's prefill, keeping the batch full and the
+GPU's decode throughput high without ever forcing later arrivals to wait for an unrelated batch to
+finish first.
+
+## Deep Dive
+
+**The KV cache.** Attention needs each new token to attend to every previous token in the sequence.
+Recomputing that from scratch at every decode step would be wildly wasteful, so the key and value
+projections for every previous token are cached in GPU memory (the "KV cache") and reused across
+decode steps — only the new token's projections need computing each step. The KV cache grows
+linearly with sequence length and with the number of concurrent sequences, and it competes with
+model weights for the same finite GPU memory: KV cache capacity, not model size alone, is usually
+what actually caps how many concurrent requests a GPU can serve.
+
+**PagedAttention.** Early KV cache implementations allocated one contiguous memory block per
+sequence sized for its maximum possible length, fragmenting GPU memory badly (a short sequence still
+reserved worst-case-length space) and wasting a large fraction of available memory. PagedAttention
+borrows the operating-system idea of paged virtual memory: the KV cache is allocated in small fixed-
+size blocks that don't need to be contiguous, referenced through a per-sequence block table. This
+essentially eliminates the fragmentation problem and is the core mechanism behind why modern serving
+engines (vLLM popularized it) fit meaningfully more concurrent sequences in the same GPU memory than
+naive implementations.
+
+**Continuous batching, mechanically.** Instead of a fixed batch that runs to completion, the
+scheduler re-evaluates the batch composition at every decode step: any sequence that finished
+generating is evicted immediately, freeing its KV cache pages, and a queued request can be admitted
+and prefilled into the now-open slot — interleaved with ongoing decode steps for the rest of the
+batch. This is what actually keeps GPU utilization high under real traffic, where requests have
+wildly different output lengths and arrive at different times.
+
+**Quantization.** Storing model weights (and sometimes the KV cache itself) in lower precision —
+INT8 or INT4 instead of FP16/BF16 — cuts memory footprint and memory-bandwidth pressure roughly in
+proportion, which directly speeds up the memory-bandwidth-bound decode phase and lets more of the
+KV cache fit in the same GPU memory. The cost is a small, usually acceptable, accuracy degradation;
+how much degradation is acceptable is a product decision, not a purely technical one, and should be
+measured against the same evaluation harness [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)
+covers, not assumed to be negligible.
+
+**Parallelism strategies.** A model too large for one GPU's memory needs to be split across GPUs.
+Tensor parallelism splits individual layers' matrix operations across GPUs, requiring fast
+interconnect (NVLink) because every layer needs a synchronization step — it reduces per-token
+latency but adds communication overhead per layer. Pipeline parallelism instead assigns different
+layers to different GPUs and streams batches through them like a pipeline — better interconnect
+tolerance, but at the cost of pipeline bubbles (idle GPU time while later stages wait on earlier
+ones) unless the batch is large enough to keep every stage busy.
+
+<ResearchNote source="Kwon et al., &quot;Efficient Memory Management for Large Language Model Serving with PagedAttention&quot; (vLLM)">
+  The paper that introduced PagedAttention and popularized continuous batching as the default
+  architecture for open-source LLM serving engines — worth reading directly for the memory
+  fragmentation numbers that motivated it.
+</ResearchNote>
+
+## Implementation
+
+A minimal continuous batching scheduler, showing the admission-control decision (does a new request
+fit in the remaining KV cache budget?) and the prefill/decode distinction at the core of every
+production serving engine, stripped of the actual tensor math:
+
+<CodeWalkthrough title="Admission control and the prefill/decode split, without the model math">
+```python
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+
+@dataclass
+class Request:
+    id: str
+    prompt_tokens: int
+    max_new_tokens: int
+    generated_tokens: int = 0
+    prefilled: bool = False
+
+
+class ContinuousBatchScheduler:
+    def __init__(self, kv_cache_token_budget: int):
+        self.kv_cache_token_budget = kv_cache_token_budget
+        self.in_flight: dict[str, Request] = {}
+        self.queue: list[Request] = []
+
+    def _used_tokens(self) -> int:
+        return sum(
+            r.prompt_tokens + r.generated_tokens for r in self.in_flight.values()
+        )
+
+    def admit(self, request: Request) -> None:
+        self.queue.append(request)
+
+    def step(self) -> list[str]:
+        while self.queue:
+            candidate = self.queue[0]
+            projected = self._used_tokens() + candidate.prompt_tokens
+            if projected > self.kv_cache_token_budget:
+                break
+            self.in_flight[candidate.id] = self.queue.pop(0)
+
+        finished: list[str] = []
+        for request in self.in_flight.values():
+            if not request.prefilled:
+                request.prefilled = True
+                continue
+            request.generated_tokens += 1
+            if request.generated_tokens >= request.max_new_tokens:
+                finished.append(request.id)
+
+        for request_id in finished:
+            del self.in_flight[request_id]
+        return finished
+```
+
+`step()` runs once per decode tick: it admits queued requests only while they fit the remaining KV
+cache budget (`_used_tokens`), gives every newly admitted request one prefill tick before it starts
+decoding, advances every already-prefilled request by one generated token, and evicts anything that
+just hit its length limit — freeing that budget for the next `admit` call's candidates on the very
+next tick. A real engine replaces the token-count budget with actual KV cache page accounting and
+the prefill/decode ticks with real forward passes, but the admission-control shape is the same.
+</CodeWalkthrough>
+
+## Production Example
+
+A team serving a 70B-parameter model on a fixed GPU budget needs to pick a quantization level. FP16
+gives the best accuracy but the fewest concurrent requests per GPU; INT8 roughly doubles concurrent
+capacity for a small, usually-acceptable quality loss on most tasks; INT4 pushes capacity further but
+risks visible quality degradation on tasks requiring precise reasoning or exact-format outputs. The
+only defensible way to choose is running the same evaluation harness against each quantization level
+on representative production traffic — not trusting a vendor's aggregate benchmark number, which can
+hide task-specific regressions a general-purpose eval never surfaces.
+
+## Failure Modes
+
+<FailureMode title="KV cache exhaustion under bursty concurrent load">
+  If admission control doesn't account for the actual remaining KV cache budget (this module's
+  Implementation section), a burst of concurrent long-context requests can exceed available GPU
+  memory, forcing the server to preempt or reject in-flight requests — a cascading failure that
+  looks like the model server crashed, when it was actually a capacity-planning gap.
+</FailureMode>
+
+<FailureMode title="Head-of-line blocking from static batching">
+  Under static batching, one unusually long generation in a batch holds every other request in that
+  batch hostage until it finishes, even though their own generations completed long ago. This shows
+  up as unpredictable p99 latency that has nothing to do with an individual request's own size — the
+  fix is continuous batching (this module's Architecture section), not a bigger GPU.
+</FailureMode>
+
+<FailureMode title="Cold-start latency from GPU autoscaling">
+  Scaling a GPU-backed model server from zero (or scaling out under load) means loading multi-
+  gigabyte model weights onto a freshly provisioned GPU before it can serve a single request — this
+  can take tens of seconds to minutes, an eternity compared to the latency budget of the request that
+  triggered the scale-out. See this module's Scaling section for mitigations.
+</FailureMode>
+
+<Warning title="Quantization accuracy loss going unmeasured">
+  Shipping a lower-precision quantization level purely because it fits more requests per GPU, without
+  re-running the evaluation harness against it, risks a silent quality regression on exactly the
+  tasks a general benchmark doesn't cover — the same evaluation discipline
+  [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive) requires for any model change applies
+  here too.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="Tensor parallelism vs. pipeline parallelism">
+  Tensor parallelism lowers per-token latency but demands fast GPU interconnect and pays a
+  synchronization cost on every layer. Pipeline parallelism tolerates weaker interconnect but
+  introduces pipeline bubbles that need a large enough batch to hide.
+</TradeOff>
+
+<TradeOff title="Quantization level: accuracy vs. concurrent capacity">
+  Lower precision (INT8, INT4) increases how many concurrent requests fit in the same GPU memory and
+  speeds up the memory-bandwidth-bound decode phase, at the cost of some accuracy — real only when
+  measured against an evaluation harness on representative tasks, not assumed from a vendor benchmark.
+</TradeOff>
+
+<TradeOff title="Keep-warm capacity vs. cost during GPU autoscaling">
+  Keeping GPUs warm and idle avoids cold-start latency entirely but pays for capacity that may go
+  unused; scaling to zero saves cost but reintroduces the cold-start problem on the next request
+  after an idle period. The right point depends on how spiky real traffic actually is, not a default.
+</TradeOff>
+
+## Security
+
+- **Multi-tenant serving must isolate KV cache and batch composition between tenants** — a shared
+  serving fleet with no isolation boundary risks one tenant's traffic pattern (a burst of huge
+  prompts) starving another tenant's latency budget, or, in a poorly isolated implementation,
+  leaking timing information about other tenants' request shapes.
+- **Quantized or distilled models deployed without re-running safety evaluations** can regress on
+  safety-relevant behavior that a pure accuracy benchmark wouldn't catch — treat a quantization
+  change as a model change requiring the same safety review as swapping model versions entirely.
+
+## Performance
+
+- **Decode throughput, not prefill throughput, usually dominates the cost-per-token calculation**
+  for typical chat-style workloads, because output tokens usually outnumber input tokens processed
+  per decode step — this is why continuous batching (which specifically improves decode-phase GPU
+  utilization) has an outsized effect on serving cost.
+- **Time-to-first-token is bounded by prefill latency**; time-per-output-token is bounded by decode
+  latency — these are different metrics with different bottlenecks, and conflating them into a
+  single "latency" number hides which phase actually needs optimizing. This is the same layered-
+  latency discipline [Module 3](/learn/modules/03-networking/) applies to network requests, applied
+  here to the two phases inside model serving.
+- **KV cache memory, not raw compute, is usually the binding constraint** on how many concurrent
+  requests a GPU can serve — PagedAttention-style memory management (this module's Deep Dive) exists
+  specifically to relax this constraint.
+
+## Scaling
+
+- **Autoscaling GPU-backed fleets must account for cold-start latency**, not just request volume —
+  scaling reactively on current load guarantees the new replica isn't ready until well after the load
+  spike that triggered it. Practical mitigations: predictive/scheduled scale-out ahead of known
+  traffic patterns, and keeping a small warm pool sized to absorb burst latency while cold replicas
+  spin up.
+- **Horizontal scaling (more replicas behind a load balancer) is the default lever** once a single
+  replica is saturated — the load balancer in this module's Architecture diagram needs its own
+  routing awareness of each replica's current KV cache utilization, not just round-robin, or it can
+  route a large request to an already-near-capacity replica.
+- **Model sharding via tensor or pipeline parallelism is a separate scaling axis** from replica count
+  — it's what to reach for when a single model doesn't fit on one GPU at all, not a substitute for
+  adding replicas once it does fit.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Why is LLM decode memory-bandwidth-bound instead of compute-bound?">
+  Each decode step generates one token per sequence, and doing so requires reading the entire
+  model's weights and that sequence's KV cache from GPU memory — a large memory transfer for a tiny
+  amount of actual computation. Prefill has the opposite ratio, so batching decode steps across many
+  requests is how serving systems recover compute utilization decode alone can't achieve.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How does continuous batching improve on static batching?">
+  Static batching holds a fixed set of requests until the entire batch finishes, wasting GPU
+  capacity on any slot whose request finished early. Continuous batching re-evaluates admission at
+  every decode step, immediately replacing a finished request's slot with a queued one, keeping GPU
+  utilization high independent of how uneven request lengths are.
+</InterviewQuestion>
+
+<InterviewAnswer title="What actually caps concurrent request capacity on a single GPU?">
+  In most production serving setups it's available KV cache memory, not raw compute — every
+  concurrent sequence needs its own growing KV cache, and that competes with model weights for the
+  same finite GPU memory. PagedAttention-style paged allocation (this module's Deep Dive) directly
+  targets this constraint by eliminating fragmentation waste in how that memory is allocated.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="intermediate" title="When would you choose pipeline parallelism over tensor parallelism?">
+  When GPU interconnect bandwidth is limited — tensor parallelism needs fast interconnect because
+  every layer requires cross-GPU synchronization, while pipeline parallelism only needs to pass
+  activations between adjacent stages, tolerating weaker interconnect at the cost of pipeline bubbles
+  that need sufficiently large batches to hide.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="How would you mitigate cold-start latency in a GPU-autoscaled model server?">
+  Keep a small warm pool of replicas sized against typical burst shape rather than scaling from zero
+  reactively, and/or scale ahead of known traffic patterns predictively — reactive scale-out on
+  current load structurally guarantees the new replica arrives after the spike that triggered it, per
+  this module's Failure Modes section.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated model-serving lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Simulate head-of-line blocking under static batching" difficulty="intermediate">
+  Extend this module's `ContinuousBatchScheduler` with a `StaticBatchScheduler` that only admits new
+  requests once every in-flight request has finished, run both against the same mixed workload of
+  short and long `max_new_tokens` requests, and measure completion time for the short requests under
+  each scheduler — quantify the head-of-line blocking this module's Failure Modes section describes,
+  rather than just asserting it exists.
+</Exercise>
+
+## References
+
+- Kwon et al., ["Efficient Memory Management for Large Language Model Serving with PagedAttention"](https://arxiv.org/abs/2309.06180) — the vLLM paper.
+- Yu et al., ["Orca: A Distributed Serving System for Transformer-Based Generative Models"](https://www.usenix.org/conference/osdi22/presentation/yu) — introduced iteration-level (continuous) batching.
+- [Module 3: Networking](/learn/modules/03-networking/) — the layered-latency-budget discipline this module applies to prefill vs. decode.
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the evaluation harness this module's Production Example and Security section apply to quantization decisions.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-07 | Initial publication. |

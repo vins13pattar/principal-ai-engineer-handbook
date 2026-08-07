@@ -1,0 +1,24 @@
+flowchart TB
+    Req[Incoming requests] --> Sched["Continuous batching scheduler"]
+
+    subgraph GPU["Model server (single GPU / replica)"]
+        Sched --> Prefill["Prefill: process full prompt (compute-bound)"]
+        Prefill --> KV[(KV cache)]
+        KV --> Decode["Decode: generate one token at a time (memory-bandwidth-bound)"]
+        Decode --> Sched
+        Decode --> Out[Stream tokens to caller]
+    end
+
+    Sched -.new request joins mid-batch.-> Prefill
+    KV -.evicted under memory pressure.-> Evict[Preempt / reject]
+
+    subgraph Fleet["Autoscaled fleet"]
+        GPU
+        GPU2["Model server (replica 2)"]
+        GPUN["Model server (replica N)"]
+    end
+
+    LB[Load balancer] --> GPU
+    LB --> GPU2
+    LB --> GPUN
+    Req --> LB
