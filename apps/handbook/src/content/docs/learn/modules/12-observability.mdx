@@ -1,0 +1,366 @@
+---
+title: "Module 12: Observability"
+description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, and why an eval regression is a different kind of signal than a latency spike.
+version: 1.0.0
+lastUpdated: 2026-08-07
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-07
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 12
+difficulty: advanced
+estimatedMinutes: 45
+prerequisites:
+  - 01-production-python
+  - 04-ai-infrastructure
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import signalPipeline from "./12-observability.signal-pipeline.mmd?raw";
+
+## Executive Summary
+
+Observability exists to answer one question fast during an incident: what actually happened to
+*this* request, and why. Metrics tell you something is wrong in aggregate; logs and traces tell you
+what happened to a specific request; and for AI systems specifically, a fourth signal — evaluation-
+based quality monitoring — tells you the system is answering correctly *at all*, a failure mode the
+other three are structurally blind to, since a slow, cheap, confidently wrong answer looks identical
+to a correct one on every latency or error-rate dashboard.
+
+## Mental Model
+
+Three signals, correlated by a shared identifier, cover most production debugging:
+
+- **Metrics** — aggregated numbers over time (request rate, error rate, latency percentiles).
+  Cheap to store at high cardinality-collapsed granularity; good for "is something wrong right now,"
+  bad for "what happened to this one request."
+- **Logs** — discrete, timestamped events, ideally structured (key-value, not free text) and
+  carrying a `request_id` that ties them to the same request across every service it touched.
+- **Traces** — a tree of timed spans representing one request's actual path through the system,
+  including every downstream call it made — the only signal that shows causality and sequencing
+  directly.
+
+<PrincipalPerspective title="A model can be fast, cheap, and wrong, and none of your dashboards will show it">
+  Metrics, logs, and traces all describe *how* a request executed — latency, errors, the call graph
+  — none of them describe whether the *answer* was correct. An LLM that hallucinates confidently
+  produces a 200 response, a normal latency, and a clean trace. This is exactly why
+  [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)'s evaluation harness has to run as its
+  own, separately monitored signal — observability in the traditional sense cannot substitute for it,
+  no matter how much telemetry you add.
+</PrincipalPerspective>
+
+## Architecture
+
+<Mermaid
+  code={signalPipeline}
+  title="One request producing three correlated signals, plus a separate, non-request-scoped eval signal feeding the same alerting layer"
+/>
+
+The nested spans under `llm.call` and `tool.call` are what make a trace useful for an agentic system
+specifically — a single top-level request can fan out into several model calls and tool invocations
+(per [Module 5](/learn/modules/05-agent-engineering/) and [Module 6](/learn/modules/06-mcp/)), and
+without span-level tracing through that fan-out, a slow or failing step is invisible except as
+elevated latency on the outermost span, with no indication of which inner step actually caused it.
+
+## Deep Dive
+
+**RED and USE.** For request-serving services, the RED method (Rate, Errors, Duration, usually as a
+latency histogram) is the standard starting metric set — it maps directly onto the questions an
+on-call engineer actually asks first. The USE method (Utilization, Saturation, Errors) is the
+complementary view for the resources underneath a service — CPU, memory, GPU, the KV cache budget
+[Module 9](/learn/modules/09-model-serving/#deep-dive) covers — and it's what usually explains *why*
+a RED-method symptom is happening.
+
+**SLIs, SLOs, and error budgets.** A Service Level Indicator is a specific measured metric (e.g.,
+p99 latency); a Service Level Objective is the target for it (e.g., p99 < 800ms over a rolling
+28 days); the error budget is the amount of SLO violation you can afford before it becomes
+unacceptable. Alerting on SLO burn rate — how fast the error budget is being consumed — produces
+fewer, more actionable pages than alerting on every individual metric threshold crossing, because it
+distinguishes a brief blip from a trend that will actually exhaust the budget.
+
+**Distributed tracing and context propagation.** A trace is only as useful as its context
+propagation — the trace ID and parent span ID have to travel with the request across every process
+boundary (an HTTP call, a queue message, an async task) for spans from different services to link
+into one coherent trace. This is exactly where async code (per
+[Module 1](/learn/modules/01-production-python/)) commonly breaks tracing silently: a fire-and-forget
+background task started without explicitly propagating the current trace context produces an orphan
+span with no parent, and the trace looks incomplete with no error to indicate why.
+
+**Structured logging.** A log line as a JSON object with consistent field names (`request_id`,
+`tenant_id`, `latency_ms`) is queryable; a log line as free-form text requires regex archaeology
+during an incident, exactly when time matters most. The specific discipline for AI systems: log
+token counts, model identifiers, and cost as structured fields on the same log line as the request
+outcome, not in a separate system that has to be manually correlated afterward.
+
+**Prompt and response logging vs. redaction.** Logging full prompts and responses is often essential
+for debugging quality issues, but prompts and responses can contain the same sensitive data the rest
+of the system is built to protect — customer PII, credentials pasted into a support query. Redaction
+has to happen before data reaches the logging pipeline, not as a policy about who's allowed to query
+the logs afterward, which doesn't undo the exposure of having stored it unredacted in the first
+place.
+
+<ResearchNote source="Google SRE Book, &quot;Monitoring Distributed Systems&quot; and &quot;Service Level Objectives&quot;">
+  The chapters that formalized RED-style metrics, SLIs/SLOs, and error budgets as the standard
+  vocabulary for production monitoring — worth reading directly since the SLO/error-budget framing
+  is precise in a way that's easy to blur in casual use.
+</ResearchNote>
+
+## Implementation
+
+A minimal tracer recording token counts, model, and cost as span attributes on an LLM call — the
+concrete version of this module's "log AI-specific fields on the same span as the outcome"
+principle — paired with prompt redaction applied *before* anything is recorded:
+
+<CodeWalkthrough title="Span-based tracing with token/cost attributes and pre-storage redaction">
+```python
+from __future__ import annotations
+
+import time
+from contextlib import contextmanager
+from dataclasses import dataclass, field
+from typing import Iterator
+
+REDACTED = "[redacted]"
+
+
+@dataclass
+class Span:
+    name: str
+    attributes: dict[str, object] = field(default_factory=dict)
+    start_time: float = field(default_factory=time.monotonic)
+    duration_seconds: float | None = None
+
+    def set_attribute(self, key: str, value: object) -> None:
+        self.attributes[key] = value
+
+    def finish(self) -> None:
+        self.duration_seconds = time.monotonic() - self.start_time
+
+
+class Tracer:
+    def __init__(self) -> None:
+        self.finished_spans: list[Span] = []
+
+    @contextmanager
+    def start_span(self, name: str) -> Iterator[Span]:
+        span = Span(name=name)
+        try:
+            yield span
+        finally:
+            span.finish()
+            self.finished_spans.append(span)
+
+
+def redact(text: str, sensitive_substrings: list[str]) -> str:
+    redacted = text
+    for substring in sensitive_substrings:
+        redacted = redacted.replace(substring, REDACTED)
+    return redacted
+
+
+tracer = Tracer()
+
+
+def call_model(prompt: str, model: str, sensitive_substrings: list[str]) -> str:
+    with tracer.start_span("llm.call") as span:
+        span.set_attribute("llm.model", model)
+        span.set_attribute("llm.prompt_tokens", len(prompt.split()))
+        span.set_attribute("llm.prompt_redacted", redact(prompt, sensitive_substrings))
+
+        response = f"response to: {redact(prompt, sensitive_substrings)[:40]}"
+
+        span.set_attribute("llm.completion_tokens", len(response.split()))
+        span.set_attribute("llm.estimated_cost_usd", 0.00002 * len(prompt.split()))
+        return response
+```
+
+`llm.prompt_redacted` is computed and stored on the span *instead of* the raw prompt — redaction
+happens before anything is recorded, not as an access-control policy layered on top of unredacted
+data already sitting in a trace store. Recording token counts and estimated cost directly as span
+attributes means a single trace query answers "which step of this request was slow and what did it
+cost," instead of joining a trace store against a separate cost-tracking system after the fact — the
+same per-request cost tracking [Module 4](/learn/modules/04-ai-infrastructure/#implementation)
+introduces, now attached to the exact span that incurred it.
+</CodeWalkthrough>
+
+## Production Example
+
+An agentic system's p99 latency SLO starts burning through its error budget. The RED metrics show
+elevated duration on the top-level request span alone — not enough to diagnose anything. Tracing
+into the nested `llm.call` and `tool.call` spans (this module's Architecture diagram) shows the
+slowdown is isolated to one specific tool call, not the model calls at all — a downstream API the
+tool wraps has degraded. Without span-level tracing through the agent's tool-call fan-out, this
+would have looked like a generic model latency regression, sending the on-call engineer to look at
+the wrong system entirely.
+
+## Failure Modes
+
+<FailureMode title="Broken trace context propagation across an async boundary">
+  A background task or queue-dispatched job started without explicitly carrying the current trace
+  context produces an orphan span with no parent — the trace looks incomplete, and there's no error
+  to point at why, only a gap where a step should have appeared. This is a direct consequence of
+  async code's implicit-context assumptions, per [Module 1](/learn/modules/01-production-python/).
+</FailureMode>
+
+<FailureMode title="Unredacted prompts and responses reaching the log or trace store">
+  If redaction happens only as an access-control policy on who can query stored logs, rather than
+  before storage, the sensitive data is already sitting in a system that policy alone can't retract
+  — any breach or overly broad access grant to that store exposes it. This module's Deep Dive and
+  Implementation sections both treat redaction as a pre-storage step, not a downstream control.
+</FailureMode>
+
+<FailureMode title="Cardinality explosion in metric labels">
+  Adding a high-cardinality label to a metric (a raw user ID or request ID as a label, rather than a
+  bounded dimension like `tenant_tier`) multiplies the number of distinct time series the metrics
+  backend has to store, often silently, until query performance or storage cost degrades enough to
+  notice — usually far after the label was added, making the root cause hard to trace back.
+</FailureMode>
+
+<Warning title="Alerting on symptoms instead of SLO burn rate">
+  Alerting on every individual metric threshold crossing (a single slow request, one error) produces
+  enough noise that on-call engineers start ignoring pages — the specific failure mode SLO
+  burn-rate alerting (this module's Deep Dive) exists to prevent, by distinguishing a blip from an
+  actual trend toward exhausting the error budget.
+</Warning>
+
+<FailureMode title="Treating a quality regression as invisible because nothing else alerted">
+  A model or prompt change that degrades answer quality produces no RED-metric symptom at all — the
+  requests are fast and return 200s. Without the eval harness from [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)
+  running as an independently monitored signal, this regression can ship and stay live indefinitely,
+  precisely because traditional observability has no way to see it.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Full tracing vs. sampled tracing">
+  Tracing every request gives complete visibility but costs proportionally more in storage and
+  instrumentation overhead as traffic grows. Sampling (recording a percentage of requests, or
+  always recording errors and slow requests specifically) keeps cost bounded at high volume, at the
+  risk of missing the specific request an investigation actually needs if it wasn't sampled.
+</TradeOff>
+
+<TradeOff title="Structured logging verbosity vs. log volume cost">
+  Logging more fields per request (full prompt/response, every intermediate step) makes debugging
+  easier but multiplies log storage and ingestion cost at scale. The usual resolution is tiered:
+  rich structured logs at a sampled rate, terser logs for every request.
+</TradeOff>
+
+<TradeOff title="Real-time eval monitoring vs. periodic batch evaluation">
+  Running the eval harness continuously against live traffic catches quality regressions faster but
+  costs compute on every request path or a shadow path. Periodic batch evaluation against a
+  held-out sample is cheaper but detects a regression only as fast as the batch cadence allows —
+  the right choice depends on how costly a live quality regression actually is to leave undetected.
+</TradeOff>
+
+## Security
+
+- **Redact before storage, not after** — this module's Deep Dive and Implementation sections both
+  treat this as non-negotiable; an access-control policy on a logging system doesn't undo having
+  stored sensitive data unredacted in the first place.
+- **Observability data itself needs access control** — traces and logs routinely contain enough
+  detail (request payloads, internal service topology, tenant identifiers) that a database of
+  telemetry is itself a target, not just a debugging convenience with no attack surface of its own.
+- **Metric and log exporters crossing a network boundary need the same transport security as any
+  other traffic** — telemetry is not exempt from encryption-in-transit requirements just because
+  it's "just monitoring data."
+
+## Performance
+
+- **Instrumentation itself has overhead** — every span, every structured log field, every metric
+  emission costs CPU and, for traces, serialization and network cost to the collector. This is
+  usually small per request but adds up at scale, which is exactly why sampling strategies (this
+  module's Trade-offs) exist rather than treating "trace everything" as a free default.
+- **High-cardinality metrics slow down the metrics backend itself** — this module's Failure Modes
+  section covers the failure; the performance angle is that query latency against a cardinality-
+  exploded metric degrades for everyone querying that backend, not just the team that added the
+  problematic label.
+- **Trace-based debugging is only as fast as trace query latency** — a trace store that takes
+  minutes to return a query result during an active incident defeats the purpose of having traced
+  the request in the first place.
+
+## Scaling
+
+- **Log and trace volume scale with request volume, not linearly with usefulness** — the marginal
+  value of the millionth identical successful request's full trace is close to zero, which is the
+  practical argument for sampling (or always-sample-errors-and-slow-requests) once volume passes a
+  threshold where full retention stops being affordable.
+- **Metric cardinality has to be planned, not discovered** — a labeling scheme that works at low
+  scale needs deliberate bounds (a fixed, small set of allowed label values) before traffic grows
+  into the range where an unbounded label turns into the cardinality explosion this module's Failure
+  Modes section covers.
+- **Multi-region deployments (per [Module 11](/learn/modules/11-cloud/)) need a per-region or
+  federated observability strategy** — a single global metrics/trace backend that every region
+  writes to synchronously reintroduces the cross-region latency and availability coupling
+  Module 11 argues against everywhere else in the architecture.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Why can't traditional observability (metrics, logs, traces) detect an LLM quality regression?">
+  All three signals describe execution — did the request succeed, how long did it take, what path
+  did it take through the system — not whether the answer produced was correct. A model or prompt
+  change that degrades answer quality produces a normal-looking trace and a 200 response; only an
+  independently monitored evaluation signal (Module 4) can catch it.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What's the practical difference between an SLI, an SLO, and an error budget?">
+  An SLI is the specific measured metric (e.g., p99 latency); an SLO is the target for it (e.g.,
+  under 800ms over 28 days); the error budget is how much SLO violation is tolerable before it
+  becomes unacceptable. Alerting on error-budget burn rate distinguishes a temporary blip from a
+  trend that will actually exhaust the budget, producing fewer, more actionable pages.
+</InterviewQuestion>
+
+<InterviewAnswer title="How would you trace a slow request through an agent that makes several tool calls?">
+  Propagate trace context through every model call and tool invocation as nested spans under the
+  top-level request span, per this module's Architecture diagram — this turns "the request was
+  slow" into "this specific tool call was slow," which a single aggregate latency metric on the
+  outer request can't distinguish on its own.
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="advanced" title="How do you log LLM prompts and responses for debugging without creating a data-exposure risk?">
+  Redact sensitive content before it's written to any log or trace store, not as an access-control
+  policy applied afterward — this module's Implementation section applies redaction inline, on the
+  same span attribute that also records token counts and cost, so nothing unredacted is ever
+  persisted in the first place.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+No dedicated observability lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+
+<Exercise title="Prove redaction happens before storage, not after" difficulty="intermediate">
+  Using this module's `Tracer` and `call_model`, write a test that calls `call_model` with a prompt
+  containing a marker string (e.g., `"api_key: sk-test-123"`) in `sensitive_substrings`, then assert
+  that no finished span's attributes contain that marker string anywhere — proving redaction
+  happened before the span was recorded, not merely that a redaction function exists somewhere in
+  the codebase.
+</Exercise>
+
+## References
+
+- Google SRE Book, ["Monitoring Distributed Systems"](https://sre.google/sre-book/monitoring-distributed-systems/) and ["Service Level Objectives"](https://sre.google/sre-book/service-level-objectives/)
+- OpenTelemetry documentation, ["Traces"](https://opentelemetry.io/docs/concepts/signals/traces/) — the industry-standard tracing data model this module's `Span`/`Tracer` implementation simplifies.
+- [Module 1: Production Python](/learn/modules/01-production-python/) — the async context-propagation pitfalls this module's Deep Dive and Failure Modes sections apply to tracing specifically.
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the evaluation harness and cost-tracking pattern this module treats as a distinct, necessary signal alongside metrics/logs/traces.
+
+## Revision History
+
+| Version | Date | Change |
+| --- | --- | --- |
+| 1.0.0 | 2026-08-07 | Initial publication. |

@@ -1,0 +1,22 @@
+flowchart TB
+    Req[Incoming request] --> Svc["Instrumented service"]
+
+    subgraph Signals["Three signals, one request"]
+        Svc -->|structured logs| Logs["Log lines: request_id, tenant_id, ..."]
+        Svc -->|RED metrics| Metrics["Rate / Errors / Duration counters"]
+        Svc -->|spans, one trace| SpanRoot["Span: handle_request"]
+        SpanRoot --> SpanLLM["Span: llm.call (tokens, cost, model)"]
+        SpanLLM --> SpanTool["Span: tool.call (name, latency)"]
+    end
+
+    Logs --> Collector[Collector]
+    Metrics --> Collector
+    SpanRoot --> Collector
+
+    Collector --> LogStore[(Log store)]
+    Collector --> MetricStore[(Metrics store)]
+    Collector --> TraceStore[(Trace store)]
+
+    MetricStore --> SLO["SLO burn-rate alerting"]
+    TraceStore --> Debug["Trace-based debugging: one request_id, every span"]
+    EvalHarness["Eval harness (Module 4)"] -.quality signal, not request-scoped.-> SLO

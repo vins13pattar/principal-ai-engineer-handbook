@@ -50,6 +50,16 @@ test.describe("learn modules v0.6", () => {
   });
 });
 
+test.describe("learn modules v0.7", () => {
+  test("Module 12 renders its signal-pipeline diagram", async ({ page }) => {
+    await page.goto("./learn/modules/12-observability/");
+    await expect(
+      page.getByRole("heading", { name: "Module 12: Observability", level: 1 }),
+    ).toBeVisible();
+    await expect(page.locator(".handbook-mermaid svg")).toBeVisible();
+  });
+});
+
 test.describe("architecture", () => {
   test("Async AI Gateway architecture page renders its request-flow diagram", async ({ page }) => {
     await page.goto("./architecture/systems/async-ai-gateway/");
