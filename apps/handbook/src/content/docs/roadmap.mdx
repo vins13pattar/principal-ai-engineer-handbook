@@ -68,14 +68,28 @@ Every module below also has a companion lab planned in [Build](/build/), tracked
 production-quality lab is a much larger unit of work than a module and shouldn't gate a version
 bump the way a module does:
 
-| Lab                                               | Companion module | Status           |
-| ------------------------------------------------- | ---------------- | ---------------- |
-| [Async AI Gateway](/build/labs/async-ai-gateway/) | Module 1, 3      | Production-ready |
-| Distributed Task Engine                           | Module 2         | Planned          |
-| Agent Registry                                    | Module 5         | Planned          |
-| Model Router                                      | Module 4         | Planned          |
-| Semantic Cache                                    | Module 4         | Planned          |
-| Evaluation Platform                               | Module 4, 12     | Planned          |
+| Lab                                                               | Companion module | Status            |
+| ----------------------------------------------------------------- | ---------------- | ----------------- |
+| [Async AI Gateway](/build/labs/async-ai-gateway/)                 | Module 1, 3      | Production-ready  |
+| [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/) | Module 10, 12    | Production-shaped |
+| Distributed Task Engine                                           | Module 2         | Planned           |
+| Agent Registry                                                    | Module 5         | Planned           |
+| Model Router                                                      | Module 4         | Planned           |
+| Semantic Cache                                                    | Module 4         | Planned           |
+| Evaluation Platform                                               | Module 4, 12     | Planned           |
+
+### Migration in progress
+
+A parallel branch built six labs and several modules against the retired static-HTML prototype
+before this platform existed. Those labs are being migrated into `labs/` one at a time, each
+re-verified and honestly re-labelled on arrival rather than moved wholesale —
+[SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/) is the first. Remaining:
+durable task queue, policy-gated tool runtime, multi-tenant MCP server, hybrid retrieval, and
+dynamic batching inference.
+
+The MCP server lab is deliberately last: it was written against the `2025-11-25` protocol and
+described itself as "MCP-style", so it needs rebuilding against the current specification and an
+official SDK rather than porting. See [Module 6](/learn/modules/06-mcp/) for what changed.
 
 ## How this roadmap works
 

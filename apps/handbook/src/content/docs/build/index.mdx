@@ -11,6 +11,7 @@ revisionHistory:
 category: section-overview
 ---
 
+import { Aside } from "@astrojs/starlight/components";
 import { LabCallout } from "@handbook/components";
 
 Every module in [Learn](/learn/) is backed by a production lab in [`labs/`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs).
@@ -43,11 +44,27 @@ A lab is graded against the same rubric a real system design review would use:
   OpenTelemetry tracing. [Read the lab documentation →](/build/labs/async-ai-gateway/)
 </LabCallout>
 
-| Lab                                               | Status           |
-| ------------------------------------------------- | ---------------- |
-| [Async AI Gateway](/build/labs/async-ai-gateway/) | Production-ready |
-| Distributed Task Engine                           | Planned          |
-| Agent Registry                                    | Planned          |
-| Model Router                                      | Planned          |
-| Semantic Cache                                    | Planned          |
-| Evaluation Platform                               | Planned          |
+<LabCallout repoPath="labs/slo-driven-ai-operations" status="production-shaped">
+  Error-budget tracking with multiwindow burn-rate alerting, an autoscaling controller whose
+  cooldown a fast burn deliberately overrides, and incident runbook execution that escalates rather
+  than retrying — all reading one shared severity signal.
+  [Read the lab documentation →](/build/labs/slo-driven-ai-operations/)
+</LabCallout>
+
+| Lab                                                                 | Status            |
+| ------------------------------------------------------------------- | ----------------- |
+| [Async AI Gateway](/build/labs/async-ai-gateway/)                   | Production-ready  |
+| [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/)   | Production-shaped |
+| Distributed Task Engine                                             | Planned           |
+| Agent Registry                                                      | Planned           |
+| Model Router                                                        | Planned           |
+| Semantic Cache                                                      | Planned           |
+| Evaluation Platform                                                 | Planned           |
+
+<Aside type="note" title="What the statuses mean">
+  **Production-ready** means you could point real traffic at it: container, deployment manifest,
+  load profile, and a production-readiness document. **Production-shaped** means the architecture,
+  tests, and failure handling are real but at least one production dependency is deliberately
+  simulated — each lab's README names exactly which. Passing tests alone never earns
+  production-ready.
+</Aside>

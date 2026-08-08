@@ -1,0 +1,148 @@
+---
+title: SLO-Driven AI Operations
+description: Error-budget and multiwindow burn-rate tracking, a policy-driven autoscaling controller with a fast-burn override, and incident runbook execution with escalation — all reading one shared severity signal.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation, migrated from the retired static-prototype examples directory.
+    author: vinod
+category: lab
+repoPath: labs/slo-driven-ai-operations
+stack:
+  - Python 3.12+
+  - FastAPI
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import controlLoop from "./slo-driven-ai-operations.control-loop.mmd?raw";
+
+Three mechanisms that turn "is the platform healthy" from a judgement call into a control loop:
+error-budget tracking with multiwindow burn-rate alerting, an autoscaling controller that reacts
+differently to a fast burn than to ordinary load, and runbook execution that escalates rather than
+retrying. All three read severity from the same `SLOTracker.report()` call, so they cannot disagree
+about how bad things currently are.
+
+Source: [`labs/slo-driven-ai-operations`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/slo-driven-ai-operations)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The control logic, tests, and failure handling are real. The metrics source, the scaling target,
+  and the paging integration are in-process stand-ins. The lab's
+  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/slo-driven-ai-operations#what-would-make-this-production-ready)
+  lists each gap and what would close it. Passing tests is not the bar for `production-ready` in
+  this repository — [`async-ai-gateway`](/build/labs/async-ai-gateway/) is.
+</Aside>
+
+## Control loop
+
+<Mermaid code={controlLoop} title="One severity signal drives both the scaling decision and the incident response" />
+
+## What it demonstrates
+
+- **Multiwindow, multi-burn-rate alerting.** A rule fires only when a long window (e.g. 1h) *and* a
+  short window (e.g. 5m) both exceed its threshold. The long window filters out blips; the short
+  window lets the alert clear within minutes of the burn stopping.
+- **Error budget as a spendable quantity.** `budget_remaining_fraction` goes negative once a
+  service has overspent, which is more useful than clamping at zero — it says how far over, not
+  merely that it is over.
+- **An SLO-aware autoscaler.** The proportional (HPA-style) target and cooldown behave like an
+  ordinary autoscaler, but a page-severity burn bypasses the cooldown entirely.
+- **Escalation instead of retry.** Each runbook step is bounded by its own `asyncio.timeout`, and
+  an unresolved step escalates to a named contact before the next step runs.
+- **An honest terminal state.** When every step is exhausted without resolution, the incident
+  reports `EXHAUSTED` with the last contact paged, rather than looping or silently stopping.
+- **Deterministic time.** An injectable `Clock` means burn-rate windows and cooldowns are tested
+  without a single real sleep — the whole suite runs in under a second.
+
+## Why a fast burn overrides the cooldown
+
+A cooldown exists to stop an autoscaler flapping on noisy utilization samples. But a burn rate over
+the page threshold is not noise — it means the service is failing users right now, and waiting out
+a timer designed to suppress noise is the wrong response. The controller therefore checks burn
+severity *before* it checks cooldown:
+
+```python
+def decide(self, *, current_replicas, utilization, alert_severity):
+    if (alert_severity == self._policy.fast_burn_severity
+            and current_replicas < self._policy.max_replicas):
+        # an active outage is not something to wait out
+        return self._clamped_decision(current_replicas + 1, current_replicas, ...)
+
+    if self._in_cooldown():
+        return ScalingDecision(HOLD, current_replicas, "within cooldown window")
+    ...
+```
+
+Every other scaling decision still respects the cooldown. The override is a deliberate, narrow
+escape hatch for the one case the cooldown was never meant to slow down.
+
+## Run it
+
+```bash
+cd labs/slo-driven-ai-operations
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn platform_ops.app:app --reload
+```
+
+The app registers one demo service, `checkout-api`, targeting 99.9% success over a 30-day budget
+window, with a three-step runbook: `restart_service` → `scale_up_capacity` → `page_on_call`.
+
+Record outcomes, then watch severity change what the autoscaler does:
+
+```bash
+# a healthy service: ordinary proportional scaling
+curl -s -X POST localhost:8000/v1/services/checkout-api/autoscale \
+  -H 'content-type: application/json' -d '{"current_replicas": 4, "utilization": 0.9}'
+
+# now burn the budget hard
+for _ in $(seq 50); do
+  curl -s -X POST localhost:8000/v1/services/checkout-api/requests \
+    -H 'content-type: application/json' -d '{"success": false}' > /dev/null
+done
+
+curl -s localhost:8000/v1/services/checkout-api/slo      # severity: page
+curl -s -X POST localhost:8000/v1/incidents \
+  -H 'content-type: application/json' -d '{"service": "checkout-api"}'
+```
+
+The incident's severity is derived from the SLO report, so the same failures that changed the
+scaling decision also change how far the runbook escalates.
+
+## Verify it
+
+```bash
+pytest      # 32 tests
+ruff check .
+mypy src
+```
+
+## Principal-level discussion points
+
+1. An error budget reframes reliability as something you spend rather than a target you hit or
+   miss — that framing is what lets a team trade reliability for velocity deliberately instead of
+   accidentally.
+2. Multiwindow, multi-burn-rate alerting exists to escape a trade-off a single-window threshold
+   cannot: short windows page on noise, long windows react too late. Being able to state that
+   precisely matters more in an interview than naming the technique.
+3. Deriving the scaling decision and the incident's severity from one `report()` call means the two
+   subsystems cannot disagree — a common source of contradictory automation during real incidents.
+4. `EXHAUSTED` is a feature. Incident automation that hides "I am out of steps and a human owns
+   this now" withholds the first thing an on-call engineer needs to know.
+5. The injectable `Clock` is not only a testing convenience — it is the seam where a real metrics
+   backend substitutes in, which is why the production gap above is an integration rather than a
+   rewrite.
+
+## Related
+
+- [Module 12: Observability](/learn/modules/12-observability/) — SLOs, error budgets, and the
+  signal pipeline this lab consumes.
+- [Module 10: Kubernetes](/learn/modules/10-kubernetes/) — the scheduling and scaling primitives a
+  real autoscaling target would drive.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference this
+  lab is measured against.

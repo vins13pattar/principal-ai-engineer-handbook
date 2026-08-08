@@ -1,0 +1,52 @@
+flowchart TB
+    R["Request outcomes
+    (success / failure)"] --> T
+
+    subgraph T["SLOTracker"]
+        W["Rolling window,
+        pruned to the SLO's
+        budget window"]
+        B["Burn rate =
+        observed error rate
+        ÷ error budget"]
+        W --> B
+    end
+
+    B --> LW["Long window
+    (e.g. 1h)"]
+    B --> SW["Short window
+    (e.g. 5m)"]
+    LW --> AND{"both over
+    threshold?"}
+    SW --> AND
+
+    AND -->|no| OK["severity: ok"]
+    AND -->|yes| SEV["severity:
+    ticket / page"]
+
+    OK --> AC
+    SEV --> AC
+    SEV --> IR
+
+    subgraph AC["AutoscalingController"]
+        FB{"severity
+        == page?"}
+        FB -->|"yes — skip cooldown,
+        an outage is not
+        something to wait out"| UP["scale up"]
+        FB -->|no| CD{"in cooldown?"}
+        CD -->|yes| HOLD["hold"]
+        CD -->|no| PROP["HPA-style
+        proportional target,
+        clamped to bounds"]
+    end
+
+    subgraph IR["IncidentRunner"]
+        S1["step 1
+        bounded by timeout"] -->|unresolved| E1["escalate to
+        named contact"]
+        E1 --> S2["step 2"]
+        S2 -->|unresolved| E2["escalate"]
+        E2 --> S3["... until resolved
+        or EXHAUSTED"]
+    end

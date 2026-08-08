@@ -342,7 +342,11 @@ the wrong system entirely.
 
 ## Hands-on Lab
 
-No dedicated observability lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+[**SLO-Driven AI Operations**](/build/labs/slo-driven-ai-operations/) implements this module's SLO
+material as a running control loop: error-budget tracking with multiwindow burn-rate alerting, an
+autoscaling controller that treats a fast burn differently from ordinary load, and runbook
+execution that escalates rather than retrying. It is labelled `production-shaped` — the control
+logic is real and tested, the metrics source and scaling target are stand-ins.
 
 <Exercise title="Prove redaction happens before storage, not after" difficulty="intermediate">
   Using this module's `Tracer` and `call_model`, write a test that calls `call_model` with a prompt
