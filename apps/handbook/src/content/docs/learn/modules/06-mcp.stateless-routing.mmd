@@ -2,27 +2,16 @@ flowchart TB
     subgraph Before["2025-11-25: session-bound"]
         direction TB
         BC[Client] -->|"initialize → session id"| BLB[Load balancer]
-        BLB -->|"every later request must
-        return to the same instance"| BS1["Server
-        instance A
-        (holds session state)"]
-        BLB -.->|"cannot route here"| BS2["Server
-        instance B"]
+        BLB -->|"every later request must return<br/>to the same instance"| BS1["Server instance A<br/>(holds session state)"]
+        BLB -.->|"cannot route here"| BS2["Server instance B"]
     end
 
     subgraph After["2026-07-28: stateless"]
         direction TB
-        AC[Client] -->|"Mcp-Method: tools/call
-        Mcp-Name: search_issues
-        _meta: version + capabilities"| ALB[Load balancer]
-        ALB -->|"routes on headers alone"| AS1["Server
-        instance A"]
-        ALB -->|"any instance
-        can serve it"| AS2["Server
-        instance B"]
-        ALB -->|""| AS3["Server
-        instance C"]
+        AC[Client] -->|"Mcp-Method + Mcp-Name headers<br/>_meta: version + capabilities"| ALB[Load balancer]
+        ALB -->|"routes on headers alone"| AS1["Server instance A"]
+        ALB -->|"any instance can serve it"| AS2["Server instance B"]
+        ALB -->|"no affinity required"| AS3["Server instance C"]
     end
 
-    Before -.->|"removing the handshake removes
-    the affinity requirement"| After
+    Before -.->|"removing the handshake removes<br/>the affinity requirement"| After
