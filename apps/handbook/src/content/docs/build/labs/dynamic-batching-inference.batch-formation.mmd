@@ -1,0 +1,21 @@
+flowchart TB
+    R1["Request A"] --> Q
+    R2["Request B"] --> Q
+    R3["Request C"] --> Q
+
+    Q["Pending queue<br/>each request awaits its own future"]
+
+    Q --> RACE{"Batch closes on<br/>whichever fires first"}
+    RACE -->|"max_batch_size reached"| F["Flush"]
+    RACE -->|"max_wait_seconds elapsed"| F
+
+    F --> H["handler(payloads) → outputs<br/>one model call for the whole batch"]
+    H --> RES["Each pending future resolved"]
+
+    subgraph Router["CanaryRouter: one batcher per version"]
+        direction LR
+        SV["stable-v1<br/>weight 9"]
+        CV["canary-v2<br/>weight 1"]
+    end
+
+    Router -->|"independent batch tuning,<br/>independent metrics"| Q

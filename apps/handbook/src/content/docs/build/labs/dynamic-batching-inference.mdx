@@ -1,0 +1,151 @@
+---
+title: Dynamic Batching Inference
+description: Latency-bounded request batching that races a size trigger against a timeout, canary version routing with independent per-version metrics, and a tail-latency benchmark harness.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation, migrated from the retired static-prototype examples directory.
+    author: vinod
+category: lab
+repoPath: labs/dynamic-batching-inference
+stack:
+  - Python 3.12+
+  - FastAPI
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import batchFormation from "./dynamic-batching-inference.batch-formation.mmd?raw";
+
+Serving inference is a throughput problem wearing a latency budget: batching amortizes an expensive
+model call across many requests, but every request in a batch waits for the batch to form. This lab
+implements the mechanism that bounds that wait, plus the canary routing and percentile benchmarking
+needed to change a model version without betting all traffic on it.
+
+Source: [`labs/dynamic-batching-inference`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/dynamic-batching-inference)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The batching mechanism, canary routing, per-version metrics, and percentile benchmark are complete
+  and tested. The model call is a fixed-cost `asyncio.sleep` — which, importantly, makes the
+  throughput win look cleaner than real GPU inference would. See
+  [What the fixed-cost stand-in hides](#what-the-fixed-cost-stand-in-hides).
+</Aside>
+
+## Batch formation
+
+<Mermaid code={batchFormation} title="A batch closes on whichever limit hits first, and each version owns its own batcher" />
+
+## What it demonstrates
+
+- **Racing a size trigger against a timeout.** A size-only trigger lets a lone request wait
+  indefinitely during a lull; a timeout-only trigger caps latency but wastes throughput under load.
+  Racing both gets the better half of each, and bounds the worst-case wait at `max_wait_seconds`.
+- **One batcher per model version.** A canary can run its own batch size and wait time without
+  perturbing the stable version's tuning, because the two never share a queue.
+- **Per-version metrics kept separate.** An aggregate error rate blending stable and canary traffic
+  can look flat while the canary alone is failing badly — which defeats the entire purpose of a
+  gradual rollout.
+- **Promote and rollback as routing changes.** Both are weight adjustments, not deploys, which is
+  what makes rollback fast enough to actually use during an incident.
+- **Percentile benchmarking with bounded concurrency.** p50/p95/p99, because the mean hides exactly
+  the failure batching introduces: a request arriving just after a batch closes waits nearly a full
+  timeout longer than one arriving just before.
+
+## What the fixed-cost stand-in hides
+
+The handler sleeps for a fixed duration regardless of how many payloads are in the batch. That makes
+the throughput win look linear in batch size — double the batch, halve the per-request cost, forever.
+
+Real inference does not behave that way. Cost grows with the padded sequence length of the batch, so
+a batch containing one long sequence makes every short sequence in it pay for that length. Past some
+point a larger batch stops paying for itself, and where that point falls depends on the traffic's
+length distribution, not just its rate.
+
+This is why the lab ships a benchmark *harness* and a sweep exercise rather than a recommended batch
+size: the right configuration is a property of the workload, and this lab's simulated cost model
+cannot produce a curve you should trust. What it can teach is the mechanism and the measurement
+method — which transfer intact.
+
+<Aside type="tip" title="Interview signal">
+  "Increase the batch size to increase throughput" is true until it isn't. Naming the mechanism that
+  breaks it — padding waste from mixed sequence lengths — and noting that it makes optimal batch size
+  a function of the length distribution rather than the request rate, is the answer that shows real
+  serving experience.
+</Aside>
+
+## Run it
+
+```bash
+cd labs/dynamic-batching-inference
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn inference.app:app --reload
+```
+
+Two demo versions start: `stable-v1` (weight 9, ~30ms simulated batch cost) and `canary-v2`
+(weight 1, ~15ms — an optimized candidate on a small traffic slice).
+
+```bash
+# Weighted routing across versions
+curl -s -X POST localhost:8000/v1/infer \
+  -H 'content-type: application/json' -d '{"payload": 42}'
+
+# Per-version weights and metrics, tracked independently
+curl -s localhost:8000/v1/versions
+
+# Throughput and tail latency
+curl -s -X POST localhost:8000/v1/benchmark \
+  -H 'content-type: application/json' -d '{"num_requests": 200, "concurrency": 20}'
+
+# Promote and roll back as routing changes, not deploys
+curl -s -X POST localhost:8000/v1/versions/canary-v2/promote
+curl -s -X POST localhost:8000/v1/versions/canary-v2/rollback
+```
+
+## Verify it
+
+```bash
+pytest      # 27 tests
+ruff check .
+mypy src
+```
+
+## Why the app is a factory, not a singleton
+
+`create_app()` builds a fresh router and batchers per call rather than exposing one process-wide
+instance. A `DynamicBatcher` cannot be restarted once `shutdown()` has run — the same constraint a
+real batching worker has once its background task exits.
+
+This surfaced as a genuine bug during development: `httpx.ASGITransport` does not drive the ASGI
+lifespan protocol, so the batcher's background loop never started and every request to `/v1/infer`
+awaited a batch nothing would ever flush. The test suite hung rather than failed. The fix was both a
+factory and tests that enter the lifespan explicitly — worth knowing for any FastAPI service whose
+background workers are started in `lifespan`.
+
+## Principal-level discussion points
+
+1. Batching trades a bounded latency increase for a large throughput gain by amortizing a fixed cost.
+   `max_batch_size` and `max_wait_seconds` are one knob pair with opposing effects, and neither is
+   correct independent of the traffic pattern and SLO.
+2. Canary weighting only functions as a safety mechanism if per-version metrics are independent. A
+   canary's errors hidden inside an aggregate defeat the rollout entirely.
+3. Promote and rollback are cheap because they change routing, not infrastructure — compare a
+   deploy-based rollback, which requires redeploying the previous version under incident pressure.
+4. A benchmark reporting only the mean hides the specific failure batching introduces. p95 and p99
+   are not optional here; they are the metric the mechanism is traded against.
+5. Optimal batch size is a function of the workload's sequence-length distribution, not just its
+   request rate — which is why a configuration tuned at launch is often wrong a year later.
+
+## Related
+
+- [Module 9: Model Serving](/learn/modules/09-model-serving/) — prefill/decode, continuous batching,
+  and KV cache management this lab's mechanism sits underneath.
+- [`labs/slo-driven-ai-operations`](/build/labs/slo-driven-ai-operations/) — the SLO and burn-rate
+  machinery that would decide when a canary is failing.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference this
+  lab is measured against.

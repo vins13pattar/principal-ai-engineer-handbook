@@ -338,7 +338,12 @@ hide task-specific regressions a general-purpose eval never surfaces.
 
 ## Hands-on Lab
 
-No dedicated model-serving lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+[**Dynamic Batching Inference**](/build/labs/dynamic-batching-inference/) implements this module's
+batching mechanism as running code: a batch that closes on whichever of size or timeout fires first,
+canary version routing with independent per-version metrics, promote/rollback as routing changes,
+and a p50/p95/p99 benchmark harness. It is labelled `production-shaped` — the mechanism is real, but
+the model call is a fixed-cost sleep, which the lab is explicit about hiding the padding-waste curve
+that makes optimal batch size a property of the workload.
 
 <Exercise title="Simulate head-of-line blocking under static batching" difficulty="intermediate">
   Extend this module's `ContinuousBatchScheduler` with a `StaticBatchScheduler` that only admits new

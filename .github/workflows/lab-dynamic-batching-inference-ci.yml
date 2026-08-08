@@ -1,0 +1,33 @@
+name: Dynamic Batching Inference CI
+
+on:
+  push:
+    paths:
+      - "labs/dynamic-batching-inference/**"
+      - ".github/workflows/lab-dynamic-batching-inference-ci.yml"
+  pull_request:
+    paths:
+      - "labs/dynamic-batching-inference/**"
+      - ".github/workflows/lab-dynamic-batching-inference-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/dynamic-batching-inference
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: labs/dynamic-batching-inference/pyproject.toml
+      - name: Install dependencies
+        run: pip install -e '.[dev]'
+      - name: Ruff
+        run: ruff check .
+      - name: MyPy
+        run: mypy src
+      - name: Tests
+        run: pytest --maxfail=1 -q
