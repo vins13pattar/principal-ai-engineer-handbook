@@ -2,6 +2,7 @@ import {
   ADR_STATUSES,
   ARCHITECTURE_MATURITY,
   DIFFICULTY_LEVELS,
+  FRESHNESS_CLASSIFICATIONS,
   LAB_STATUSES,
 } from "@handbook/shared";
 import { docsLoader } from "@astrojs/starlight/loaders";
@@ -45,6 +46,24 @@ const versioningFields = {
     .optional(),
 };
 
+/**
+ * How fast this page's subject matter moves, and what it was last checked
+ * against. Separate from `lastUpdated` because editorial age and subject-matter
+ * volatility are different things — see `packages/shared/src/freshness.ts`.
+ * `scripts/lint-content-structure.ts` requires this block on fast-moving pages
+ * and fails CI once a page passes its review window.
+ */
+const freshnessFields = {
+  freshness: z
+    .object({
+      classification: z.enum(FRESHNESS_CLASSIFICATIONS),
+      verifiedAgainst: z.string().optional(),
+      verifiedOn: z.coerce.date().optional(),
+      reviewAfterDays: z.number().int().positive().optional(),
+    })
+    .optional(),
+};
+
 const learnFields = {
   moduleNumber: z.number().int().min(0).optional(),
   difficulty: z.enum(DIFFICULTY_LEVELS).optional(),
@@ -84,6 +103,7 @@ export const collections = {
     schema: docsSchema({
       extend: z.object({
         ...versioningFields,
+        ...freshnessFields,
         ...learnFields,
         ...buildFields,
         ...architectureFields,

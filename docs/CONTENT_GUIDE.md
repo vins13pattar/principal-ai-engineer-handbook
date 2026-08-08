@@ -51,6 +51,39 @@ Adding these fields is optional at the schema level but required by
 (Learn modules, Architecture systems, ADRs — see `CHECKED_SECTIONS` in the script to extend it to a
 new section).
 
+### Freshness (any page on a fast-moving topic)
+
+AI engineering moves faster than documentation convention assumes. A page can be two months old and
+already wrong, so `lastUpdated` alone is the wrong instrument — it measures when someone last
+edited a page, not whether the page is still true.
+
+```yaml
+freshness:
+  classification: fast-moving # stable | slow-moving | fast-moving
+  verifiedAgainst: "MCP 2026-07-28" # required when fast-moving
+  verifiedOn: 2026-08-08 # required when fast-moving
+  reviewAfterDays: 60 # optional; overrides the classification default
+```
+
+Classify by how fast the **subject matter** moves, not how fast the page changes:
+
+| Classification | Use for                                                                 | Default review window |
+| -------------- | ----------------------------------------------------------------------- | --------------------- |
+| `fast-moving`  | Protocols, library APIs, provider APIs — anything with a release number | 90 days               |
+| `slow-moving`  | Techniques and patterns whose vendor landscape churns but ideas do not  | 270 days              |
+| `stable`       | Fundamentals — networking, concurrency, distributed systems primitives  | 540 days              |
+
+`pnpm lint:content` fails when a page whose path matches a fast-moving topic
+(`FAST_MOVING_TOPICS` in `scripts/lint-content-structure.ts`) carries no `freshness` block, when a
+`fast-moving` page omits `verifiedAgainst` or `verifiedOn`, or when any page passes its review
+window. Adding a topic to that list makes CI start demanding freshness metadata for every page
+matching it.
+
+**`verifiedAgainst` must name a specific artifact you actually checked** — a specification
+revision, an SDK version, an API version. "Reviewed recently" is not a useful claim without saying
+what it was reviewed against, and stamping a date on a page you did not verify is worse than
+leaving it unclassified, because it launders a guess as a check.
+
 ### Learn module (`learn/modules/*.mdx`)
 
 ```yaml
@@ -94,12 +127,27 @@ heading exists, not that it matches the component prop, so keep them in sync by 
 category: lab
 repoPath: labs/your-lab-name
 stack: ["Python 3.12+", "FastAPI"]
-labStatus: production-ready # planned | in-progress | production-ready
+labStatus: production-shaped # planned | in-progress | production-shaped | production-ready
 ```
 
 No fixed section list is enforced today — document the lab's architecture, request flow, what it
 demonstrates, how to run and verify it, and its production-readiness gaps, in whatever structure
 fits. Link back to the lab's own `PRODUCTION_READINESS.md` rather than duplicating it.
+
+**Choosing a status honestly matters more than the label looking impressive.** Passing tests does
+not make a lab `production-ready`:
+
+| Status              | Means                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `production-ready`  | You could point real traffic at it: container, deploy manifest, load profile, `PRODUCTION_READINESS.md`                                |
+| `production-shaped` | Architecture, tests, and failure handling are real, but a production dependency is deliberately simulated — the README names which one |
+| `in-progress`       | Actively being built; incomplete in ways not yet enumerated                                                                            |
+| `planned`           | No implementation yet                                                                                                                  |
+
+Educational stand-ins — hashed vectors instead of embeddings, deterministic fake providers,
+in-memory stores — are entirely legitimate. They cap a lab at `production-shaped` until a real
+integration path exists, and the lab's README must state exactly what is simulated and what would
+replace it.
 
 ### Reference (`reference/lookups/*.mdx`) and Cheat Sheets (`cheatsheets/sheets/*.mdx`)
 

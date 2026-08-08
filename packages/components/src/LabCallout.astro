@@ -46,6 +46,13 @@ const { title, repoPath, status } = Astro.props;
     background: color-mix(in srgb, var(--sl-color-green, #16a34a) 15%, transparent);
     color: var(--sl-color-green-high, #15803d);
   }
+  /* Deliberately distinct from production-ready: the difference between
+     "the logic is real" and "you could point traffic at it" is the whole
+     point of the label, so it must not read as the same green. */
+  .handbook-lab-callout__status--production-shaped {
+    background: color-mix(in srgb, var(--sl-color-blue, #2563eb) 15%, transparent);
+    color: var(--sl-color-blue-high, #1d4ed8);
+  }
   .handbook-lab-callout__status--in-progress {
     background: color-mix(in srgb, var(--sl-color-orange, #d97706) 15%, transparent);
     color: var(--sl-color-orange-high, #b45309);

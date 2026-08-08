@@ -1,17 +1,29 @@
 ---
 title: "Module 6: MCP"
-description: The Model Context Protocol's host/client/server architecture — tools, resources, and prompts as three distinct primitives with three different owners of the invocation decision.
-version: 1.0.0
-lastUpdated: 2026-08-05
+description: The Model Context Protocol's host/client/server architecture — three primitives with three different owners of the invocation decision, over a protocol that went stateless in its 2026-07-28 revision.
+version: 2.0.0
+lastUpdated: 2026-08-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
     author: vinod
+  - version: 2.0.0
+    date: 2026-08-08
+    change: >-
+      Rewritten against the 2026-07-28 specification: the initialize handshake and
+      protocol-level sessions are gone, Streamable HTTP requires Mcp-Method/Mcp-Name
+      routing headers, Multi-Round-Trip Requests replace server-initiated requests,
+      and HTTP+SSE, Roots, Sampling and Logging are deprecated.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP 2026-07-28"
+  verifiedOn: 2026-08-08
 category: learn-module
 moduleNumber: 6
 difficulty: intermediate
-estimatedMinutes: 40
+estimatedMinutes: 50
 prerequisites:
   - 05-agent-engineering
 relatedLabs: []
@@ -31,15 +43,30 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import hostClientServer from "./06-mcp.host-client-server.mmd?raw";
+import statelessRouting from "./06-mcp.stateless-routing.mmd?raw";
 
 ## Executive Summary
 
 Before MCP, every application that wanted to connect a model to external tools and data wrote its
 own bespoke integration for each one — a filesystem integration for one app, a GitHub integration
 for another, neither reusable by anyone else. The Model Context Protocol (MCP) standardizes that
-connection so an integration written once, as an MCP server, works with any compliant host. This
-module covers MCP's architecture — the host/client/server split, its three primitives, and the
-security model that split enables.
+connection so an integration written once, as an MCP server, works with any compliant host.
+
+The `2026-07-28` revision changed how that connection works at the wire level, and the change is
+the most instructive thing about the protocol right now: MCP **removed its `initialize` handshake
+and its protocol-level session**, making every request self-describing. That is not a cosmetic
+revision. A stateful protocol forces session affinity, which forces sticky routing, which is what
+makes a service hard to scale horizontally — the exact lesson
+[Module 2](/learn/modules/02-distributed-systems/) teaches about state ownership, arriving here as
+a protocol redesign. This module covers MCP's architecture, its three primitives, the security
+model that split enables, and what the stateless revision changed.
+
+<Warning>
+  This module is verified against the `2026-07-28` specification. Material written for
+  `2025-11-25` — which is most of what currently exists online, including many SDK tutorials —
+  describes an `initialize` handshake, session IDs, and an HTTP+SSE transport that the current
+  revision removed or deprecated. Check which revision any MCP source targets before following it.
+</Warning>
 
 ## Mental Model
 
@@ -47,8 +74,8 @@ MCP separates three roles, and the split is the whole design:
 
 - **Host** — the application orchestrating one or more model conversations (a chat client, an IDE).
   It owns the user-facing experience and the decision to connect to any given server.
-- **Client** — a 1:1 connection manager living inside the host, one per connected server. It
-  handles the protocol mechanics so the host doesn't have to.
+- **Client** — a connection manager living inside the host, one per connected server. It handles
+  the protocol mechanics so the host doesn't have to.
 - **Server** — a separate process exposing capabilities (tools, resources, prompts) over the
   protocol. Servers are meant to be small and focused — one server per integration, not one
   server trying to expose everything.
@@ -67,11 +94,18 @@ coherent context — the same "many small, focused things behind one aggregation
   title="A host maintains a separate client per connected MCP server, then aggregates their capabilities for the model"
 />
 
-The one-client-per-server design is deliberate: each connection is independently established
-(its own `initialize` handshake, its own capability negotiation), independently scoped (a
-compromised or misbehaving server affects only its own client, not the whole host), and
+The one-client-per-server design is deliberate: each connection is independently scoped (a
+compromised or misbehaving server affects only its own client, not the whole host) and
 independently transported — nothing requires every server to use the same transport, as the
 diagram's stdio-and-HTTP mix shows.
+
+What that isolation no longer implies is a *stateful* connection. Under `2026-07-28`, a client is a
+connection manager, not a session holder:
+
+<Mermaid
+  code={statelessRouting}
+  title="Removing the handshake removes the session-affinity requirement, so any instance can serve any request"
+/>
 
 ## Deep Dive
 
@@ -91,30 +125,59 @@ Choosing the right primitive for a capability is itself a design decision: expos
 file" as a resource keeps the read under host/user control, while exposing it as a tool hands the
 model autonomy to decide when to read it — a real trade-off covered below.
 
-**Transport.** Every MCP message is JSON-RPC 2.0, carried over one of two transports: **stdio**,
-where the server runs as a local subprocess and communicates over its own stdin/stdout — the
-simplest option, since the process lifecycle _is_ the connection lifecycle and no network auth is
-needed — or **Streamable HTTP**, needed for a remote or shared server, which brings its own session
-and authentication concerns the local case doesn't have.
+**Statelessness (SEP-2575).** Every MCP message is still JSON-RPC 2.0, but there is no longer an
+`initialize`/`initialized` handshake and no protocol-level session. The protocol version, client
+information, and client capabilities that were once exchanged once at connection time now travel in
+`_meta` on every request, and a client that wants server capabilities up front calls
+`server/discover` explicitly rather than receiving them as handshake output. Every request is
+self-contained.
 
-**Lifecycle.** A connection begins with an `initialize` handshake where client and server declare
-which capabilities they support, proceeds through normal operation, and ends with an explicit
-shutdown. Discovery within each primitive follows the same consistent shape: list, then
-invoke — `tools/list` then `tools/call`, `resources/list` then `resources/read`, `prompts/list`
-then `prompts/get`.
+**Routing headers (SEP-2243).** Streamable HTTP now requires an `Mcp-Method` header on every
+request, plus an `Mcp-Name` header on the requests that name a specific thing — `tools/call`,
+`resources/read`, and `prompts/get`. The point is operational: a load balancer, API gateway, or
+rate limiter can route and meter on the operation without parsing the JSON-RPC body. Servers must
+reject requests whose headers and body disagree, which closes the obvious spoofing gap where a
+request routes as one operation and executes as another.
 
-<ResearchNote source="Model Context Protocol specification, modelcontextprotocol.io">
-  The canonical source for the exact JSON-RPC message shapes, capability negotiation fields, and the
-  full list of what each primitive supports — this module covers the architecture; the spec covers
-  the wire format.
+**Multi-Round-Trip Requests (SEP-2322).** Without long-lived streams, a server can no longer
+initiate a request back to the client mid-call. Instead, a tool that needs more input returns a
+result with `resultType: "input_required"`, an `inputRequests` object describing what it needs, and
+an opaque `requestState` string. The client gathers the input and retries the call with
+`inputResponses` and the echoed `requestState`. The server resumes from that state rather than
+holding the original call open.
+
+<EngineeringNote>
+  `requestState` is the seam where "stateless protocol" meets "stateful interaction." The protocol
+  stopped holding the state; it did not stop *existing*. The server now hands it to the client to
+  carry and hand back — the same continuation-passing move as a resumable upload token or a
+  paginated cursor. Whether that state is signed, encrypted, or expiring is a server design
+  decision the specification leaves open, which makes it a security decision worth being explicit
+  about.
+</EngineeringNote>
+
+**Discovery and caching (SEP-2549).** Discovery within each primitive keeps the same shape: list,
+then invoke — `tools/list` then `tools/call`, `resources/list` then `resources/read`,
+`prompts/list` then `prompts/get`. List and resource-read results now also carry `ttlMs` and
+`cacheScope`, modeled on HTTP `Cache-Control`, so a client knows how long a `tools/list` response
+stays fresh and whether it is safe to share that cached response across users.
+
+**Deprecations.** The older HTTP+SSE transport is deprecated (SEP-2596), as are the Roots,
+Sampling, and Logging primitives (SEP-2577). The specification's lifecycle policy guarantees at
+least twelve months between deprecation and earliest possible removal, so these still work — but
+new work should not build on them.
+
+<ResearchNote source="Model Context Protocol specification 2026-07-28, modelcontextprotocol.io">
+  The canonical source for exact JSON-RPC message shapes, `_meta` field definitions, header rules,
+  and the authorization model. This module covers the architecture and the reasoning; the
+  specification covers the wire format. Individual changes are traceable through their SEP numbers.
 </ResearchNote>
 
 ## Implementation
 
-The shape of a minimal MCP tool definition — illustrative of the protocol's structure, not a
-copy of any specific SDK's API surface:
+The shape of a minimal MCP tool definition and a stateless request handler — illustrative of the
+protocol's structure, not a copy of any specific SDK's API surface:
 
-<CodeWalkthrough title="A single tool exposed by an MCP server">
+<CodeWalkthrough title="A tool definition, and the header/body agreement check a stateless server owes its callers">
 ```python
 from __future__ import annotations
 
@@ -129,8 +192,8 @@ class ToolDefinition:
     input_schema: dict[str, Any]  # JSON Schema describing expected arguments
 
 
-async def handle_tools_list() -> list[ToolDefinition]:
-    return [
+async def handle_tools_list() -> dict[str, Any]:
+    tools = [
         ToolDefinition(
             name="search_issues",
             description="Search open issues in the configured repository by keyword.",
@@ -141,9 +204,24 @@ async def handle_tools_list() -> list[ToolDefinition]:
             },
         ),
     ]
+    return {
+        "tools": [t.__dict__ for t in tools],
+        # Modeled on HTTP Cache-Control: how long this list stays fresh, and
+        # whether it is safe to reuse across users (SEP-2549).
+        "ttlMs": 300_000,
+        "cacheScope": "shared",
+    }
 
 
-async def handle_tools_call(name: str, arguments: dict[str, Any]) -> str:
+async def handle_tools_call(
+    name: str, arguments: dict[str, Any], headers: dict[str, str]
+) -> str:
+    # The routing headers let a gateway dispatch without parsing this body, so
+    # the server must confirm they describe the call it actually received —
+    # otherwise a request can route as one operation and execute as another.
+    if headers.get("Mcp-Method") != "tools/call" or headers.get("Mcp-Name") != name:
+        raise ValueError("routing headers disagree with the request body")
+
     if name != "search_issues":
         raise ValueError(f"unknown tool: {name}")
 
@@ -155,22 +233,28 @@ async def handle_tools_call(name: str, arguments: dict[str, Any]) -> str:
     return format_results(results)
 ```
 
-`handle_tools_call` validates `arguments` explicitly rather than trusting that the model produced
-well-formed input matching the schema it was given — the schema in `tools/list` is a hint to the
-model, not a guarantee the server can skip validating against. This is the exact server-side
-discipline covered in this module's Security section.
+Two independent validations, for two different threat models. `handle_tools_call` validates
+`arguments` because the schema in `tools/list` is a hint to the *model*, not a guarantee the server
+can skip checking — the model may hallucinate a malformed argument, or an adversarial client may
+send one deliberately. It separately validates that the routing headers match the body, because
+those headers are consumed by infrastructure that never sees the body, and a mismatch means
+something upstream made a decision on false information.
 </CodeWalkthrough>
 
 ## Production Example
 
 An IDE host connects to two MCP servers for one coding task: a filesystem server exposing the
-current project as **resources**, and a GitHub server exposing **tools** to search issues and open
-pull requests. The user attaches a specific file as context (a resource, under the host/user's
-control per this module's Deep Dive) — the model reads its content, understands the bug being
-fixed, then *decides* to call the GitHub server's `create_pull_request` tool once it has a fix
-ready. Two independently-maintained servers, two different primitive types matching who should
-control each action, aggregated into one coherent task for the model — the production shape the
-Architecture section's diagram describes.
+current project as **resources**, and a remote GitHub server exposing **tools** to search issues
+and open pull requests. The user attaches a specific file as context (a resource, under the
+host/user's control per this module's Deep Dive) — the model reads its content, understands the bug
+being fixed, then decides to call the GitHub server's `create_pull_request` tool once it has a fix
+ready.
+
+Because the GitHub server is stateless, its operator runs it as an ordinary horizontally-scaled
+HTTP service: three replicas behind a load balancer, no sticky sessions, `Mcp-Method` used to rate
+limit `tools/call` more aggressively than `tools/list`, and a rolling deploy that drops connections
+without breaking anyone's in-flight work. Under the previous revision, every one of those
+properties needed either session affinity or shared session storage.
 
 ## Failure Modes
 
@@ -189,11 +273,27 @@ Architecture section's diagram describes.
   this module's Implementation section.
 </FailureMode>
 
-<FailureMode title="Missing consent before sensitive tool invocation">
-  A host that invokes any tool — especially a destructive or high-cost one — without a
-  human-in-the-loop approval step for sensitive operations is skipping the exact safety gate
-  [Module 5](/learn/modules/05-agent-engineering/#trade-offs) argues for. This is a host
-  responsibility MCP itself doesn't enforce; a naive host integration can easily omit it.
+<FailureMode title="Trusting routing headers without checking them against the body">
+  `Mcp-Method` and `Mcp-Name` exist so infrastructure can route without parsing bodies — which
+  means a server that never verifies they agree with the body lets a caller route a request as a
+  cheap, permitted operation while executing an expensive or restricted one. The specification
+  requires servers to reject disagreement; a hand-rolled server is exactly where that check gets
+  forgotten.
+</FailureMode>
+
+<FailureMode title="Carrying 2025-era session assumptions into a stateless server">
+  Code ported from the previous revision often keeps per-connection state — a cached capability
+  set, an authenticated identity, an in-progress operation — behind an implicit assumption that the
+  same client returns to the same instance. Under `2026-07-28` nothing guarantees that, so the
+  symptom is intermittent and load-dependent: fine on one replica in development, failing under a
+  load balancer in production.
+</FailureMode>
+
+<FailureMode title="Unbounded or forgeable requestState in Multi-Round-Trip Requests">
+  `requestState` is state the server hands to the client and trusts on return. A server that does
+  not sign, expire, or size-bound it has created a client-controlled input that resumes
+  server-side execution — the same class of mistake as trusting an unsigned cookie to carry
+  authorization.
 </FailureMode>
 
 <FailureMode title="A crashed stdio server with no reconnect logic">
@@ -207,8 +307,17 @@ Architecture section's diagram describes.
 <TradeOff title="stdio vs. Streamable HTTP transport">
   stdio is simpler — no network, no authentication, the process lifecycle IS the connection — but
   only works for a server running locally alongside the host. Streamable HTTP supports remote and
-  shared servers serving multiple hosts or sessions, at the cost of needing real session and
-  authentication handling the local case never has to think about.
+  shared servers serving many hosts, at the cost of needing real authentication and the routing
+  headers the local case never has to think about. Note that the older HTTP+SSE transport is
+  deprecated (SEP-2596) and is no longer a third option for new work.
+</TradeOff>
+
+<TradeOff title="Stateless protocol vs. per-request overhead">
+  Statelessness buys horizontal scaling without affinity, trivial rolling deploys, and no
+  session store to operate or leak. It costs bytes and repetition: protocol version, client info,
+  and capabilities ride along in `_meta` on *every* request rather than being negotiated once. For
+  a remote server behind a load balancer that trade is clearly worth it; for a local stdio server
+  that was never going to be load balanced, it is pure overhead the protocol now imposes uniformly.
 </TradeOff>
 
 <TradeOff title="One focused server per integration vs. one server exposing everything">
@@ -236,6 +345,13 @@ Architecture section's diagram describes.
 - **Validate every `tools/call` argument server-side**, regardless of the schema the model was
   given — the schema constrains what a well-behaved client sends, not what a server should assume
   it received.
+- **Reject requests whose routing headers disagree with their body**, since infrastructure upstream
+  has already made routing, rate-limiting, and authorization decisions on those headers alone.
+- **Treat `requestState` as untrusted on return.** Sign it, bound its size, and expire it; it is
+  client-held state that resumes server-side execution.
+- **Follow the hardened authorization model.** `2026-07-28` requires RFC 9207 issuer validation and
+  binds credentials to the issuing authorization server. Dynamic Client Registration is deprecated
+  in favour of Client ID Metadata Documents (CIMD) — new integrations should use CIMD.
 - **Require host-level consent for sensitive operations** — write actions, destructive operations,
   anything with real-world cost — as a non-optional gate, not a configuration flag defaulting to
   off.
@@ -244,27 +360,45 @@ Architecture section's diagram describes.
 
 ## Performance
 
-- **stdio subprocess startup cost** matters if servers are spawned fresh per session rather than
-  reused across a host's lifetime — the same connection-reuse logic
-  [Module 3](/learn/modules/03-networking/) covers for network connections applies to process
-  spawning here.
+- **`_meta` overhead is now per-request, not per-connection.** Protocol version, client info, and
+  capabilities repeat on every call. It is small in absolute terms, but it is a real cost that
+  scales with request count rather than connection count — worth measuring on a chatty client
+  before assuming it is free.
+- **`ttlMs` and `cacheScope` turn discovery into a cacheable operation.** A client that honours
+  them stops re-fetching `tools/list` on every turn, and a `cacheScope` marking a response shareable
+  lets a gateway serve many users from one cached copy. Ignoring these fields silently gives up the
+  main performance win of the revision.
 - **`tools/list` response size grows with every connected server**, and that whole list typically
   enters the model's context on each call — the same context-growth cost
   [Module 5](/learn/modules/05-agent-engineering/#performance) covers for agent loops, driven here
   by how many servers a host has connected to rather than how many loop iterations have run.
+- **stdio subprocess startup cost** matters if servers are spawned fresh per session rather than
+  reused across a host's lifetime — the same connection-reuse logic
+  [Module 3](/learn/modules/03-networking/) covers for network connections applies to process
+  spawning here.
 - **Resource read latency** depends entirely on what's behind the resource — a slow API-backed
   resource server blocks exactly like any other slow dependency, and needs the same timeout and
   bounded-concurrency discipline from [Module 1](/learn/modules/01-production-python/).
 
 ## Scaling
 
+- **Statelessness is what makes a remote MCP server ordinary to scale.** With no session to pin a
+  client to an instance, a server scales horizontally behind a plain load balancer, tolerates
+  rolling deploys without draining sessions, and needs no shared session store. This is the single
+  biggest operational consequence of `2026-07-28`, and it is why the revision matters more to
+  platform teams than to individual tool authors.
+- **Header-based routing makes per-operation policy possible at the edge.** Because `Mcp-Method`
+  is visible without body parsing, a gateway can rate limit `tools/call` differently from
+  `tools/list`, route expensive operations to dedicated capacity, or shed load by operation class —
+  the same edge-policy pattern [Module 4](/learn/modules/04-ai-infrastructure/) applies to model
+  traffic.
+- **A shared, remote MCP server serving many hosts** is still a multi-tenant service and needs the
+  same per-tenant isolation [Module 2](/learn/modules/02-distributed-systems/) covers for any
+  shared backend — statelessness removes session affinity, not the noisy-neighbour problem.
 - **A host connecting to many MCP servers simultaneously** needs the same bounded-concurrency
   thinking as any fan-out of concurrent connections — see
   [Module 1](/learn/modules/01-production-python/)'s treatment of semaphores, applied to server
   connections instead of individual requests.
-- **A shared, remote MCP server serving many hosts or sessions** is a multi-tenant service and
-  needs the same per-tenant isolation [Module 2](/learn/modules/02-distributed-systems/) covers for
-  any shared backend — one host's heavy usage shouldn't degrade another's.
 - **Tool and resource list growth across many connected servers** eventually needs curation — not
   every capability from every connected server belongs in every model call's context; selective or
   dynamic exposure becomes necessary well before a host is connected to more than a handful of
@@ -273,7 +407,7 @@ Architecture section's diagram describes.
 ## Interview Questions
 
 <InterviewQuestion difficulty="intermediate" title="Explain the host/client/server split in MCP and why it exists.">
-  The host orchestrates the overall experience and decides what to connect to; a client is a 1:1
+  The host orchestrates the overall experience and decides what to connect to; a client is a
   connection manager per server, isolating one server's connection from another's; the server
   exposes capabilities over a standard protocol so it can be reused across any compliant host. The
   split keeps a misbehaving or compromised server's blast radius limited to its own client
@@ -286,41 +420,87 @@ Architecture section's diagram describes.
   slash command). The right primitive for a capability depends on who should control that decision.
 </InterviewQuestion>
 
+<InterviewQuestion difficulty="advanced" title="MCP removed its initialize handshake and session in 2026-07-28. What does that change operationally?">
+  It removes session affinity as a deployment requirement. A remote MCP server becomes an ordinary
+  stateless HTTP service: horizontally scalable behind a plain load balancer, safe to roll deploys
+  through, with no session store to operate. The cost is that protocol version, client info, and
+  capabilities now ride in `_meta` on every request instead of being negotiated once, and any
+  server code that implicitly assumed per-connection state has to be rewritten to stop assuming it.
+</InterviewQuestion>
+
+<InterviewAnswer title="What a strong answer connects it to">
+  The best answers do not treat this as MCP trivia — they name it as the standard stateful-to-
+  stateless service migration, the same reasoning behind stateless application servers and
+  token-based sessions, and note that the state did not vanish so much as move: to the client, in
+  `_meta` and `requestState`. Naming where the state went, and what now has to secure it, is the
+  distinguishing move.
+</InterviewAnswer>
+
 <InterviewQuestion difficulty="advanced" title="How would you secure a host connecting to third-party MCP servers?">
   Treat every server's tool/resource descriptions as untrusted input (tool poisoning), require
   human approval gates before sensitive tool invocations, scope each connection to least privilege,
   and validate that servers you don't control are actually validating their own inputs before
-  trusting their behavior at all.
+  trusting their behavior at all. On the authorization side, `2026-07-28` requires RFC 9207 issuer
+  validation and binds credentials to the issuing authorization server, with CIMD replacing
+  deprecated Dynamic Client Registration.
 </InterviewQuestion>
 
-<InterviewAnswer title="The provenance question interviewers are actually probing for">
-  A strong answer distinguishes servers you wrote and control (lower risk, you validated the code)
-  from third-party servers (higher risk — you're trusting their tool descriptions, their input
-  validation, and their actual behavior sight-unseen). Treating every connected server as equally
-  trustworthy regardless of provenance is the gap this question is checking for.
-</InterviewAnswer>
+<InterviewQuestion difficulty="advanced" title="Why do Mcp-Method and Mcp-Name exist, and what must a server do about them?">
+  They let load balancers, gateways, and rate limiters route and meter on the operation without
+  parsing the JSON-RPC body — cheaper, and it works for infrastructure that should not be reading
+  request bodies at all. The obligation they create is that a server must reject any request whose
+  headers and body disagree; otherwise a caller can have a request routed and rate-limited as one
+  operation while it executes as another.
+</InterviewQuestion>
 
-<InterviewQuestion difficulty="foundational" title="When would you choose stdio vs. HTTP transport for an MCP server?">
+<InterviewQuestion difficulty="foundational" title="When would you choose stdio vs. Streamable HTTP transport for an MCP server?">
   stdio for a server running locally alongside its host, with no need for remote access or multiple
   simultaneous clients — simpler, no auth needed. Streamable HTTP when the server needs to be
-  remote, shared across multiple hosts, or accessed over a network at all.
+  remote, shared across multiple hosts, or accessed over a network at all. HTTP+SSE is deprecated
+  and is not a choice for new work.
 </InterviewQuestion>
 
 ## Hands-on Lab
 
 No dedicated MCP lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
 
+<Warning>
+  A lab that implements JSON-RPC with MCP-shaped method names is a **protocol-learning exercise,
+  not an MCP implementation**, and should say so. Calling something MCP-compliant means it
+  interoperates with real hosts — which under `2026-07-28` means self-describing requests,
+  `Mcp-Method`/`Mcp-Name` handling, and the current authorization model. Build against an official
+  SDK, or enumerate exactly which parts of the specification the exercise does and does not
+  implement.
+</Warning>
+
 <Exercise title="Wrap a gateway capability as an MCP tool" difficulty="intermediate">
   Expose [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/)'s `/v1/generate` endpoint as an
   MCP tool server with a single tool (`generate_completion`), validating its input schema
-  server-side per this module's Implementation section. Connect it to any MCP-compliant host and
-  confirm the tool is discoverable via `tools/list` and callable via `tools/call`.
+  server-side per this module's Implementation section. Use an official MCP SDK so the transport
+  and `_meta` handling are specification-correct, then confirm the tool is discoverable via
+  `tools/list` and callable via `tools/call` from a real host.
+</Exercise>
+
+<Exercise title="Prove your server is actually stateless" difficulty="advanced">
+  Run two replicas of the server from the previous exercise behind a load balancer with no session
+  affinity, and drive a multi-step interaction — including one Multi-Round-Trip Request — through
+  it while round-robining every single request between replicas. Any failure is per-connection
+  state you did not know you had. Then kill one replica mid-interaction and confirm the
+  interaction still completes.
 </Exercise>
 
 ## References
 
-- [Model Context Protocol specification](https://modelcontextprotocol.io/) — the canonical
-  reference for message shapes, transports, and capability negotiation.
+- [Model Context Protocol specification](https://modelcontextprotocol.io/) — canonical reference
+  for message shapes, transports, `_meta` fields, and the authorization model.
+- [The 2026-07-28 specification release](https://blog.modelcontextprotocol.io/posts/2026-07-28/) —
+  the changes this module is verified against, with SEP references.
+- Relevant SEPs: **SEP-2575** (stateless protocol, `_meta`, `server/discover`), **SEP-2243**
+  (`Mcp-Method`/`Mcp-Name` routing headers), **SEP-2322** (Multi-Round-Trip Requests),
+  **SEP-2549** (`ttlMs`/`cacheScope` caching), **SEP-2577** (Roots/Sampling/Logging deprecation),
+  **SEP-2596** (HTTP+SSE transport deprecation).
+- [RFC 9207](https://datatracker.ietf.org/doc/html/rfc9207) — OAuth 2.0 authorization server issuer
+  identification, required by the current authorization model.
 - Anthropic, ["Introducing the Model Context Protocol"](https://www.anthropic.com/news/model-context-protocol)
 - [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the tool-calling mechanics MCP standardizes across servers.
 
@@ -328,4 +508,5 @@ No dedicated MCP lab exists yet — see the [Roadmap](/roadmap/) for what's plan
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.0.0 | 2026-08-08 | Rewritten against the 2026-07-28 specification: stateless protocol, routing headers, Multi-Round-Trip Requests, caching fields, and the HTTP+SSE / Roots / Sampling / Logging deprecations. |
 | 1.0.0 | 2026-08-05 | Initial publication. |

@@ -2,7 +2,22 @@ export const DIFFICULTY_LEVELS = ["foundational", "intermediate", "advanced", "e
 
 export type DifficultyLevel = (typeof DIFFICULTY_LEVELS)[number];
 
-export const LAB_STATUSES = ["planned", "in-progress", "production-ready"] as const;
+/**
+ * A lab's maturity, as claimed on its Build page.
+ *
+ * `production-shaped` is the honest middle: the architecture, tests, and
+ * failure handling are real, but something a production deployment requires is
+ * deliberately simulated — an in-memory store standing in for a database, a
+ * deterministic fake standing in for a model provider, no container or deploy
+ * manifest. Tests passing is not the bar for `production-ready`; a lab only
+ * earns that once its remaining stand-ins have a real integration path.
+ */
+export const LAB_STATUSES = [
+  "planned",
+  "in-progress",
+  "production-shaped",
+  "production-ready",
+] as const;
 
 export type LabStatus = (typeof LAB_STATUSES)[number];
 
