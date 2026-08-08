@@ -1,0 +1,33 @@
+name: Policy-Gated Tool Runtime CI
+
+on:
+  push:
+    paths:
+      - "labs/policy-gated-tool-runtime/**"
+      - ".github/workflows/lab-policy-gated-tool-runtime-ci.yml"
+  pull_request:
+    paths:
+      - "labs/policy-gated-tool-runtime/**"
+      - ".github/workflows/lab-policy-gated-tool-runtime-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/policy-gated-tool-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: labs/policy-gated-tool-runtime/pyproject.toml
+      - name: Install dependencies
+        run: pip install -e '.[dev]'
+      - name: Ruff
+        run: ruff check .
+      - name: MyPy
+        run: mypy src
+      - name: Tests
+        run: pytest --maxfail=1 -q

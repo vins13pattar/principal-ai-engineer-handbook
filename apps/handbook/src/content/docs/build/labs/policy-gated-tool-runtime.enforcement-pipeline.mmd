@@ -1,0 +1,30 @@
+flowchart TB
+    C["Agent tool call<br/>(caller identity, tool, arguments)"] --> S
+
+    S{"1. Scope check<br/>is this caller granted<br/>this tool at all?"}
+    S -->|no| D1["DENIED: out of scope"]
+    S -->|yes| V
+
+    V{"2. Schema validation<br/>is this specific call<br/>well-formed?"}
+    V -->|no| D2["DENIED: invalid arguments"]
+    V -->|yes| R
+
+    R{"3. Rate limit<br/>per tenant AND per tool,<br/>never a shared budget"}
+    R -->|exhausted| D3["DENIED: rate limited"]
+    R -->|allowed| A
+
+    A{"4. Approval gate<br/>high-risk tools only,<br/>bounded wait"}
+    A -->|denied| D4["DENIED: rejected by operator"]
+    A -->|"timed out"| D5["DENIED: approval timeout"]
+    A -->|approved / not required| H
+
+    H["5. Handler executes"] --> OK["ALLOWED: result returned"]
+
+    D1 --> AUD
+    D2 --> AUD
+    D3 --> AUD
+    D4 --> AUD
+    D5 --> AUD
+    OK --> AUD
+
+    AUD["Append-only audit log<br/>every attempt, allowed or denied"]

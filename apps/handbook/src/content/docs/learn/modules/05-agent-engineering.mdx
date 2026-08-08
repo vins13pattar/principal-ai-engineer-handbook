@@ -345,9 +345,12 @@ stop instead of a silent hang or an unbounded retry storm.
 
 ## Hands-on Lab
 
-No dedicated lab exists for this module yet — the **Agent Registry** lab on the
-[Roadmap](/roadmap/) will cover tool registration, permission scoping, and multi-agent coordination
-as a full production-grade project.
+[**Policy-Gated Tool Runtime**](/build/labs/policy-gated-tool-runtime/) implements this module's
+safety boundaries as an enforcement pipeline: capability scoping, JSON Schema argument validation,
+per-tool rate limiting, human approval for high-risk tools with a bounded wait, and an audit log
+that records denials as carefully as successes. It is labelled `production-shaped` — the pipeline is
+complete and tested, the backing stores are in-memory and caller identity is a header rather than a
+verified token.
 
 <Exercise title="Add idempotent tool execution to the bounded agent loop" difficulty="advanced">
   Extend the `BoundedAgentLoop` from this module's Implementation section so that `ToolCall` carries

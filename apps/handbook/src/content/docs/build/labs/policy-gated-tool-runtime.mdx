@@ -1,0 +1,147 @@
+---
+title: Policy-Gated Tool Runtime
+description: The enforcement layer in front of agent tool execution — capability scoping, schema validation, per-tool rate limiting, human approval gates, and an audit log that records denials as carefully as successes.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation, migrated from the retired static-prototype examples directory and reframed as protocol-independent.
+    author: vinod
+category: lab
+repoPath: labs/policy-gated-tool-runtime
+stack:
+  - Python 3.12+
+  - FastAPI
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import enforcementPipeline from "./policy-gated-tool-runtime.enforcement-pipeline.mmd?raw";
+
+A model deciding to call a tool is a *request*, not an authorization. This lab implements the layer
+that turns one into the other: capability scoping, argument validation, per-tool rate limiting,
+human approval for high-risk actions, and an audit log that records every attempt — including the
+ones that were denied.
+
+Source: [`labs/policy-gated-tool-runtime`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/policy-gated-tool-runtime)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The enforcement pipeline is complete and tested at every stage. What is simulated is the storage
+  behind each stage — registry, rate limiter, approval queue, and audit log are all in-memory and
+  single-replica — and caller identity, which is currently a spoofable `x-agent-id` header. Identity
+  is the gap to close first: every other control is scoped by caller, so a forgeable caller
+  undermines all of them at once. The
+  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/policy-gated-tool-runtime#what-would-make-this-production-ready)
+  has the full table.
+</Aside>
+
+## Enforcement pipeline
+
+<Mermaid code={enforcementPipeline} title="Five checks in a fixed order, and every outcome — allowed or denied — reaches the audit log" />
+
+## What it demonstrates
+
+- **Scope and schema as separate questions.** A capability scope answers "may this caller use this
+  tool at all"; JSON Schema validation answers "is this particular call well-formed". Neither
+  substitutes for the other, and conflating them produces a system that is permissive in one
+  direction and brittle in the other.
+- **Rate limits owned by the tool, not the gateway.** A read-only search and a fund-moving action
+  must not share a budget. The limiter is keyed on `(tenant, tool)`.
+- **Approval gates with a bounded wait.** High-risk tools block until an operator decides — or until
+  the timeout fires. An approval queue without a timeout is an outage waiting for the first
+  unavailable operator.
+- **Denials as first-class audit events.** Every attempt is recorded with its outcome, so a tool
+  nobody ever approves is visible in the audit log rather than buried in application logs.
+- **Deterministic tests for time-dependent policy.** A mocked clock makes token-bucket refill and
+  approval timeout instant, so 44 tests covering every enforcement stage run in under a second.
+
+## Why the order of the checks matters
+
+The pipeline is not five interchangeable filters. The order is chosen so that each stage is cheap
+relative to the one after it, and so that no stage leaks information a caller has not earned.
+
+Scope is checked first because it is the cheapest and most absolute: a caller with no grant on a
+tool should never reach argument validation, both to avoid the work and to avoid schema error
+messages that describe a tool they are not entitled to know exists. Rate limiting sits after
+validation so that malformed calls cannot consume a well-behaved caller's budget. The approval gate
+is last before execution because it is the only stage that blocks on a human, and there is no point
+paying that latency for a call that would have failed a cheaper check anyway.
+
+<Aside type="tip" title="Interview signal">
+  "Validate, then authorize" and "authorize, then validate" produce systems that differ in
+  information disclosure and in whose budget a bad request spends. Being able to defend a specific
+  ordering — rather than listing the controls as an unordered set — is the distinguishing answer.
+</Aside>
+
+## Relationship to MCP
+
+This lab is **not an MCP implementation.** It implements the policy layer an MCP server would sit
+in front of, and it is deliberately protocol-independent: the same five checks apply whether calls
+arrive over MCP, a bespoke HTTP API, or an agent framework's in-process tool interface.
+
+That separation is worth more than it looks. MCP's `2026-07-28` revision removed the `initialize`
+handshake and protocol-level sessions and deprecated the HTTP+SSE transport — a protocol change
+significant enough to invalidate most 2025-era "MCP-style" code. None of it touches this pipeline,
+because none of these controls were ever protocol concerns. Wiring the runtime to real MCP hosts
+means putting an official SDK in front of `ToolGateway.call()`, with no change to enforcement.
+
+See [Module 6: MCP](/learn/modules/06-mcp/) for the current protocol.
+
+## Run it
+
+```bash
+cd labs/policy-gated-tool-runtime
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn tool_gateway.app:app --reload
+```
+
+```bash
+# A tool inside the caller's granted scope
+curl -s -X POST localhost:8000/v1/tools/search_docs/call \
+  -H 'content-type: application/json' -H 'x-agent-id: research-agent' \
+  -d '{"arguments": {"query": "retention policy"}}'
+
+# A high-risk tool: blocks pending an operator decision
+curl -s -X POST localhost:8000/v1/tools/issue_refund/call \
+  -H 'content-type: application/json' -H 'x-agent-id: support-agent' \
+  -d '{"arguments": {"order_id": "42", "amount_cents": 500}}'
+
+# Every attempt, allowed or denied, is in the audit log
+curl -s localhost:8000/v1/audit
+```
+
+## Verify it
+
+```bash
+pytest      # 44 tests
+ruff check .
+mypy src
+```
+
+## Principal-level discussion points
+
+1. Scope checks and schema validation answer different questions. Both are necessary; neither
+   substitutes for the other.
+2. Rate limits belong to the tool, not the gateway as a whole — a cheap read and an irreversible
+   action should never share a budget.
+3. Human-in-the-loop approval only works with a bounded timeout and a defined failure mode.
+   Unbounded approval is an availability risk disguised as a safety control.
+4. An audit log that records only successes cannot answer the question audits are actually for:
+   what was attempted and refused.
+5. Binding a call to the *caller's* declared identity rather than the end user behind it becomes a
+   real problem once an agent's actions no longer map one-to-one onto a single human request — which
+   is exactly when an agent platform becomes worth building.
+
+## Related
+
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the agent loop and the
+  safety boundaries this runtime enforces.
+- [Module 6: MCP](/learn/modules/06-mcp/) — the protocol this runtime deliberately does not
+  implement, and why that separation holds up.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference,
+  including the Redis-backed limiter this lab's in-process buckets would become.

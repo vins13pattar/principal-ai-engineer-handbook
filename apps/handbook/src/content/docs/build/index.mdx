@@ -50,6 +50,13 @@ A lab is graded against the same rubric a real system design review would use:
   failure. [Read the lab documentation →](/build/labs/durable-agent-task-engine/)
 </LabCallout>
 
+<LabCallout repoPath="labs/policy-gated-tool-runtime" status="production-shaped">
+  The enforcement layer in front of agent tool execution: capability scoping, schema validation,
+  per-tool rate limiting, human approval gates with a bounded wait, and an audit log that records
+  denials as carefully as successes.
+  [Read the lab documentation →](/build/labs/policy-gated-tool-runtime/)
+</LabCallout>
+
 <LabCallout repoPath="labs/slo-driven-ai-operations" status="production-shaped">
   Error-budget tracking with multiwindow burn-rate alerting, an autoscaling controller whose
   cooldown a fast burn deliberately overrides, and incident runbook execution that escalates rather
@@ -62,7 +69,7 @@ A lab is graded against the same rubric a real system design review would use:
 | [Async AI Gateway](/build/labs/async-ai-gateway/)                   | Production-ready  |
 | [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/)   | Production-shaped |
 | [Durable Agent Task Engine](/build/labs/durable-agent-task-engine/) | Production-shaped |
-| Agent Registry                                                      | Planned           |
+| [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/) | Production-shaped |
 | Model Router                                                        | Planned           |
 | Semantic Cache                                                      | Planned           |
 | Evaluation Platform                                                 | Planned           |
