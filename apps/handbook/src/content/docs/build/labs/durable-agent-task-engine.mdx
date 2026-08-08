@@ -1,0 +1,149 @@
+---
+title: Durable Agent Task Engine
+description: Lease-based task delivery with visibility timeouts, lease fencing, idempotent submission, checkpointed resumption, and dead-lettering by delivery attempt rather than explicit failure.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation, migrated from the retired static-prototype examples directory.
+    author: vinod
+category: lab
+repoPath: labs/durable-agent-task-engine
+stack:
+  - Python 3.12+
+  - FastAPI
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import taskLifecycle from "./durable-agent-task-engine.task-lifecycle.mmd?raw";
+
+Agent work is long-running, expensive, and frequently interrupted — a multi-step workflow that
+dies on step seven should not restart at step one, and a retried submission should not create a
+second task. This lab implements the delivery guarantees that make that true: leases with
+visibility timeouts, fencing tokens, idempotent submission, checkpointed resumption, and
+dead-lettering.
+
+Source: [`labs/durable-agent-task-engine`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/durable-agent-task-engine)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The state machine, lease fencing, retry accounting, and dead-lettering are complete and tested
+  against every failure mode they claim to handle. What is simulated is the *durability*: the store
+  is in-memory, single-process, and lost on exit. That is deliberate — it is written as a
+  specification for what a durable backend must guarantee atomically. See the
+  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/durable-agent-task-engine#what-would-make-this-production-ready)
+  for the exact gap.
+</Aside>
+
+## Task lifecycle
+
+<Mermaid code={taskLifecycle} title="Every failure mode this lab handles is a transition on this diagram" />
+
+## What it demonstrates
+
+- **The visibility timeout as crash recovery.** A leased task is invisible to other workers only
+  while its lease is held. If a worker dies, nobody renews the lease, it expires, and the task
+  becomes available again — no heartbeat supervisor, no external watchdog, no liveness service.
+- **Lease fencing.** A worker that resumes past its lease expiry is a zombie: it still believes it
+  owns work that has already been reissued. Its late `ack`, `fail`, or `checkpoint` is rejected
+  because its token is stale, which is what stops the task being completed twice.
+- **Idempotent submission, separate from idempotent handling.** An `Idempotency-Key` deduplicates
+  *task creation*. It does nothing about the handler running twice, because at-least-once is the
+  guarantee that is actually achievable — the two concerns are deliberately not conflated.
+- **Dead-lettering by delivery attempt, not explicit failure.** A task whose worker crashes before
+  it can call `fail()` never records a failure. Counting deliveries instead of failures is what
+  stops such a task retrying forever.
+- **Checkpointed resumption.** A handler calls `ctx.save_checkpoint({...})` after each unit of
+  progress, and the checkpoint is handed back through `ctx.checkpoint` on the next attempt —
+  whether that attempt came from a retry or from crash-driven redelivery.
+- **Bounded concurrency with graceful drain.** `shutdown()` stops leasing new work and waits for
+  in-flight tasks, so a deploy does not manufacture the exact crash the rest of the system exists
+  to survive.
+- **Deterministic tests for all of it.** A clock fixture makes lease expiry and backoff instant, so
+  26 tests covering every failure mode above run in under a second with no real sleeps.
+
+## Why counting deliveries beats counting failures
+
+This is the subtle one, and it is worth reading the two policies side by side.
+
+A retry budget spent on *explicit failures* only decrements when a handler catches an error and
+reports it. That works for a handler that raises — and fails completely for a handler whose process
+is killed mid-task. The task's lease expires, it returns to `Pending` with its budget untouched,
+and it is redelivered forever. A poison task that reliably segfaults its worker becomes an infinite
+loop that also takes down a worker each time around.
+
+Counting *delivery attempts* closes that: the budget decrements when the task is handed out, so
+crash-driven redelivery is bounded by exactly the same limit as explicit failure. The task
+dead-letters, an operator sees it, and the loop terminates.
+
+<Aside type="tip" title="Interview signal">
+  Being able to name this distinction unprompted is a strong signal. The naive design is not wrong
+  in an obvious way — it is wrong in a way that only appears under crash-looping, which is
+  precisely when a queue is least able to tolerate an infinite retry.
+</Aside>
+
+## Run it
+
+```bash
+cd labs/durable-agent-task-engine
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn task_queue.app:app --reload
+```
+
+The app starts an in-process demo worker whose handler fails its first two attempts and succeeds on
+the third, so retries, backoff, and checkpointing are all observable from the API.
+
+```bash
+# Submit — the idempotency key is required
+curl -s -X POST localhost:8000/v1/queues/orders/tasks \
+  -H 'content-type: application/json' \
+  -H 'Idempotency-Key: order-42-confirmation' \
+  -d '{"payload": {"order_id": "42"}, "max_attempts": 5}'
+
+# Resubmitting the same key returns the original task, not a duplicate
+curl -s http://localhost:8000/v1/tasks/<task-id>
+
+# Dead-letter inspection and operator requeue
+curl -s localhost:8000/v1/queues/orders/dead-letter
+curl -s -X POST localhost:8000/v1/tasks/<task-id>/requeue
+```
+
+## Verify it
+
+```bash
+pytest      # 26 tests
+ruff check .
+mypy src
+```
+
+## Principal-level discussion points
+
+1. A visibility timeout implements crash recovery without a separate supervisor: if nobody proves
+   they are still working, the work becomes available again. Fewer moving parts than a heartbeat
+   service, and one less thing that can fail independently.
+2. Idempotent submission and idempotent handlers are different concerns. Deduplicating by key
+   avoids duplicate *tasks*; the handler still has to be safe to run twice, because at-least-once
+   is the achievable guarantee and exactly-once is not.
+3. Lease fencing is what makes at-least-once safe rather than merely tolerable — without it, a
+   zombie worker's late acknowledgement silently corrupts the state machine.
+4. Dead-lettering is an operator surface, not an automatic recovery path. A task usually lands
+   there because a dependency is broken or a human needs to decide, not because it deserves another
+   blind retry.
+5. This store's single lock is correct for one process. A multi-replica deployment needs the same
+   atomicity from the *backing store* — row-level locking with `SKIP LOCKED`, or an atomic Lua
+   script — not from application code, which is why the in-memory implementation is written as a
+   specification rather than a placeholder.
+
+## Related
+
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — idempotency, retries,
+  and delivery guarantees this lab implements.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the long-running agent work
+  that motivates checkpointed resumption.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference this
+  lab is measured against.

@@ -1,0 +1,29 @@
+stateDiagram-v2
+    [*] --> Pending: submit (deduplicated by Idempotency-Key)
+
+    Pending --> Leased: lease() issues a fencing token
+    note right of Leased
+        Invisible to other workers only while
+        the lease is held. The visibility
+        timeout IS the crash-recovery
+        mechanism — no supervisor involved.
+
+        A stale worker's late ack, fail, or
+        checkpoint is rejected once its lease
+        has been reclaimed (lease fencing).
+    end note
+
+    Leased --> Succeeded: ack(valid token)
+    Leased --> Pending: fail(valid token), attempts remain
+    Leased --> Pending: lease expires (worker crashed)
+
+    Leased --> DeadLetter: delivery attempts exhausted
+    note right of DeadLetter
+        Counted by DELIVERY attempts, not
+        explicit failures — a worker that
+        crashes before it can call fail()
+        must still stop retrying eventually.
+    end note
+
+    DeadLetter --> Pending: operator requeue (never automatic)
+    Succeeded --> [*]

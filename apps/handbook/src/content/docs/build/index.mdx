@@ -44,6 +44,12 @@ A lab is graded against the same rubric a real system design review would use:
   OpenTelemetry tracing. [Read the lab documentation →](/build/labs/async-ai-gateway/)
 </LabCallout>
 
+<LabCallout repoPath="labs/durable-agent-task-engine" status="production-shaped">
+  Lease-based task delivery with visibility timeouts and fencing tokens, idempotent submission,
+  checkpointed resumption, and dead-lettering counted by delivery attempt rather than explicit
+  failure. [Read the lab documentation →](/build/labs/durable-agent-task-engine/)
+</LabCallout>
+
 <LabCallout repoPath="labs/slo-driven-ai-operations" status="production-shaped">
   Error-budget tracking with multiwindow burn-rate alerting, an autoscaling controller whose
   cooldown a fast burn deliberately overrides, and incident runbook execution that escalates rather
@@ -55,7 +61,7 @@ A lab is graded against the same rubric a real system design review would use:
 | ------------------------------------------------------------------- | ----------------- |
 | [Async AI Gateway](/build/labs/async-ai-gateway/)                   | Production-ready  |
 | [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/)   | Production-shaped |
-| Distributed Task Engine                                             | Planned           |
+| [Durable Agent Task Engine](/build/labs/durable-agent-task-engine/) | Production-shaped |
 | Agent Registry                                                      | Planned           |
 | Model Router                                                        | Planned           |
 | Semantic Cache                                                      | Planned           |

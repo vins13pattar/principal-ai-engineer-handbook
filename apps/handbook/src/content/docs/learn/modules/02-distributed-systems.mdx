@@ -379,9 +379,12 @@ lab on its own.
 
 ## Hands-on Lab
 
-No dedicated lab exists for this module yet — the **Distributed Task Engine** lab on the
-[Roadmap](/roadmap/) will cover idempotent submission, leases, retries, dead-letter handling, and
-checkpointed recovery as a full production-grade project.
+[**Durable Agent Task Engine**](/build/labs/durable-agent-task-engine/) implements this module's
+delivery guarantees as running code: idempotent submission, lease-based checkout with visibility
+timeouts, lease fencing against zombie workers, retry backoff, dead-lettering by delivery attempt,
+and checkpointed resumption. It is labelled `production-shaped` — the state machine is complete and
+exhaustively tested, the store is in-memory by design and written as a specification for what a
+durable backend must guarantee atomically.
 
 <Exercise title="Make the reference idempotency store durable" difficulty="advanced">
   Take the `IdempotentTaskStore` from this module's Implementation section and reimplement its
