@@ -1,0 +1,148 @@
+---
+title: Hybrid Retrieval and Evaluation
+description: Structure-aware chunking, BM25 and vector retrieval fused by rank rather than score, a reranking stage, groundedness checking, and an evaluation harness that measures retrieval quality instead of assuming it.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation, migrated from the retired static-prototype examples directory.
+    author: vinod
+category: lab
+repoPath: labs/hybrid-retrieval
+stack:
+  - Python 3.12+
+  - FastAPI
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import retrievalPipeline from "./hybrid-retrieval.retrieval-pipeline.mmd?raw";
+
+Most RAG systems fail quietly: retrieval gets slightly worse, answers get slightly less grounded,
+and nothing errors. This lab builds the pipeline *and* the instrument that would catch that —
+structure-aware chunking, lexical and vector retrieval fused by rank, a reranking stage, a
+groundedness check, and an evaluation harness reporting precision@k, recall@k, and MRR over a
+labeled query set.
+
+Source: [`labs/hybrid-retrieval`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/hybrid-retrieval)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The pipeline, fusion, reranking, and evaluation harness are real and tested. The embedding
+  function is deterministic feature hashing, not a model — see
+  [What the hashing trick does not demonstrate](#what-the-hashing-trick-does-not-demonstrate), which
+  is the most important thing to understand before drawing any conclusion from this lab's retrieval
+  results.
+</Aside>
+
+## Retrieval pipeline
+
+<Mermaid code={retrievalPipeline} title="Two retrievers, fused by rank, reranked, then measured" />
+
+## What it demonstrates
+
+- **Structure-aware chunking.** Chunks respect section headings and never split a paragraph unless
+  that paragraph alone exceeds the size budget, with overlap carried across boundaries *within* a
+  section. Chunking on a fixed character count is the most common way to make retrieval quietly bad.
+- **Real BM25, not a keyword filter.** Okapi BM25 with IDF computed over the actual corpus, so
+  lexical ranking reflects term rarity rather than raw frequency.
+- **Rank fusion, not score averaging.** Reciprocal Rank Fusion combines the two rankings by
+  *position*. BM25 scores and cosine similarities live on incomparable scales; averaging them
+  directly produces a number with no meaning, dominated by whichever scale happens to be larger.
+- **Reranking scoped to the fused candidate set.** Only the fused candidates are rescored, which is
+  what makes a more expensive scoring function affordable.
+- **Groundedness as a retrieval property.** The checker flags citations pointing at chunks the
+  retriever never returned — catching the failure where an answer cites something plausible that was
+  never actually retrieved.
+- **Measurement, not vibes.** precision@k, recall@k, and MRR over a labeled set, so a change to
+  chunking or fusion produces a number that moved rather than an impression.
+
+## Why fuse by rank instead of averaging scores
+
+This is the design decision most worth internalizing. A BM25 score is an unbounded sum of IDF-weighted
+term contributions; a cosine similarity is bounded in `[-1, 1]`. They are not merely on different
+*scales* — they are different *kinds* of quantity, and no fixed normalization makes them
+commensurable across queries, because BM25's range shifts with query length and corpus statistics
+while cosine's does not.
+
+Reciprocal Rank Fusion sidesteps the problem entirely by discarding magnitudes and using only
+position: a document ranked second by both retrievers scores the same regardless of whether its BM25
+score was 4 or 400. That throws away real information, which is a genuine cost — but it buys a
+combination that behaves consistently across queries, which score averaging does not.
+
+<Aside type="tip" title="Interview signal">
+  "Normalize both scores and take a weighted average" is the intuitive answer and it is subtly
+  wrong. Being able to say *why* — that the two distributions shift independently with query and
+  corpus, so a fixed normalization is only valid for one query — separates a considered answer from
+  a remembered one.
+</Aside>
+
+## What the hashing trick does not demonstrate
+
+The embedding function is deterministic feature hashing. It exercises the vector-retrieval path,
+makes every test reproducible without API keys or ML dependencies, and keeps fusion honest because
+its two inputs really are different ranking signals.
+
+It does **not** provide semantic similarity. Hashed features match on shared tokens, so a query and
+a chunk expressing the same idea in different words score near zero. No result from this lab
+supports a claim like "vector search retrieved the paraphrase" — it cannot.
+
+That limitation is why the evaluation harness is the most transferable part of the lab. Swapping in
+a real embedding model should visibly move precision and recall on the labeled set. If it does not,
+the problem is somewhere else in the pipeline, and you now have the instrument to find out where.
+
+## Run it
+
+```bash
+cd labs/hybrid-retrieval
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+uvicorn retrieval.app:app --reload
+```
+
+The app preloads a small demo corpus (four documents, two headed sections each) and a matching
+eight-case labeled evaluation set.
+
+```bash
+# Hybrid search
+curl -s -X POST localhost:8000/v1/search \
+  -H 'content-type: application/json' \
+  -d '{"query": "how long are logs retained", "k": 3}'
+
+# Run the labeled evaluation set: precision@k, recall@k, MRR
+curl -s -X POST localhost:8000/v1/evaluate
+```
+
+Change the chunk size or disable reranking, re-run `/v1/evaluate`, and watch the metrics move —
+that loop is the point of the lab.
+
+## Verify it
+
+```bash
+pytest      # 43 tests
+ruff check .
+mypy src
+```
+
+## Principal-level discussion points
+
+1. Chunking is a retrieval decision, not a preprocessing detail. Splitting mid-paragraph or ignoring
+   section structure degrades every downstream stage, and does so invisibly.
+2. Rank fusion beats score fusion when the underlying scores are incommensurable — which, for
+   lexical and vector retrieval, they always are.
+3. Reranking is affordable precisely because it runs on a small fused candidate set. A reranker
+   applied to the whole corpus is just an expensive retriever.
+4. Groundedness checking belongs at the retrieval boundary: an answer citing a chunk that was never
+   retrieved is a detectable failure, and detecting it does not require a model.
+5. Without a labeled set and metrics, "we improved retrieval" is unfalsifiable. The evaluation
+   harness is what converts RAG work from tuning-by-impression into engineering.
+
+## Related
+
+- [Module 8: RAG](/learn/modules/08-rag/) — the two-pipeline model and access control at retrieval
+  time.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference this
+  lab is measured against.

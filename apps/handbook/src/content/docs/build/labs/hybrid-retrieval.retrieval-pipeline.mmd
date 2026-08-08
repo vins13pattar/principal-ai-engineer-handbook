@@ -1,0 +1,18 @@
+flowchart TB
+    D["Document"] --> CH["Structure-aware chunking<br/>respects headings, never splits a<br/>paragraph unless it alone is oversized"]
+    CH --> IDX1["BM25 lexical index<br/>real IDF over the corpus"]
+    CH --> IDX2["Vector index<br/>hashed-feature stand-in"]
+
+    Q["Query"] --> L["Lexical ranking"]
+    Q --> V["Vector ranking"]
+    IDX1 --> L
+    IDX2 --> V
+
+    L --> RRF["Reciprocal Rank Fusion<br/>combines by POSITION, because the<br/>two score scales are incomparable"]
+    V --> RRF
+
+    RRF --> RR["Rerank<br/>rescores only the fused candidates:<br/>normalized signals + exact-phrase bonus"]
+    RR --> R["Ranked results"]
+
+    R --> G["Groundedness check<br/>flags citations pointing at chunks<br/>the retriever never returned"]
+    R --> E["Evaluation harness<br/>precision@k, recall@k, MRR<br/>over a labeled query set"]

@@ -322,7 +322,12 @@ outside.
 
 ## Hands-on Lab
 
-No dedicated RAG lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+[**Hybrid Retrieval and Evaluation**](/build/labs/hybrid-retrieval/) implements this module's
+retrieval pipeline end to end: structure-aware chunking, BM25 and vector retrieval fused by rank
+rather than score, a reranking stage, groundedness checking, and an evaluation harness reporting
+precision@k, recall@k, and MRR. It is labelled `production-shaped` — the pipeline and metrics are
+real, but the embedding function is a deterministic hashing stand-in with no semantic similarity,
+which the lab is explicit about.
 
 <Exercise title="Prove cross-tenant isolation in a retrieval query" difficulty="advanced">
   Implement the `VectorIndex` protocol from this module's Implementation section against any
