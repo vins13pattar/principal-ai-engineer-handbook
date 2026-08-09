@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
@@ -42,7 +42,7 @@ async def enforce_quota(tenant: str = Depends(tenant_id)) -> str:
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     log_event("gateway.started", environment=os.getenv("APP_ENV", "development"))
     yield
     gateway.begin_shutdown()
@@ -53,7 +53,9 @@ app = FastAPI(title="Async AI Gateway Production Path", version="0.2.0", lifespa
 
 
 @app.middleware("http")
-async def request_context(request: Request, call_next):
+async def request_context(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     request_id = new_request_id(request.headers.get("x-request-id"))
     with metrics.observe(f"{request.method} {request.url.path}"):
         log_event("request.started", method=request.method, path=request.url.path)
@@ -83,7 +85,9 @@ async def red_metrics() -> dict[str, object]:
 
 
 @app.post("/v1/generate", response_model=GenerateResponse)
-async def generate(request: GenerateRequest, tenant: str = Depends(enforce_quota)) -> GenerateResponse:
+async def generate(
+    request: GenerateRequest, tenant: str = Depends(enforce_quota)
+) -> GenerateResponse:
     log_event("generation.accepted", tenant_id=tenant, provider=request.provider)
     try:
         return await gateway.generate(

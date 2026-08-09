@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 
 import pytest
 
@@ -59,5 +60,36 @@ async def test_health_router_ejects_repeatedly_failing_provider() -> None:
 
     await asyncio.sleep(0.06)
     router.record_success("primary", latency_ms=1)
-    name, _ = router.select()
-    assert name == "primary"
+
+    # Ejection expiry restores *eligibility*, not preference: primary is no
+    # longer scored -inf and can be selected again.
+    assert router.health["primary"].score(time.monotonic()) > float("-inf")
+
+
+@pytest.mark.asyncio
+async def test_an_untried_provider_outranks_one_that_has_recovered() -> None:
+    """Pins the cold-start bias in `ProviderHealth.score`.
+
+    `success_rate` returns 1.0 for a provider with no samples at all, so an
+    untried provider scores a perfect 1.0 while one that failed twice and then
+    recovered carries 1/3. The recovered provider is eligible but still ranks
+    below the unknown one.
+
+    That is defensible — an untried provider has no evidence against it — but it
+    means the router explores a cold provider in preference to a known-recovered
+    one, and it is worth asserting rather than rediscovering. See the README's
+    known-characteristics note.
+    """
+    router = HealthAwareRouter(
+        {"recovered": DemoProvider("recovered"), "untried": DemoProvider("untried")},
+        failure_ejection_threshold=2,
+        ejection_seconds=0.01,
+    )
+    router.record_failure("recovered")
+    router.record_failure("recovered")
+    await asyncio.sleep(0.02)
+    router.record_success("recovered", latency_ms=1)
+
+    now = time.monotonic()
+    assert router.health["untried"].score(now) > router.health["recovered"].score(now)
+    assert router.select()[0] == "untried"

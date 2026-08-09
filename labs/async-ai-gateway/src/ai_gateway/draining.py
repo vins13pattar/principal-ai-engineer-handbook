@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 
@@ -21,7 +22,7 @@ class DrainManager:
         return self._active
 
     @asynccontextmanager
-    async def request(self):
+    async def request(self) -> AsyncIterator[None]:
         async with self._condition:
             if not self._accepting:
                 raise RuntimeError("Gateway is draining")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Response
@@ -26,7 +27,7 @@ gateway = AsyncAIGateway(
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     yield
     gateway.begin_shutdown()
 
@@ -35,7 +36,9 @@ app = FastAPI(title="Async AI Gateway Lab", version="0.2.0", lifespan=lifespan)
 
 
 @app.middleware("http")
-async def request_telemetry(request: Request, call_next) -> Response:
+async def request_telemetry(
+    request: Request, call_next: Callable[[Request], Awaitable[Response]]
+) -> Response:
     request_id = new_request_id(request.headers.get("x-request-id"))
     operation = f"{request.method} {request.url.path}"
     log_event("request.started", method=request.method, path=request.url.path)
@@ -84,7 +87,7 @@ async def generate(request: GenerateRequest) -> GenerateResponse:
 
 @app.post("/v1/stream")
 async def stream(request: GenerateRequest) -> StreamingResponse:
-    async def chunks():
+    async def chunks() -> AsyncIterator[str]:
         async for chunk in gateway.stream(request.prompt, provider_name=request.provider):
             yield chunk
 

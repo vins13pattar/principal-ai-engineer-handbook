@@ -22,10 +22,10 @@ The default app uses deterministic fake providers so it runs without API keys. T
 ## Run locally
 
 ```bash
-cd examples/async-ai-gateway
+cd labs/async-ai-gateway
 python3.12 -m venv .venv
 source .venv/bin/activate
-pip install -e '.[dev,observability,redis]'
+pip install -e '.[dev,observability,redis,auth]'
 uvicorn ai_gateway.production_app:app --reload
 ```
 
@@ -77,7 +77,7 @@ ruff check .
 mypy src
 ```
 
-GitHub Actions runs these checks for changes under `examples/async-ai-gateway`. A separate job starts Redis and executes Redis-focused integration tests.
+GitHub Actions runs these checks for changes under `labs/async-ai-gateway`. A separate job starts Redis and executes Redis-focused integration tests.
 
 ## Architecture
 
@@ -128,6 +128,18 @@ The selector tracks success rate, consecutive failures, and latency exponential 
 
 Health-based routing can create feedback loops. Production systems should retain minimum probe traffic, cap scoring adjustments, expire stale observations, and separate health by provider, model, endpoint, and region.
 
+**Known characteristic: an untried provider outranks a recovered one.** `ProviderHealth.success_rate`
+returns `1.0` when there are no samples at all, so a provider that has never been called scores a
+perfect 1.0 while one that failed twice and then recovered carries 1/3. Ejection expiry therefore
+restores *eligibility*, not preference — the recovered provider becomes selectable again but still
+ranks below an untried peer until it accumulates successes.
+
+That is defensible (an untried provider has no evidence against it) and it is also a cold-start bias
+worth knowing about: the router will explore an unknown provider ahead of a known-recovered one.
+`test_an_untried_provider_outranks_one_that_has_recovered` pins the behaviour so it stays a decision
+rather than an accident. Giving a zero-sample provider a neutral prior instead of a perfect score is
+the usual fix, and is listed under [Remaining exercises](#remaining-exercises).
+
 ## Distributed rate limiting
 
 A Redis-backed limiter executes refill and consume operations inside one Lua script, keeping the decision atomic across gateway replicas.
@@ -149,6 +161,9 @@ A Redis-backed limiter executes refill and consume operations inside one Lua scr
 
 ## Remaining exercises
 
+- Replace `success_rate`'s optimistic 1.0 for zero samples with a neutral prior (a smoothed estimate
+  such as `(successes + 1) / (total + 2)`), so an untried provider does not outrank a recovered one
+  purely for lack of evidence.
 - Replace the sample tenant header with JWT or mTLS-derived identity.
 - Wire `RedisTenantRateLimiter` into the production app through configuration.
 - Configure a real OTLP SDK exporter and instrument outbound `httpx` calls.

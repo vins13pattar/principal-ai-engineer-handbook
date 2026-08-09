@@ -53,7 +53,7 @@ async def enforce_quota(identity: Identity = Depends(current_identity)) -> Ident
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     global redis_quota
     configure_tracing(settings)
     try:

@@ -14,7 +14,9 @@ class Identity:
 
 
 class JWTAuthenticator:
-    def __init__(self, *, secret: str, algorithm: str = "HS256", audience: str | None = None) -> None:
+    def __init__(
+        self, *, secret: str, algorithm: str = "HS256", audience: str | None = None
+    ) -> None:
         self._secret = secret
         self._algorithm = algorithm
         self._audience = audience
@@ -34,7 +36,11 @@ class JWTAuthenticator:
         subject = str(claims.get("sub", "")).strip()
         if not tenant_id or not subject:
             raise HTTPException(status_code=401, detail="Token is missing tenant identity")
-        return Identity(tenant_id=tenant_id, subject=subject, tier=str(claims.get("tier", "standard")))
+        return Identity(
+            tenant_id=tenant_id,
+            subject=subject,
+            tier=str(claims.get("tier", "standard")),
+        )
 
 
 async def bearer_token(authorization: str | None = Header(default=None)) -> str:

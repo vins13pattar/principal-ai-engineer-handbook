@@ -24,6 +24,10 @@ dev = [
 observability = [
   "opentelemetry-api>=1.30,<2.0",
   "opentelemetry-sdk>=1.30,<2.0",
+  # configure_tracing() imports OTLPSpanExporter whenever an endpoint is set,
+  # so the exporter belongs in the extra that turns tracing on — without it,
+  # enabling tracing fails at the import rather than at configuration.
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2.0",
 ]
 redis = [
   "redis>=5.2,<6.0",
@@ -37,6 +41,7 @@ load = [
 all = [
   "opentelemetry-api>=1.30,<2.0",
   "opentelemetry-sdk>=1.30,<2.0",
+  "opentelemetry-exporter-otlp-proto-http>=1.30,<2.0",
   "redis>=5.2,<6.0",
   "PyJWT>=2.10,<3.0",
   "locust>=2.32,<3.0",
@@ -55,6 +60,12 @@ target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` in a parameter default is FastAPI's dependency-injection
+# idiom, not the mutable-default bug B008 exists to catch. Ruff ships this
+# setting precisely so the rule stays on for real cases.
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header", "fastapi.Security"]
 
 [tool.mypy]
 python_version = "3.12"

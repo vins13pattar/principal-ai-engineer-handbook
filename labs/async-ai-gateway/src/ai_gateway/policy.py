@@ -20,7 +20,9 @@ POLICIES: dict[str, TenantPolicy] = {
 }
 
 
-def enforce_provider_policy(identity: Identity, provider: str | None, timeout_seconds: float) -> None:
+def enforce_provider_policy(
+    identity: Identity, provider: str | None, timeout_seconds: float
+) -> None:
     policy = POLICIES.get(identity.tier, POLICIES["standard"])
     if provider is not None and provider not in policy.allowed_providers:
         raise HTTPException(status_code=403, detail="Provider is not allowed for this tenant tier")
