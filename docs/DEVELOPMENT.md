@@ -24,7 +24,8 @@ outside it — each lab is its own Python project with its own `pyproject.toml` 
 pnpm install
 ```
 
-Requires Node 20+ and pnpm 9+ (see `.nvmrc` and the `packageManager` field in `package.json`).
+Requires Node 22.12+ and pnpm 9+ (see `.nvmrc` and the `engines` / `packageManager` fields in
+`package.json`). The Node floor is Astro's, not ours — `astro check` refuses to run below 22.12.
 
 ## Deployment
 
@@ -43,10 +44,36 @@ Connect to Git**), use these build settings:
 | Build output directory | `apps/handbook/dist`                                                        |
 | Root directory         | `/` (repository root — this is a pnpm workspace, not a single-package repo) |
 
-Node version and package manager are picked up automatically from `.nvmrc` and
-`pnpm-lock.yaml`; no `NODE_VERSION` environment variable is required. Every push to `main` deploys
-to production; every pull request gets its own preview URL automatically — no additional
-configuration needed for either.
+Node version and package manager are picked up automatically from `.nvmrc` (`22`) and
+`pnpm-lock.yaml`. Two things to check while creating the project, because both fail in ways that
+are hard to read from the build log:
+
+- **Use build system v2.** v1 defaults to a Node version far below Astro's 22.12 floor and ignores
+  `.nvmrc` in some configurations. If the build fails with `Node.js vXX is not supported by Astro`,
+  set a `NODE_VERSION` environment variable to `22` as a direct override.
+- **Leave the build output directory exactly `apps/handbook/dist`.** Selecting the `Astro` framework
+  preset can rewrite it to `dist`, which does not exist at the repository root — the build succeeds
+  and the deployment serves nothing.
+
+Every push to `main` deploys to production; every pull request gets its own preview URL
+automatically — no additional configuration needed for either.
+
+### After the first deploy
+
+`.github/workflows/site-ci.yml` verifies the build but has no visibility into Cloudflare, so a
+misconfigured project fails silently from GitHub's side (see ADR-0005). Check these once on the
+live URL:
+
+| Check | Why it can break |
+| --- | --- |
+| The homepage loads and the sidebar renders | Wrong build output directory serves an empty site |
+| A deep link works on a hard refresh, e.g. `/learn/modules/06-mcp/` | Confirms directory-style routing is being served, not just client-side |
+| Search opens and returns a result | Pagefind's index lives in `dist/pagefind/`; a partial upload breaks it silently |
+| A Mermaid diagram renders | Diagrams render client-side, so the build cannot catch a broken one |
+| `view-source:` shows a canonical URL on the real domain | Confirms Cloudflare passed `CF_PAGES_URL` through to the build |
+
+Once the production URL is final, update the fallback in `apps/handbook/astro.config.mjs` — it is
+what canonical URLs and `sitemap-0.xml` use for any build where `CF_PAGES_URL` is absent.
 
 `wrangler.toml` at the repository root pins `pages_build_output_dir` for parity with the dashboard
 settings and enables local testing with `pnpm exec wrangler pages dev apps/handbook/dist` after a
