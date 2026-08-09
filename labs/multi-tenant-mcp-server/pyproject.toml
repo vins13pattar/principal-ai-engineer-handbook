@@ -1,0 +1,40 @@
+[build-system]
+requires = ["hatchling>=1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "multi-tenant-mcp-server"
+version = "0.1.0"
+description = "A multi-tenant MCP server on the official SDK, against the 2026-07-28 specification"
+requires-python = ">=3.12"
+dependencies = [
+  "mcp>=2.0.0,<3.0",
+  "uvicorn[standard]>=0.34,<1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "mypy>=1.15,<2.0",
+  "pytest>=8.3,<9.0",
+  "pytest-asyncio>=0.25,<1.0",
+  "ruff>=0.9,<1.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/mcp_tenancy"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+packages = ["mcp_tenancy"]

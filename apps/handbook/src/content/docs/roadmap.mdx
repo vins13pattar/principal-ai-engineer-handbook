@@ -76,6 +76,7 @@ bump the way a module does:
 | [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/) | Module 5     | Production-shaped |
 | [Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/) | Module 8 | Production-shaped |
 | [Dynamic Batching Inference](/build/labs/dynamic-batching-inference/) | Module 9 | Production-shaped |
+| [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) | Module 6 | Production-shaped |
 | Model Router                                                      | Module 4         | Planned           |
 | Semantic Cache                                                    | Module 4         | Planned           |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
@@ -90,23 +91,21 @@ re-verified and honestly re-labelled on arrival rather than moved wholesale —
 [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/), then
 [Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/), then
 [Dynamic Batching Inference](/build/labs/dynamic-batching-inference/). All five straightforward
-ports are done.
+ports are done, and the sixth lab was rebuilt rather than ported — see below.
 
-The multi-tenant MCP server lab is **not migrated and remains unbuilt**, deliberately. The donor
-version targeted `2025-11-25` and described itself as "MCP-style", so porting it would import a
-protocol that no longer exists.
+The [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) was **rebuilt rather than
+migrated**. The donor version targeted `2025-11-25` and described itself as "MCP-style", so porting
+it would have imported a protocol that no longer exists. It is now a real MCP server on the official
+SDK (`mcp` 2.0.0, which reports `2026-07-28` as its only modern protocol version), tested through
+the SDK's own client over Streamable HTTP.
 
-A rebuild against the official SDK (`mcp` 2.0.0, which reports `2026-07-28` as its only modern
-protocol version) got as far as working tenant-scoped listings before hitting a design problem
-worth stating plainly: **a credential carried in per-request `_meta` cannot secure an MCP server.**
-The SDK issues protocol calls of its own — `call_tool()` internally calls `validate_tool_result()`,
-which issues a `tools/list` with no `_meta` — so a server authorizing on `_meta` rejects its own
-client, and a server that exempts `tools/list` to compensate has reopened the hole. Authorization
-has to sit on the transport, where every request carries it.
-
-That finding is now written up in [Module 6](/learn/modules/06-mcp/#security). The lab will be
-rebuilt on the SDK's `token_verifier` seam over Streamable HTTP with a real `Authorization` header,
-rather than shipped with a known authorization gap.
+The rebuild took two attempts, and the failed one is documented because it is the more useful half:
+**a credential carried in per-request `_meta` cannot secure an MCP server.** The SDK issues protocol
+calls of its own — `call_tool()` internally calls `validate_tool_result()`, which issues a
+`tools/list` with no `_meta` — so a server authorizing on `_meta` rejects its own client, and a
+server that exempts `tools/list` to compensate has reopened the hole. Authorization sits on the
+transport, where every request carries it. See
+[Module 6](/learn/modules/06-mcp/#security) and the lab's own write-up.
 
 ## How this roadmap works
 

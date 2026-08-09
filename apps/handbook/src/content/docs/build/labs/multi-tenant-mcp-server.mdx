@@ -1,0 +1,170 @@
+---
+title: Multi-Tenant MCP Server
+description: A real MCP server on the official SDK speaking the 2026-07-28 protocol — transport-level tenant authentication, per-tenant discovery, refusals that leak nothing, and statelessness proven by test.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial lab documentation. Rebuilt on the official SDK rather than migrated, because the donor version targeted the 2025-11-25 protocol.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
+  verifiedOn: 2026-08-08
+category: lab
+repoPath: labs/multi-tenant-mcp-server
+stack:
+  - Python 3.12+
+  - MCP SDK 2.0
+  - Streamable HTTP
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import requestPath from "./multi-tenant-mcp-server.request-path.mmd?raw";
+
+Serving many tenants from one MCP server means one tenant must never discover, call, or infer
+another's capabilities. This lab implements that on the official SDK, speaking the `2026-07-28`
+protocol over Streamable HTTP, with every test driven through the SDK's own client rather than an
+in-process shortcut.
+
+Source: [`labs/multi-tenant-mcp-server`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/multi-tenant-mcp-server)
+
+<Aside type="tip" title="This one is actually MCP">
+  Built on `mcp` 2.0.0, which reports `2026-07-28` as its only modern protocol version. Not a
+  hand-rolled JSON-RPC service with MCP-shaped method names, and not "MCP-style" — see
+  [Module 6](/learn/modules/06-mcp/) for why that distinction stopped being cosmetic.
+</Aside>
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The protocol, transport, and isolation are real. The tenant registry is in-memory and the bearer
+  tokens are static — a production server verifies tokens minted by an authorization server, with
+  RFC 9207 issuer validation and CIMD in place of Dynamic Client Registration. The
+  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/multi-tenant-mcp-server#what-would-make-this-production-ready)
+  has the full table.
+</Aside>
+
+## Request path
+
+<Mermaid code={requestPath} title="The credential is checked before any handler runs, which is what makes it cover the SDK's own calls too" />
+
+## The mistake this lab is built around
+
+This was built the wrong way first, and the wrong way is the intuitive one.
+
+Under `2026-07-28` every request is self-describing: protocol version, client info, and capabilities
+all travel in `_meta` on every call. So putting the tenant credential in `_meta` alongside them
+looks natural — per-request identity for a per-request protocol.
+
+It does not work, and the failure is instructive. **An SDK makes protocol calls that application
+code never issues.** Concretely, `call_tool()` internally invokes `validate_tool_result()`, which
+issues its own `tools/list` to check the output schema — carrying no `_meta`. A server authorizing
+on `_meta` therefore rejects its own client's internal call. Worse, the obvious workaround — exempt
+`tools/list` from authentication — reopens precisely the hole the design was closing.
+
+The fix is to authenticate on the transport, via the SDK's `TokenVerifier` seam, so the
+`Authorization` header covers every request the transport carries regardless of who issued it. That
+property has its own test:
+
+```python
+async def test_the_credential_covers_the_sdks_own_internal_calls(server):
+    async with connect(server, ACME_TOKEN) as acme:
+        result = await acme.call_tool("search_docs", {"query": "retention"})
+    assert not result.is_error
+```
+
+<Aside type="tip" title="Interview signal">
+  "Stateless protocol" and "per-request credentials in the request body" sound like the same idea.
+  They are not. Being able to say where a credential has to live so that it covers calls your own
+  code does not make is a distinguishing answer — and it generalizes well beyond MCP, to any SDK
+  that issues background refreshes, revalidations, or retries on your behalf.
+</Aside>
+
+## What it demonstrates
+
+- **Transport-level authentication**, checked before any handler runs — 401 without a credential,
+  401 with an invalid one, both asserted against the real HTTP app.
+- **Per-tenant discovery.** Each tenant's `tools/list` is filtered to its own grants.
+- **Authorization separate from filtering.** `tools/call` is checked independently, because a caller
+  can always name a tool it never listed. A server that only filters the listing has published a UI
+  convention, not a security boundary.
+- **Refusals that leak nothing.** An ungranted call returns a result byte-identical to a genuinely
+  unknown tool. A distinguishable refusal is an enumeration oracle — a tenant that can tell
+  "forbidden" from "nonexistent" can map every other tenant's capabilities one call at a time.
+- **`cacheScope: private` on tenant-scoped listings.** `public` would tell every cache on the
+  path — client, gateway, CDN — that one tenant's filtered list may be served to another. This is a
+  _new_ way to leak tenant data; the previous protocol revision had no `cacheScope` to get wrong.
+- **Statelessness proven, not assumed.** A test alternates tenants across three connections to one
+  server object and asserts no identity carries over.
+
+## Where the authentication boundary sits
+
+`server/discover` is served **without** a credential, and that is deliberate rather than an
+oversight. Requiring one would deadlock bootstrapping: a client would need to authenticate before it
+could discover how to authenticate.
+
+It is safe only because this server's discover response was verified to carry capability flags and
+supported protocol versions — no tool or resource names. That is a property of this server, not a
+general guarantee. A server that put tenant-scoped data in discover would have to move it behind the
+boundary, which is why the method list is explicit in `middleware.py` rather than inferred.
+
+## Run it
+
+```bash
+cd labs/multi-tenant-mcp-server
+python3.12 -m venv .venv
+source .venv/bin/activate
+pip install -e '.[dev]'
+python -m mcp_tenancy.app
+```
+
+```bash
+# No credential: rejected by the transport
+curl -s -o /dev/null -w '%{http_code}\n' -X POST localhost:8000/mcp \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H 'Mcp-Method: tools/list' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'          # 401
+
+# With a tenant credential
+curl -s -X POST localhost:8000/mcp \
+  -H 'Content-Type: application/json' -H 'Accept: application/json, text/event-stream' \
+  -H 'Mcp-Method: tools/list' -H 'Authorization: Bearer tok-globex' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'          # 200, two tools
+```
+
+Swap `tok-globex` for `tok-acme` and the same call returns three tools — `issue_refund` is granted
+to `acme` only.
+
+## Verify it
+
+```bash
+pytest      # 11 tests, all over the real Streamable HTTP transport
+ruff check .
+mypy src
+```
+
+## Principal-level discussion points
+
+1. A credential has to live where it covers calls your own code does not make. SDKs issue
+   revalidations, refreshes, and retries on your behalf; anything scoped to application-issued
+   requests will have gaps you cannot see from your own call sites.
+2. Filtering a listing is discovery, not authorization. Both are needed, and conflating them
+   produces a server that looks isolated in a UI and is not.
+3. A refusal that differs from "not found" is an enumeration oracle. Error text is part of the
+   security surface.
+4. `cacheScope` made caching a tenancy concern. A protocol revision can introduce a leak class that
+   did not previously exist, which is the strongest argument for tracking protocol freshness
+   deliberately rather than by editorial habit.
+5. Statelessness moved authentication from once-per-session to once-per-request. That is more work
+   per call and strictly better operationally — no affinity, no session store, no drain-on-deploy.
+
+## Related
+
+- [Module 6: MCP](/learn/modules/06-mcp/) — the protocol, the `2026-07-28` changes, and the
+  credential-placement lesson this lab produced.
+- [`labs/policy-gated-tool-runtime`](/build/labs/policy-gated-tool-runtime/) — the enforcement
+  pipeline that would sit behind this server's tool calls.
+- [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/) — the `production-ready` reference this
+  lab is measured against.

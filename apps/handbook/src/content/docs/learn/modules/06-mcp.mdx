@@ -34,7 +34,7 @@ difficulty: intermediate
 estimatedMinutes: 50
 prerequisites:
   - 05-agent-engineering
-relatedLabs: []
+relatedLabs: ["multi-tenant-mcp-server"]
 ---
 
 import {
@@ -489,7 +489,10 @@ properties needed either session affinity or shared session storage.
 
 ## Hands-on Lab
 
-No dedicated MCP lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+[**Multi-Tenant MCP Server**](/build/labs/multi-tenant-mcp-server/) is a real MCP server on the
+official SDK, speaking this revision of the protocol over Streamable HTTP: transport-level tenant
+authentication, per-tenant discovery, refusals that leak nothing, `cacheScope: private` on
+tenant-scoped listings, and statelessness proven by test rather than asserted.
 
 <Warning>
   A lab that implements JSON-RPC with MCP-shaped method names is a **protocol-learning exercise,

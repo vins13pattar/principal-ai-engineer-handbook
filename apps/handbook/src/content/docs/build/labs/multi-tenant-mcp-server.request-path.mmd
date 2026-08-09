@@ -1,0 +1,22 @@
+flowchart TB
+    C["MCP host<br/>Authorization: Bearer tok-globex"] --> LB["Load balancer<br/>no session affinity required"]
+    LB --> R1["Replica A"]
+    LB --> R2["Replica B"]
+    LB --> R3["Replica C"]
+
+    R1 --> TV{"TokenVerifier<br/>runs before any handler"}
+    TV -->|"invalid or absent"| E["401 invalid_token"]
+    TV -->|"valid"| MW
+
+    subgraph MW["Tenancy middleware"]
+        direction TB
+        S{"tenant-scoped method?"}
+        S -->|"no — server/discover"| PASS["serve unauthenticated:<br/>capability flags only,<br/>no tenant data"]
+        S -->|yes| A{"method"}
+        A -->|"tools/list"| F["filter to granted tools<br/>cacheScope: private"]
+        A -->|"tools/call"| G{"granted?"}
+        G -->|no| D["refusal identical to<br/>a genuinely unknown tool"]
+        G -->|yes| H["run handler as this tenant"]
+    end
+
+    MW --> INT["SDK-internal calls<br/>(validate_tool_result → tools/list)<br/>carry the same header"]
