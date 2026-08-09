@@ -31,54 +31,74 @@ export default defineConfig({
       pagination: true,
       customCss: ["./src/styles/global.css"],
       plugins: [starlightLinksValidator()],
+      // Navigation rules, so this stays legible as sections grow:
+      //
+      // 1. Two levels, never three. The old shape nested every page under a
+      //    redundant middle group ("Learn > Modules > Module 4"), which cost a
+      //    click and told the reader nothing they could not infer.
+      // 2. Every group is `collapsed`. Starlight auto-expands the group holding
+      //    the current page, so exactly one section is ever open — that open
+      //    section is what tells the reader where they are.
+      // 3. Each section opens with an "Overview" that explains the section and
+      //    indexes it, so the group label is always a place you can go.
+      // 4. Group labels say what the section contains ("Decision Records", not
+      //    "ADR"). The sidebar is the first thing a new reader parses.
       sidebar: [
+        { label: "Start here", link: "/start-here/" },
         {
-          label: "Learn",
+          collapsed: true,
+          label: "Learn — the concepts",
           items: [
             { label: "Overview", link: "/learn/" },
-            { items: [{ autogenerate: { directory: "learn/modules" } }], label: "Modules" },
+            { autogenerate: { directory: "learn/modules" } },
           ],
         },
         {
-          label: "Build",
+          collapsed: true,
+          label: "Build — running labs",
           items: [
             { label: "Overview", link: "/build/" },
-            { items: [{ autogenerate: { directory: "build/labs" } }], label: "Labs" },
+            { autogenerate: { directory: "build/labs" } },
           ],
         },
         {
-          label: "Architecture",
+          collapsed: true,
+          label: "Architecture — design reviews",
           items: [
             { label: "Overview", link: "/architecture/" },
-            { items: [{ autogenerate: { directory: "architecture/systems" } }], label: "Systems" },
+            { autogenerate: { directory: "architecture/systems" } },
           ],
         },
         {
-          label: "Interview",
+          collapsed: true,
+          label: "Interview — by round",
           items: [
             { label: "Overview", link: "/interview/" },
-            { items: [{ autogenerate: { directory: "interview/tracks" } }], label: "Tracks" },
+            { autogenerate: { directory: "interview/tracks" } },
           ],
         },
         {
-          label: "Reference",
+          collapsed: true,
+          label: "Reference — quick lookups",
           items: [
             { label: "Overview", link: "/reference/" },
-            { items: [{ autogenerate: { directory: "reference/lookups" } }], label: "Lookups" },
+            { autogenerate: { directory: "reference/lookups" } },
           ],
         },
         {
-          label: "ADR",
-          items: [
-            { label: "Overview", link: "/adr/" },
-            { items: [{ autogenerate: { directory: "adr/decisions" } }], label: "Decisions" },
-          ],
-        },
-        {
+          collapsed: true,
           label: "Cheat Sheets",
           items: [
             { label: "Overview", link: "/cheatsheets/" },
-            { items: [{ autogenerate: { directory: "cheatsheets/sheets" } }], label: "Sheets" },
+            { autogenerate: { directory: "cheatsheets/sheets" } },
+          ],
+        },
+        {
+          collapsed: true,
+          label: "Decision Records — why it is built this way",
+          items: [
+            { label: "Overview", link: "/adr/" },
+            { autogenerate: { directory: "adr/decisions" } },
           ],
         },
         { label: "Roadmap", link: "/roadmap/" },

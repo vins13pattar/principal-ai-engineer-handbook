@@ -5,16 +5,20 @@ template: splash
 hero:
   tagline: Production AI systems, agentic architecture, and distributed infrastructure — documented like it ships, not like it's interview notes.
   actions:
-    - text: Start with Module 0
-      link: /learn/modules/00-principal-engineer-mindset/
+    - text: Start here
+      link: /start-here/
       icon: right-arrow
       variant: primary
+    - text: Jump to Module 0
+      link: /learn/modules/00-principal-engineer-mindset/
+      icon: open-book
+      variant: secondary
     - text: View on GitHub
       link: https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook
       icon: external
       variant: minimal
-version: 1.6.0
-lastUpdated: 2026-08-07
+version: 1.7.0
+lastUpdated: 2026-08-09
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -44,6 +48,10 @@ revisionHistory:
     date: 2026-08-07
     change: Updated status to v0.7.0 now that Module 12 (Observability) is published.
     author: vinod
+  - version: 1.7.0
+    date: 2026-08-09
+    change: Pointed the primary action at the new Start here page and refreshed the status block.
+    author: vinod
 ---
 
 import { Card, CardGrid } from "@astrojs/starlight/components";
@@ -51,9 +59,13 @@ import LatestPages from "../../components/LatestPages.astro";
 
 ## What this is
 
-A version-controlled engineering reference for the Principal / Staff AI Engineer track: production
-architecture, hands-on labs built to the same bar as the systems they describe, and an interview
-track that stays honest about trade-offs instead of listing buzzwords.
+A reference for the Principal and Staff AI Engineer track: production architecture, hands-on labs
+built to the same bar as the systems they describe, and interview material that stays honest about
+trade-offs instead of listing buzzwords.
+
+The handbook covers a small number of systems in depth and looks at each from four angles — the
+concepts, a design review, running code, and the interview round it appears in.
+[Start here](/start-here/) explains which section to open and shows how the four connect.
 
 <CardGrid stagger>
   <Card title="Learn" icon="open-book">
@@ -96,7 +108,7 @@ track that stays honest about trade-offs instead of listing buzzwords.
 | [Architecture](/architecture/) | Reference architectures for recurring AI infrastructure problems                                                             |
 | [Interview](/interview/)       | Question tracks mapped to the material that answers them                                                                     |
 | [Reference](/reference/)       | One-page lookups for tools and primitives (asyncio, Kafka, Raft, ...)                                                        |
-| [ADR](/adr/)                   | Why the handbook itself — and its labs — are built the way they are                                                          |
+| [Decision Records](/adr/)      | Why the handbook itself — and its labs — are built the way they are                                                          |
 | [Cheat Sheets](/cheatsheets/)  | Printable, one-page summaries                                                                                                |
 | [Roadmap](/roadmap/)           | Current version and what ships next                                                                                          |
 
@@ -110,8 +122,8 @@ track that stays honest about trade-offs instead of listing buzzwords.
 
 ## Current status
 
-**v0.7.0 — Thirteen Learn modules and the first Architecture page.** The documentation platform is
-complete, [Modules 0–12](/learn/) are live — engineering mindset through Observability — and
-[Architecture](/architecture/) has its first page:
-[Async AI Gateway](/architecture/systems/async-ai-gateway/). The rest of the content is being
-authored incrementally — see the [Roadmap](/roadmap/) for what's next.
+**Fourteen Learn modules, seven labs, seven architecture pages, two interview tracks.**
+[Modules 0–13](/learn/) are live, engineering mindset through system design. Every lab has a
+matching [architecture page](/architecture/) and a matching module, and
+[Reference](/reference/) has opened with its first lookups. Leadership material and the remaining
+lookups are still being written — the [Roadmap](/roadmap/) says what does not exist yet.

@@ -1,0 +1,97 @@
+---
+title: Start here
+description: What each section of the handbook is for, how the same topic is covered across all of them, and three routes through the material depending on why you came.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: Added as the handbook's orientation page, alongside the two-level sidebar.
+    author: vinod
+category: section-overview
+---
+
+The handbook covers a small number of systems in depth, and looks at each one from four angles:
+the concepts behind it, a design review of it, running code for it, and the interview round where
+it comes up. Those angles are the sections in the sidebar. This page explains which one to open,
+and when.
+
+## The sections
+
+| Section | What it is | Open it when |
+| --- | --- | --- |
+| [Learn](/learn/) | Fourteen modules, each with the same fifteen sections — mental model, architecture, implementation, failure modes, trade-offs, interview questions | You want to understand a topic properly, start to finish |
+| [Build](/build/) | Seven labs, each a real Python service with tests, type checking, and CI | You want to run something, break it, and see what happens |
+| [Architecture](/architecture/) | Seven design reviews — constraints, request flow, failure modes, cost, observability, deployment | You are designing something similar and need the decisions laid out |
+| [Interview](/interview/) | Tracks organized by interview round, routing into the material that answers each one | You have an interview and want to know what the round samples |
+| [Reference](/reference/) | One-page lookups: what it is, the numbers, the gotchas | You need to check one fact quickly |
+| [Cheat Sheets](/cheatsheets/) | Printable one-page summaries | You want something to review on paper |
+| [Decision Records](/adr/) | Why the handbook and its labs are built the way they are | You are curious how a decision here was reached, or want the format |
+
+Every section opens with an **Overview** that indexes it. The sidebar collapses to one line per
+section, and expands whichever section you are currently reading — so the open group is always the
+answer to "where am I".
+
+## How one topic runs across the sections
+
+This is the structure worth knowing. A topic is not confined to one section: it appears as a
+module, a design review, a lab, and a set of interview questions, and those four are cross-linked.
+
+| Topic | Concepts | Design review | Running code |
+| --- | --- | --- | --- |
+| Async services, concurrency, resilience | [Module 1](/learn/modules/01-production-python/) | [Async AI Gateway](/architecture/systems/async-ai-gateway/) | [`async-ai-gateway`](/build/labs/async-ai-gateway/) |
+| Delivery guarantees, durable execution | [Module 2](/learn/modules/02-distributed-systems/) | [Durable Agent Execution](/architecture/systems/durable-agent-execution/) | [`durable-agent-task-engine`](/build/labs/durable-agent-task-engine/) |
+| Agents calling tools safely | [Module 5](/learn/modules/05-agent-engineering/) | [Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/) | [`policy-gated-tool-runtime`](/build/labs/policy-gated-tool-runtime/) |
+| MCP | [Module 6](/learn/modules/06-mcp/) | [Enterprise MCP Platform](/architecture/systems/enterprise-mcp-platform/) | [`multi-tenant-mcp-server`](/build/labs/multi-tenant-mcp-server/) |
+| Retrieval | [Module 8](/learn/modules/08-rag/) | [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/) | [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) |
+| Model serving | [Module 9](/learn/modules/09-model-serving/) | [Model Serving Platform](/architecture/systems/model-serving-platform/) | [`dynamic-batching-inference`](/build/labs/dynamic-batching-inference/) |
+| Observability and SLOs | [Module 12](/learn/modules/12-observability/) | [AI Reliability Platform](/architecture/systems/ai-reliability-platform/) | [`slo-driven-ai-operations`](/build/labs/slo-driven-ai-operations/) |
+
+Read a row left to right and you have gone from the idea to a design you could defend to code you
+can run. Read it right to left when you already have the code and need the reasoning behind it.
+
+## Three routes through the material
+
+**You have an interview coming up.** Start at [Interview](/interview/) and pick the track for the
+round you are facing. Each track says what that round actually samples and links to the material
+that answers it. Interview questions themselves live inside the modules and architecture pages,
+next to the material that makes the answers credible — the tracks route you there rather than
+copying them out.
+
+**You want to build something.** Start at [Build](/build/), pick the lab closest to your problem,
+and run it. Each lab page says what is real and what is simulated before you invest time. Then read
+the matching architecture page for the decisions behind it, using the table above.
+
+**You are designing a system at work.** Start at the [Architecture](/architecture/) page for the
+closest system and read its **Constraints** and **Failure Modes** sections first — those are the
+two that transfer. [Module 13](/learn/modules/13-system-design/) covers the method itself: how to
+establish constraints, model capacity, and identify which decision is hardest to reverse.
+
+If none of those fit, [Module 0](/learn/modules/00-principal-engineer-mindset/) is the intended
+front door and reads as a standalone piece.
+
+## What the labels mean
+
+The handbook makes claims about its own material, and they are meant literally.
+
+- **Lab maturity.** `production-shaped` means the architecture, tests, and failure handling are
+  real but something a deployment needs is deliberately simulated — an in-memory store, a
+  deterministic fake provider. `production-ready` means the remaining stand-ins have a real
+  integration path. Each lab page names its stand-ins explicitly.
+- **Freshness.** Pages on fast-moving topics carry what they were verified against and when. CI
+  fails once such a page passes its review window, so a stale page is a build failure rather than
+  something you discover by trusting it.
+- **Page contracts.** Every module has the same fifteen sections, every architecture page the same
+  twelve, every lookup the same five. CI enforces it. Once you know the shape of one page you can
+  navigate all of them, and jump straight to the section you need.
+
+## Conventions worth knowing
+
+- **Interview questions are never separated from their material.** They sit at the bottom of the
+  module or architecture page that explains the answer.
+- **Links go to sections, not just pages.** A link to `#trade-offs` means the trade-offs section
+  specifically, and it is worth following.
+- **Code snippets are taken from the labs**, not written for the page. If a snippet looks
+  incomplete, the lab has the rest.
+- **The [Roadmap](/roadmap/)** is honest about what is not written yet. Anything listed as planned
+  does not exist.
