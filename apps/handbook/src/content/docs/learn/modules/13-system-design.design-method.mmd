@@ -1,0 +1,25 @@
+flowchart TD
+    START([New AI system]) --> CONSTRAINTS[Establish constraints<br/>volume, latency, correctness,<br/>data boundary, cost per call]
+    CONSTRAINTS --> WORKLOAD[Characterize the workload<br/>arrival shape, payload size,<br/>read/write mix, tail sensitivity]
+    WORKLOAD --> CAPACITY[Model capacity and cost<br/>Little's Law, tokens per call,<br/>dominant cost line]
+
+    CAPACITY --> HARD{Which decision is<br/>hardest to reverse?}
+    HARD --> DATA[Data boundary<br/>and permission model]
+    HARD --> STATE[State ownership<br/>and durability]
+    HARD --> CONTRACT[External contract<br/>and versioning]
+
+    DATA --> DECOMPOSE[Decompose into components<br/>with one owner each]
+    STATE --> DECOMPOSE
+    CONTRACT --> DECOMPOSE
+
+    DECOMPOSE --> EVAL[Define the quality signal<br/>eval set, thresholds,<br/>regression gate]
+    EVAL --> OBSERVE[Define the operational signal<br/>SLOs, burn rate, cost per request]
+
+    OBSERVE --> REVERSIBLE{Reversible<br/>within one deploy?}
+    REVERSIBLE -->|Yes| SHIP[Ship behind a flag<br/>and measure]
+    REVERSIBLE -->|No| EVIDENCE[Name the evidence that<br/>would change the decision]
+    EVIDENCE --> SHIP
+
+    SHIP --> MEASURE[Compare against the<br/>declared thresholds]
+    MEASURE -->|Within budget| DONE([Design holds])
+    MEASURE -->|Outside budget| CONSTRAINTS

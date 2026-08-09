@@ -1,0 +1,467 @@
+---
+title: "Module 13: System Design"
+sidebar:
+  label: "13 · System Design"
+description: Designing AI systems as an engineering discipline — establishing constraints, modelling capacity and cost before choosing components, identifying the decision that is hardest to reverse, and making a design falsifiable.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: Initial publication.
+    author: vinod
+category: learn-module
+moduleNumber: 13
+difficulty: expert
+estimatedMinutes: 60
+prerequisites:
+  - 02-distributed-systems
+  - 04-ai-infrastructure
+  - 12-observability
+relatedLabs:
+  - async-ai-gateway
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import designMethod from "./13-system-design.design-method.mmd?raw";
+
+## Executive Summary
+
+The other modules in this track each cover one layer. This one covers the activity that spans them:
+turning an underspecified request into a system whose behavior, cost, and failure envelope are
+known before anyone writes the first line.
+
+The distinguishing skill is not knowing more components. It is establishing constraints before
+proposing any, modelling capacity and cost in numbers rather than adjectives, identifying which
+decision is hardest to undo, and stating what evidence would prove the design wrong. AI systems
+raise the stakes on all four, because the component that motivates the system — the model — degrades
+without erroring, costs real money per call, and returns different answers to identical inputs.
+
+## Mental Model
+
+**A design is a set of falsifiable claims, not a diagram.**
+
+A diagram says what the parts are. A design says what the system will do — this many requests per
+second, at this p99, for this cost per call, degrading in this specific way when the retrieval index
+is stale — and each of those is a claim that measurement can refute. Anything that cannot be refuted
+is decoration.
+
+Three consequences follow, and they organize the rest of this module:
+
+1. **Constraints come before components.** A component chosen before the constraint it satisfies is
+   a preference, not a decision. The constraint is what makes the choice defensible later, and what
+   tells you when it stops being right.
+2. **Reversibility is the axis that matters.** Most decisions can be undone in an afternoon and
+   deserve an afternoon of thought. A few — the data boundary, who owns which state, the external
+   contract — are expensive for years. Spend your design time in proportion.
+3. **A design you cannot measure is a design you cannot operate.** Every claim needs a signal, and
+   for AI systems that means a quality signal as well as a latency one. A system that is fast,
+   cheap, and quietly wrong is the failure mode this discipline exists to prevent.
+
+<PrincipalPerspective title="The output of a design is a decision record, not a picture">
+  What survives contact with a team is not the diagram — it is the written record of what was
+  decided, what it cost, what was considered and rejected, and what would change the answer. Six
+  months later nobody remembers why the queue is in the database instead of a broker, and the
+  absence of that record is what causes the rewrite. The [ADR](/adr/) section exists for exactly
+  this reason.
+</PrincipalPerspective>
+
+## Architecture
+
+The method, as a flow. The loop at the bottom is the point: a design is not finished when it is
+drawn, it is finished when measurement agrees with it.
+
+<Mermaid code={designMethod} title="The design method, from constraints to measured claims" />
+
+The three branches out of "hardest to reverse" are not exhaustive, but in AI systems they are where
+the expensive mistakes concentrate. The data boundary determines who can see what and is nearly
+impossible to retrofit. State ownership determines what a failure loses. The external contract
+determines how long you carry the design after you have outgrown it.
+
+## Deep Dive
+
+**Establishing constraints.** Six questions, and the answers should be numbers or named parties:
+
+- **Who calls this, and how often?** Requests per second at peak, not average — and the shape,
+  because a system serving a batch job at 09:00 has different capacity needs than one serving even
+  traffic at the same daily total.
+- **How fast must it answer?** A p99 target, not a mean, and a statement of what happens when it is
+  missed: does the caller retry, queue, or fail?
+- **How wrong may it be, and how would you know?** The AI-specific one. "Correct" needs a
+  definition, and the definition needs an eval set, or the system has no quality signal at all.
+- **Whose data is it?** Tenant, region, and retention. This is the constraint most often discovered
+  late and most expensive to satisfy afterwards.
+- **What does a call cost?** Tokens in, tokens out, retrieval hops, retries. Cost per request is a
+  design constraint in AI systems, not a capacity-planning footnote.
+- **What is the failure budget?** How much unavailability is acceptable, which is the input to every
+  redundancy decision downstream.
+
+**Characterizing the workload.** Constraints tell you the target; workload shape tells you what the
+system will actually experience. Arrival pattern (smooth, bursty, scheduled), payload size
+distribution, read/write mix, and tail sensitivity. AI workloads have two properties that generic
+services do not: request cost varies by an order of magnitude with context length, and latency is
+dominated by a component whose behavior you do not control.
+
+**Modelling capacity.** Little's Law is the whole of it for a first pass:
+
+> `concurrency = arrival_rate × average_latency`
+
+At 200 requests per second with an average latency of 2 seconds, 400 requests are in flight at any
+moment. That number determines connection pool sizes, semaphore bounds, memory, and how many
+replicas you need — and it is derivable before any code exists. Most capacity surprises are this
+arithmetic not being done.
+
+**Finding the irreversible decision.** Ask of each choice: if this is wrong, what does fixing it
+cost? A retry policy is a config change. A queue technology is a week. A data model that mixes two
+tenants' embeddings in one index is a migration, an audit, and a disclosure. Rank by that, then
+spend design effort in the same order.
+
+<ResearchNote source="Jeff Bezos, 2015 Amazon shareholder letter (one-way and two-way doors)">
+  The framing that most reliably improves design discussions: most decisions are two-way doors and
+  should be made fast by the people closest to them; a few are one-way doors and deserve
+  deliberation. The failure mode in engineering organizations is treating every decision as a
+  one-way door, which is slow, and the rarer, worse one is treating a one-way door as reversible.
+</ResearchNote>
+
+**Making it falsifiable.** For each claim in the design, name the measurement that would refute it
+and the threshold at which you would act. "Retrieval quality is sufficient" is not a claim.
+"Recall@10 stays above 0.85 on the labelled set, checked on every index rebuild" is.
+
+## Implementation
+
+Capacity modelling is the part of design most often waved at, and it is straightforwardly
+executable. This is the arithmetic above, written so it can be run against real constraints instead
+of estimated in a meeting:
+
+<CodeWalkthrough title="A first-pass capacity and cost model">
+```python
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class Workload:
+    """Constraints, stated as numbers so the design can be checked against them."""
+
+    peak_rps: float
+    avg_latency_seconds: float
+    p99_latency_target_seconds: float
+    input_tokens: int
+    output_tokens: int
+    input_cost_per_1k: float
+    output_cost_per_1k: float
+
+
+@dataclass(frozen=True)
+class Capacity:
+    concurrent_requests: float
+    replicas_needed: int
+    cost_per_request: float
+    cost_per_day: float
+
+
+def model(workload: Workload, *, concurrency_per_replica: int, headroom: float = 0.3) -> Capacity:
+    # Little's Law: everything in flight at a given instant.
+    in_flight = workload.peak_rps * workload.avg_latency_seconds
+
+    # Size for peak plus headroom, because a replica running at its concurrency
+    # limit is a replica whose queue-wait time is about to become the latency.
+    usable = concurrency_per_replica * (1 - headroom)
+    replicas = max(1, ceil_div(in_flight, usable))
+
+    cost = (
+        workload.input_tokens / 1000 * workload.input_cost_per_1k
+        + workload.output_tokens / 1000 * workload.output_cost_per_1k
+    )
+    return Capacity(
+        concurrent_requests=in_flight,
+        replicas_needed=replicas,
+        cost_per_request=cost,
+        cost_per_day=cost * workload.peak_rps * 86_400,
+    )
+
+
+def ceil_div(numerator: float, denominator: float) -> int:
+    return int(-(-numerator // denominator))
+```
+
+Two things this makes visible that prose does not. First, `headroom` is a design decision with a
+cost — dropping it from 0.3 to 0.1 cuts the replica count by roughly a fifth and moves the system
+much closer to the point where queue-wait dominates latency. Second, `cost_per_day` computed at peak
+is deliberately pessimistic; the honest version needs the arrival shape, and discovering that you
+cannot supply it is itself a finding.
+</CodeWalkthrough>
+
+The output is not a plan, it is a set of numbers to argue with. If the model says 400 concurrent
+requests and the connection pool is configured for 100, that is a bug found before it was written.
+
+<EngineeringNote>
+  Run this model twice: once with the constraints as given, and once at ten times the request rate.
+  The second run tells you which component breaks first, which is the single most useful thing to
+  know about a design and the question interviewers ask most reliably.
+</EngineeringNote>
+
+## Production Example
+
+The [`async-ai-gateway`](/build/labs/async-ai-gateway/) lab is a worked instance of this method,
+and its structure is traceable back to specific constraints.
+
+The constraint "many teams, each with their own quota" produced per-tenant rate limiting rather
+than a global limit — and immediately produced the irreversible-decision question: where does quota
+state live? In-process is correct on one replica and wrong on three, where each replica enforces the
+quota independently and a tenant silently receives three times their limit. That is a one-way door
+in the sense that matters: by the time you notice, tenants have built against the wrong limit.
+
+The constraint "a provider outage must not become our outage" produced health-aware routing and a
+circuit breaker, and the falsifiable claim that a failing provider is ejected within a bounded
+number of failures. The lab's test suite is where that claim is checked, which is the difference
+between a design and an intention.
+
+The constraint "a rolling deploy must not kill in-flight requests" produced explicit draining, with
+a stated timeout — a claim that in-flight work completes within 30 seconds or is abandoned
+deliberately rather than by accident.
+
+<Warning title="The constraint you did not write down is the one that changes">
+  Every one of the above is recoverable from the code, but only because it was written down first.
+  A design whose constraints live in someone's memory becomes, within two quarters, a system nobody
+  is willing to change — not because the code is bad, but because nobody can tell which behavior is
+  load-bearing.
+</Warning>
+
+## Failure Modes
+
+<FailureMode title="Components chosen before constraints">
+  The most common failure, and the one most visible from outside. A design that opens with a
+  technology list has skipped the step that makes the list defensible, and it will not survive the
+  first question about why. The tell is a design where changing the requirements would not change
+  the diagram.
+</FailureMode>
+
+<FailureMode title="Capacity estimated in adjectives">
+  "High throughput", "low latency", and "scalable" are not constraints, and a design built on them
+  cannot be checked. The failure surfaces at launch, when the connection pool, the queue bound, or
+  the replica count turns out to have been chosen by default rather than by arithmetic.
+</FailureMode>
+
+<FailureMode title="No quality signal">
+  The AI-specific failure. The system is available, fast, and within budget, and its answers have
+  been degrading for six weeks because an index rebuild changed the chunking. Latency monitoring
+  cannot see this. Only an eval set run on a schedule can, and a design without one has no way to
+  detect its own most likely failure.
+</FailureMode>
+
+<FailureMode title="Cost discovered in the invoice">
+  Cost per request is a design constraint that shapes caching, context size, model selection, and
+  routing. Systems designed without it typically discover at scale that the dominant cost line is
+  something nobody considered — retries, or context that grew as features were added, or a retrieval
+  step firing on every request including the ones that did not need it.
+</FailureMode>
+
+<FailureMode title="Irreversible decisions made casually">
+  Tenant data landing in a shared index, a public API shipped without a version, state owned by two
+  components at once. Each is cheap in the week it happens and expensive for years. The absence of a
+  moment where someone asked "how hard is this to undo?" is the root cause every time.
+</FailureMode>
+
+<FailureMode title="Designing for a scale that never arrives">
+  The mirror image, and it costs just as much. A system built for a hundred times its actual traffic
+  carries the operational burden of that complexity every day, in exchange for a capacity nobody
+  uses. The discipline is the same: state the constraint, and let it justify the complexity or not.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Design up front, or design as you go">
+  Up-front design catches the irreversible mistakes while they are still cheap and costs time before
+  any user is served. Iterative design finds real requirements faster and accumulates decisions that
+  are hard to undo. The workable split follows reversibility: decide the one-way doors — data
+  boundary, state ownership, external contract — deliberately and early, and let everything else be
+  discovered.
+</TradeOff>
+
+<TradeOff title="Build the platform, or solve the case in front of you">
+  A platform amortizes across teams and pays for itself at the third consumer; before that it is
+  speculative generality with an operational cost. Solving the specific case ships sooner and risks
+  three divergent implementations that must later be reconciled. The signal to watch is the second
+  consumer, not the first — one is a use case, two is a pattern.
+</TradeOff>
+
+<TradeOff title="Optimize for change, or optimize for the known workload">
+  Abstraction layers, feature flags, and pluggable interfaces buy the ability to change direction
+  and cost indirection that every future reader pays for. Committing to the known workload is faster
+  and simpler until the workload moves. Buy flexibility only where you can name the change you
+  expect, and commit everywhere else.
+</TradeOff>
+
+<TradeOff title="Consistency across systems, or the right tool per system">
+  A consistent stack means one set of runbooks, one on-call rotation, and engineers who can move
+  between services. Per-system choices fit each problem better and multiply the operational surface.
+  At Principal scope the second-order cost usually dominates: the fifth datastore is rarely worth
+  what it costs to operate, even when it is genuinely the better fit.
+</TradeOff>
+
+## Security
+
+- **The data boundary is a design decision, not an implementation detail.** Which tenants,
+  regions, and classifications share storage, an index, or a cache is decided at design time and is
+  extremely expensive to change afterwards. Decide it explicitly and write it down.
+- **Isolation by code is weaker than isolation by structure.** In a shared multi-tenant system a
+  missing filter is a breach; in a per-tenant deployment it is a bug. Choosing shared is usually
+  right, and it means the filter belongs at a chokepoint that every path must cross, with a test
+  that proves it.
+- **Permission filtering belongs inside the query, not after it.** Retrieving then filtering leaks
+  through result counts, latency, and any path that forgets the second step. This is the design-time
+  form of the failure that the [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/)
+  page treats in depth.
+- **AI systems have injection surfaces that perimeter auth does not cover** — retrieved documents,
+  tool descriptions, and model output that feeds a downstream action. A design whose only security
+  section is authentication has addressed the smaller half.
+- **Design for the audit question up front.** "Who accessed what, when, and on whose behalf" is
+  cheap to answer if identity flows through the system and nearly impossible to reconstruct
+  afterwards.
+
+## Performance
+
+- **Model the latency budget as a sum, not a target.** Allocate the p99 across the path — admission,
+  retrieval, model call, post-processing — and the component with no room becomes obvious before it
+  is built.
+- **Design against the tail.** Mean latency is a property of the system nobody experiences. Fan-out
+  makes this worse arithmetically: a request touching ten backends sees roughly the p99 of one of
+  them as its typical case.
+- **Know which resource saturates first.** For AI systems it is usually provider concurrency or
+  accelerator memory, not CPU — which is why autoscaling on CPU is the wrong signal for most of
+  these systems.
+- **Measure queue wait separately from execution.** A system starved of concurrency slots and a
+  system that is genuinely slow look identical on an end-to-end latency chart and need opposite
+  fixes.
+- **Cost and latency trade against each other explicitly.** Caching, smaller models, and shorter
+  context all move both numbers, usually in opposite directions. Decide which one the design is
+  optimizing and say so.
+
+## Scaling
+
+- **Ask what breaks first at ten times, not what the architecture supports.** The answer is almost
+  always a specific bounded resource — a connection pool, a single-writer database, a provider
+  quota, an in-process cache — and naming it is more useful than any capacity claim.
+- **Statelessness is what makes horizontal scaling work**, so every piece of in-process state is a
+  scaling decision: rate limiter buckets, caches, dedup sets, and session data each need an answer
+  for what happens on the second replica.
+- **Shard along the isolation boundary you already chose.** If tenancy is the data boundary, it is
+  usually also the right partition key, and using two different boundaries doubles the coordination.
+- **Scale the components independently.** Request handling, embedding generation, and batch
+  inference have unrelated scaling curves and should not share a deployment unit.
+- **Cost scales with traffic in AI systems, unlike most infrastructure**, where fixed capacity
+  absorbs growth. Ten times the traffic is roughly ten times the model spend, which makes cost per
+  request the constraint that governs how far the design can scale before it must change shape.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How do you start a system design you have never seen before?">
+  Constraints before components: who calls it and how often, how fast it must answer, how wrong it
+  may be and how you would detect that, whose data it is, and what a call costs. Then characterize
+  the workload shape, do the Little's Law arithmetic, and name the decision that is hardest to
+  reverse. Naming the hard part out loud in the first five minutes is the highest-leverage move
+  available.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you decide how much design to do before building?">
+  By reversibility. Decisions that can be undone in a deploy get made quickly by whoever is closest
+  to them. Decisions that are expensive for years — the data boundary, state ownership, the external
+  contract — get deliberated. The organizational failure mode is treating everything as a one-way
+  door, which is slow; the rarer and worse one is treating a one-way door as reversible.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="expert" title="What makes designing AI systems different from designing conventional distributed systems?">
+  Four things. The dominant component degrades without erroring, so quality needs its own signal and
+  its own regression gate. Cost per request is a first-class design constraint rather than a
+  capacity footnote. Latency is dominated by something you do not control and cannot profile.
+  And the system has injection surfaces — retrieved documents, tool descriptions, model output
+  feeding an action — that perimeter authentication does not touch.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your design is challenged by a senior colleague who prefers a different approach. What do you do?">
+  Separate the disagreement into constraint, evidence, and preference. If you disagree about
+  constraints, resolve that first — most design arguments are actually about unstated requirements.
+  If the constraints agree and the conclusions differ, name the evidence that would settle it and
+  what it would cost to get. If it is genuinely preference within the same constraints, it is a
+  two-way door and not worth the meeting.
+</InterviewQuestion>
+
+<InterviewAnswer title="Making a design falsifiable, concretely">
+  "The claim is that we hold p99 under 800 ms at 200 requests per second. That is 400 requests in
+  flight by Little's Law, so the pool is sized for 400 with 30% headroom. If p99 exceeds 800 ms at
+  under 200 rps, the model is wrong and the first thing I would check is queue wait versus provider
+  latency, because those need opposite fixes. Separately, recall@10 on the labelled set stays above
+  0.85 or retrieval has regressed, and that runs on every index rebuild rather than on a schedule,
+  because the rebuild is the event that causes it."
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="expert" title="How would you design a system whose requirements you know will change?">
+  Identify which parts of the requirement are stable and which are volatile, and put the abstraction
+  boundary between them rather than everywhere. Buy flexibility where you can name the change you
+  expect — a second provider, a second tenant, a second region — and commit hard everywhere else.
+  Speculative generality costs every future reader, and the flexibility you did not need is
+  indistinguishable from complexity you cannot remove.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+This module has no lab of its own — it is the method the others are instances of. The most direct
+practice is to reverse the process on a system that already exists.
+
+Take [`async-ai-gateway`](/build/labs/async-ai-gateway/) and recover its constraints from its code:
+what must have been true for per-tenant limiting, circuit breaking, and explicit draining each to be
+worth building? Then compare against the
+[Async AI Gateway](/architecture/systems/async-ai-gateway/) architecture page, which states them.
+The gap between what you inferred and what was intended is the part of design that does not survive
+into code — which is the argument for writing it down.
+
+<Exercise title="Model a system you already run" difficulty="advanced">
+  Take a service you operate and fill in the `Workload` above with its real numbers. Compare the
+  computed `concurrent_requests` against its actual connection pool and concurrency limits, and
+  `cost_per_day` against the invoice. In most systems at least one of those disagrees with the
+  configuration by more than a factor of two — and the disagreement is a finding, whichever
+  direction it goes.
+</Exercise>
+
+<Checklist title="Before calling a design done">
+  - Every constraint is a number or a named party, not an adjective.
+  - The capacity arithmetic has been done, and it agrees with the configured bounds.
+  - The decision that is hardest to reverse has been named, and deliberated in proportion.
+  - Each claim has a measurement that would refute it and a threshold for acting.
+  - There is a quality signal, not only a latency one.
+  - The dominant cost line is known, and the design lever that moves it is identified.
+  - What breaks first at ten times the load has an answer.
+  - What was deliberately left out of v1 is written down, with why.
+</Checklist>
+
+## References
+
+- Jeff Bezos, *2015 Amazon shareholder letter* — the one-way and two-way door framing, which is the
+  most portable idea in this module.
+- Martin Kleppmann, *Designing Data-Intensive Applications* — the reference for the storage and
+  consistency decisions this method routes into.
+- Google, *Site Reliability Engineering*, chapters on SLOs and error budgets — how a design claim
+  becomes an operational commitment.
+- John Ousterhout, *A Philosophy of Software Design* — the clearest treatment of when an abstraction
+  earns its cost, which is the "optimize for change" trade-off above.
+- [ADR](/adr/) — this handbook's own decision records, as worked examples of the written output this
+  module argues for.
+
+## Revision History
+
+| Version | Date       | Change               |
+| ------- | ---------- | -------------------- |
+| 1.0.0   | 2026-08-09 | Initial publication. |
