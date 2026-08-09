@@ -1,0 +1,83 @@
+---
+title: asyncio
+description: Python's async runtime — the primitives, the numbers, and the mistakes that show up in production services and coding rounds alike.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: First Reference lookup, establishing the lookup page contract.
+    author: vinod
+category: Concurrency
+---
+
+## At a Glance
+
+A single-threaded cooperative scheduler. One event loop runs one coroutine at a time; every `await`
+is a point where that coroutine may yield control back to the loop. Concurrency comes from
+overlapping *waiting*, not from parallel execution — which is why asyncio wins decisively for
+I/O-bound work and does nothing for CPU-bound work.
+
+Reach for it when a process spends most of its time waiting on network calls and the libraries
+involved are async-native. Reach for processes instead when the work is computation.
+
+## Key Concepts
+
+| Concept | What it actually is |
+| --- | --- |
+| Coroutine | What `async def f()` returns when called. Nothing runs until it is awaited or scheduled |
+| Task | A coroutine handed to the loop to run independently, via `asyncio.create_task()` |
+| Event loop | The scheduler. One per thread; `asyncio.run()` creates one, runs a coroutine, closes it |
+| `await` | A suspension point. Control returns to the loop, which may run something else |
+| `asyncio.TaskGroup` | Structured concurrency (3.11+). Scopes tasks to a block, propagates the first failure, cancels siblings |
+| `asyncio.gather()` | Runs awaitables concurrently. Without `return_exceptions=True`, a failure surfaces immediately but siblings keep running |
+| `asyncio.timeout()` | Context manager (3.11+) that cancels the block on expiry. Composes; `wait_for` wraps a single awaitable |
+| `CancelledError` | Raised at the `await` point inside a cancelled task. Inherits from `BaseException` since 3.8 |
+| `Semaphore` | Bounded concurrency. `async with` it, so the slot is released on every exit path |
+| `Queue` | Producer/consumer handoff. Bound it — `maxsize=0` means unbounded, which means unbounded memory |
+| `run_in_executor` | Escape hatch for blocking calls: runs them on a thread pool so the loop keeps moving |
+| `to_thread()` | The 3.9+ ergonomic form of the above, for a single blocking call |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Event loops per thread | 1 | Two loops in one thread is a bug, not a scaling strategy |
+| Default thread-pool workers | `min(32, cpu_count + 4)` | The ceiling on concurrent `to_thread()` calls before they queue |
+| `Queue(maxsize=0)` | Unbounded | The default. A slow consumer becomes an OOM, silently |
+| `asyncio.run()` on an existing loop | `RuntimeError` | Why library code takes a coroutine rather than calling `run()` itself |
+| `CancelledError` base class | `BaseException` (3.8+) | `except Exception` no longer catches it — older code that relied on it is now subtly different |
+| `TaskGroup` | Python 3.11+ | Along with `asyncio.timeout()`; on 3.10 you are back to `gather` and `wait_for` |
+| `uvloop` throughput gain | Roughly 2× on I/O-heavy loops | A drop-in loop replacement, near-zero code change |
+| GIL effect on threads | No CPU speedup for pure Python | Threads help blocking I/O only |
+
+## Common Gotchas
+
+- **A coroutine that is never awaited does nothing** and emits a `RuntimeWarning` — often at
+  interpreter shutdown, long after the call site scrolled away.
+- **`time.sleep()` inside `async def` freezes the whole loop**, not just that request. Same for
+  `requests`, synchronous database drivers, and CPU-heavy parsing.
+- **`create_task()` without keeping a reference** lets the task be garbage-collected mid-flight. Hold
+  the reference, or use a `TaskGroup`.
+- **Swallowing `CancelledError`** makes a task uncancellable: shutdown hangs and timeouts stop
+  taking effect. Clean up in `finally`, then re-raise.
+- **`gather()` over caller-controlled input** is unbounded fan-out. Put the bound inside the loop.
+- **Exceptions in `gather(..., return_exceptions=True)` are returned, not raised** — code that does
+  not inspect the results swallows every failure.
+- **A `Semaphore` acquired outside `try`** leaks a slot on any exception before the `finally`.
+  `async with` avoids the whole class of bug.
+- **Async context managers need `__aenter__`/`__aexit__`** — a sync `with` on an async resource
+  fails at a confusing place.
+- **Debug mode is free signal**: `PYTHONASYNCIODEBUG=1` reports coroutines that block the loop too
+  long and tasks that were never retrieved.
+
+## Where to Go Deeper
+
+- [Module 1: Production Python](/learn/modules/01-production-python/) — the full treatment:
+  layered timeouts, backpressure, cancellation as control flow, and graceful drain.
+- [Module 1 → Failure Modes](/learn/modules/01-production-python/#failure-modes) — the production
+  consequences of each gotcha above.
+- [Track: AI Systems Coding](/interview/tracks/ai-systems-coding/) — the components built on these
+  primitives that coding rounds ask for.
+- [`async-ai-gateway`](/build/labs/async-ai-gateway/) — bounded concurrency, retry with jitter,
+  circuit breaking, and drain, as running code.

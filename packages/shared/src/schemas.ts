@@ -115,6 +115,23 @@ export const REQUIRED_ARCHITECTURE_SECTIONS = [
   "Interview Questions",
 ] as const;
 
+/**
+ * Sections every Reference lookup must contain.
+ *
+ * Deliberately short. A lookup is opened mid-design-review to check one thing,
+ * so the contract enforces the four questions that actually get asked of it —
+ * what is this, what are the moving parts, what are the numbers, and what
+ * catches people out — plus the route back into the material that goes deeper.
+ * Anything longer belongs in a Learn module, not here.
+ */
+export const REQUIRED_REFERENCE_SECTIONS = [
+  "At a Glance",
+  "Key Concepts",
+  "Numbers That Matter",
+  "Common Gotchas",
+  "Where to Go Deeper",
+] as const;
+
 /** Sections every ADR must contain. */
 export const REQUIRED_ADR_SECTIONS = [
   "Status",

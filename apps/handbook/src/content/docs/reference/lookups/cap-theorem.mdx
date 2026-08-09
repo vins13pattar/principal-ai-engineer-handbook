@@ -1,0 +1,78 @@
+---
+title: CAP theorem
+description: What CAP actually claims, what it does not, and the PACELC extension that answers the question people are usually really asking.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: Published the CAP theorem lookup.
+    author: vinod
+category: Distributed systems theory
+---
+
+## At a Glance
+
+CAP says that when a network partition splits a distributed system, you must choose between
+**consistency** (every read sees the latest write) and **availability** (every request gets a
+non-error response). It is a statement about behavior *during a partition*, not a menu of three
+properties from which you pick two.
+
+The correct reading is narrow: partitions are not optional, so the real choice is CP or AP, and it
+only binds while the partition lasts. Most of what people want from CAP in a design discussion is
+actually answered by PACELC.
+
+## Key Concepts
+
+| Term | Precise meaning |
+| --- | --- |
+| Consistency (the C in CAP) | Linearizability: reads reflect the most recent completed write, system-wide. Not the C in ACID |
+| Availability | *Every* non-failing node answers every request. Not "highly available" in the uptime sense |
+| Partition tolerance | The system keeps operating when messages between nodes are dropped or delayed |
+| CP | During a partition, refuse or block requests rather than return stale data |
+| AP | During a partition, answer from local state and reconcile afterwards |
+| PACELC | **P**artition → **A** or **C**; **E**lse (normal operation) → **L**atency or **C**onsistency |
+| Eventual consistency | Replicas converge if writes stop. Says nothing about how long, or what you read meanwhile |
+| Quorum | `R + W > N` gives read-your-writes across replicas; the tunable knob behind most "AP" stores |
+| Monotonic reads | You never see time move backwards. A weaker guarantee that is often what users actually need |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Properties you actually choose between | 2, not 3 | Partition tolerance is a fact of networks, not a design option |
+| When the CAP trade-off binds | Only during a partition | A CP system is fully available when the network is healthy |
+| Quorum condition for strong reads | `R + W > N` | `N=3, W=2, R=2` is the common default |
+| Write quorum for `N=3` | 2 | Tolerates one node down without losing the guarantee |
+| Raft/Paxos partition behavior | Minority side stops serving writes | CP by construction — see the [Raft lookup](/reference/lookups/raft/) |
+| PACELC classification of Dynamo-style stores | PA/EL | Available under partition, latency-preferring otherwise |
+| PACELC classification of consensus-backed stores | PC/EC | Consistent in both regimes, paying latency for it |
+
+## Common Gotchas
+
+- **"Pick two" is the wrong mental model.** You do not get to drop partition tolerance on a system
+  that spans machines; a partition will happen whether or not you planned for it.
+- **The C in CAP is not the C in ACID.** CAP's C is linearizability across replicas; ACID's C is a
+  database keeping your declared invariants. A single-node ACID database has nothing to say about
+  CAP.
+- **"Highly available" is not CAP-available.** A system with 99.99% uptime is CP if it refuses
+  writes on the minority side of a partition. The words overlap; the definitions do not.
+- **Eventual consistency is a family, not a guarantee.** Read-your-writes, monotonic reads, and
+  causal consistency are meaningfully different, and "eventual" alone tells a user nothing about
+  what they will observe.
+- **The trade-off is per operation, not per system.** A payment write can be CP while a
+  recommendation read is AP, in the same product. Designs that pick globally are usually picking
+  wrong somewhere.
+- **The everyday trade-off is latency, not partitions.** Partitions are rare; the consistency cost
+  you pay every single request is the PACELC "else" branch, which is why PACELC is the more useful
+  frame in a design round.
+
+## Where to Go Deeper
+
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — consistency models,
+  delivery guarantees, and where each one costs you.
+- [Raft](/reference/lookups/raft/) — the consensus algorithm that makes the CP choice concrete.
+- [Track: AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/) —
+  how this trade-off surfaces when the prompt is a real system.
+- Daniel Abadi, *Consistency Tradeoffs in Modern Distributed Database System Design* — the paper
+  that introduced PACELC.

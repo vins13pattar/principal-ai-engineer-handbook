@@ -1,0 +1,80 @@
+---
+title: Raft
+description: The consensus algorithm behind etcd, Consul, and most modern coordination layers — its three roles, its timing constraint, and what it does not give you.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: Published the Raft lookup.
+    author: vinod
+category: Consensus
+---
+
+## At a Glance
+
+Raft keeps a replicated log identical across a cluster by electing a single leader and routing every
+write through it. It solves the same problem as Paxos and was designed to be understandable, which
+is why it ended up inside etcd, Consul, TiKV, and CockroachDB — and therefore underneath Kubernetes.
+
+The thing to remember in a design discussion: Raft is CP. A minority partition stops accepting
+writes rather than diverge.
+
+## Key Concepts
+
+| Term | What it does |
+| --- | --- |
+| Leader | The single node accepting client writes and replicating them. All others redirect to it |
+| Follower | Passive. Accepts `AppendEntries`, votes in elections, becomes a candidate on election timeout |
+| Candidate | A follower whose election timer fired. Requests votes for the next term |
+| Term | A monotonically increasing election epoch. Any message carrying a higher term forces a step-down |
+| Log entry | `(term, index, command)`. Applied to the state machine only once committed |
+| Commit index | The highest index replicated to a majority. Entries at or below it are durable |
+| `AppendEntries` | Replication *and* heartbeat — an empty one is how a leader keeps its followers quiet |
+| Log matching property | If two logs agree on `(term, index)`, they are identical up to that point |
+| Snapshot | Compacted state, so the log does not grow forever and a lagging follower can catch up |
+| Membership change | Done one node at a time (or via joint consensus) so two majorities can never coexist |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Quorum | `⌊N/2⌋ + 1` | 2 of 3, 3 of 5, 4 of 7 |
+| Failures tolerated | `⌊(N−1)/2⌋` | 3 nodes survive 1 failure; 5 survive 2 |
+| Why cluster sizes are odd | Even sizes buy no extra tolerance | 4 nodes tolerate 1, exactly like 3, at higher write cost |
+| Typical cluster size | 3 or 5 | Beyond 5, replication cost grows faster than the tolerance gain |
+| Election timeout | Commonly 150–300 ms, randomized | Randomization is what breaks split votes |
+| Heartbeat interval | An order of magnitude below the election timeout | Roughly 10–50 ms for the timeouts above |
+| Timing requirement | `broadcastTime ≪ electionTimeout ≪ MTBF` | Violating the left inequality causes endless elections |
+| Leaders per term | At most 1 | A node votes once per term, so two leaders in one term is impossible |
+| Write path round trips | 1 to a majority | Latency is bounded by the *median* follower, not the slowest |
+
+## Common Gotchas
+
+- **Raft gives consensus, not scale.** Every write goes through one leader, so throughput does not
+  improve by adding nodes — it gets slightly worse. Scale by sharding into many Raft groups.
+- **Follower reads can be stale.** A read served locally may miss a committed entry. Strong reads
+  need the leader plus a lease or a `ReadIndex` round trip.
+- **A leader that has been partitioned away may not know it.** This is why leases and quorum checks
+  exist; without them a stale leader can serve stale reads while a new leader is already elected.
+- **Committed is not applied.** An entry replicated to a majority is durable, but a client sees it
+  only once it reaches the state machine.
+- **Election timeouts must be randomized.** Fixed timeouts cause repeated split votes, and the
+  cluster can churn without electing anyone.
+- **Geographic spread breaks the timing assumption.** Cross-region round trips can approach the
+  election timeout, producing leader flapping. Keep a Raft group inside a region and replicate
+  across regions by another mechanism.
+- **Membership changes are the dangerous operation.** Adding or removing several nodes at once can
+  create two disjoint majorities. Change one at a time.
+- **Even-sized clusters are strictly worse.** More nodes to replicate to, no additional failures
+  tolerated.
+
+## Where to Go Deeper
+
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — where consensus fits
+  relative to leases, idempotency, and delivery guarantees.
+- [CAP theorem](/reference/lookups/cap-theorem/) — the frame Raft's partition behavior sits inside.
+- [Module 10: Kubernetes](/learn/modules/10-kubernetes/) — etcd is a Raft cluster, and its timing
+  constraints are the reason control planes have the topology they do.
+- Diego Ongaro and John Ousterhout, *In Search of an Understandable Consensus Algorithm* — the
+  original paper, and unusually readable for the genre.

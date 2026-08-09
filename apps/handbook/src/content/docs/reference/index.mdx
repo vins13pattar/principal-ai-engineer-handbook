@@ -1,12 +1,16 @@
 ---
 title: Reference
 description: One-page lookups for the tools and primitives referenced throughout the handbook.
-version: 1.0.0
-lastUpdated: 2026-08-04
+version: 1.1.0
+lastUpdated: 2026-08-09
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
     change: Published the Reference section overview as part of the platform rebuild.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-09
+    change: Published the first three lookups and documented the enforced page contract.
     author: vinod
 category: section-overview
 ---
@@ -16,22 +20,32 @@ Raft's exact leader-election timeout behavior, not the thing you read start to f
 short, dense, and link-rich back to the [Learn](/learn/) module or [Architecture](/architecture/)
 page that goes deeper.
 
-## Planned lookups
+Every lookup has the same five sections, enforced in CI: **At a Glance**, **Key Concepts**,
+**Numbers That Matter**, **Common Gotchas**, and **Where to Go Deeper**. The shape is deliberately
+narrow — those are the four questions a lookup actually gets opened for, plus the route back into
+the deeper material. Anything that needs more than that belongs in a Learn module.
 
-| Topic       | Category                   |
-| ----------- | -------------------------- |
-| Python      | Language                   |
-| asyncio     | Concurrency                |
-| Kafka       | Messaging                  |
-| Redis       | Data store                 |
-| CAP theorem | Distributed systems theory |
-| Raft        | Consensus                  |
-| LangGraph   | Agent orchestration        |
-| MCP         | Agent protocol             |
-| RAG         | Retrieval architecture     |
-| Vector DB   | Data store                 |
-| Docker      | Runtime                    |
-| Kubernetes  | Orchestration              |
-| AWS         | Cloud platform             |
+## Published
 
-None are published yet — see the [Roadmap](/roadmap/) for the authoring schedule.
+| Topic                                          | Category                   |
+| ---------------------------------------------- | -------------------------- |
+| [asyncio](/reference/lookups/asyncio/)         | Concurrency                |
+| [CAP theorem](/reference/lookups/cap-theorem/) | Distributed systems theory |
+| [Raft](/reference/lookups/raft/)               | Consensus                  |
+
+## Planned
+
+| Topic      | Category               |
+| ---------- | ---------------------- |
+| Python     | Language               |
+| Kafka      | Messaging              |
+| Redis      | Data store             |
+| LangGraph  | Agent orchestration    |
+| MCP        | Agent protocol         |
+| RAG        | Retrieval architecture |
+| Vector DB  | Data store             |
+| Docker     | Runtime                |
+| Kubernetes | Orchestration          |
+| AWS        | Cloud platform         |
+
+See the [Roadmap](/roadmap/) for the authoring schedule.

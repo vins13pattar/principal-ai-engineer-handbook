@@ -16,6 +16,7 @@ import {
   REQUIRED_ADR_SECTIONS,
   REQUIRED_ARCHITECTURE_SECTIONS,
   REQUIRED_MODULE_SECTIONS,
+  REQUIRED_REFERENCE_SECTIONS,
 } from "@handbook/shared";
 
 /**
@@ -53,6 +54,7 @@ const CHECKED_SECTIONS: CheckedSection[] = [
   { directory: "learn/modules", required: REQUIRED_MODULE_SECTIONS },
   { directory: "architecture/systems", required: REQUIRED_ARCHITECTURE_SECTIONS },
   { directory: "adr/decisions", required: REQUIRED_ADR_SECTIONS },
+  { directory: "reference/lookups", required: REQUIRED_REFERENCE_SECTIONS },
 ];
 
 async function findMdxFiles(directory: string): Promise<string[]> {
