@@ -1,0 +1,203 @@
+---
+title: "Track: AI Infrastructure System Design"
+description: The design round for AI platform roles — what is actually being assessed, a method that fits the time box, and every candidate system mapped to a reference architecture and a running lab.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, indexing the Architecture and Learn material rather than duplicating it.
+    author: vinod
+category: interview-track
+---
+
+import { Checklist, EngineeringNote, FailureMode, PrincipalPerspective, TradeOff } from "@handbook/components";
+
+This track covers the round where you are handed a system and 45 minutes. It does not restate the
+questions embedded in [Learn](/learn/) and [Architecture](/architecture/) — it says what the round
+is actually testing, gives a method that survives the clock, and maps each likely prompt to the page
+that already answers it in depth.
+
+## What is actually being assessed
+
+The prompt is a pretext. Nobody expects a correct design in 45 minutes for a system that takes a
+team a year. What the interviewer is sampling is narrower and more specific:
+
+- **Do you establish constraints before proposing components?** The single most reliable separator.
+  Weaker candidates name technologies; stronger ones establish what the system must do, for whom, at
+  what volume, and to what reliability, and let that force the components.
+- **Do you know where this class of system actually breaks?** Anyone can draw the happy path.
+  Naming the failure that will actually page someone — and designing for it — is the signal.
+- **Can you defend a trade-off in both directions?** Not "I would use X", but "X buys A at the cost
+  of B, and here B is affordable because of C." A design with no stated costs reads as a design
+  whose costs were not understood.
+- **Do you know what you would measure?** A design with no observability story is one nobody has
+  operated.
+- **Do you scope honestly under time pressure?** Saying "I am going to spend our time on retrieval
+  and treat serving as a solved box, because retrieval is where the risk is" is a senior move. Trying
+  to cover everything shallowly is not.
+
+<PrincipalPerspective title="The Principal-level shift is from 'what would you build' to 'what would you defend'">
+  A Staff-level answer designs a system that works. A Principal-level answer designs a system, names
+  what it costs, identifies which decision is hardest to reverse, and says what evidence would change
+  their mind. The last part is what interviewers remember, because it is the part that predicts how
+  you behave when the design meets reality.
+</PrincipalPerspective>
+
+## A method that fits the time box
+
+Roughly 45 minutes, with the caveat that the interviewer will interrupt and you should let them —
+their interruptions are the actual exam.
+
+1. **Constraints first (5–8 min).** Who calls this, how often, how fast must it answer, how wrong
+   may it be, whose data is it, and what does it cost per call? For AI systems, add: what does
+   "correct" mean here, and how would you detect it degrading? Write these down where both of you
+   can see them.
+2. **Name the hard part (2 min).** Every one of these systems has one decision that dominates.
+   Saying it out loud — "the hard part here is that permission filtering has to happen inside the
+   index query, not after" — buys credibility and steers the rest of the discussion somewhere
+   productive.
+3. **Sketch the request path (8–10 min).** One flow, end to end, at a level of detail you can
+   defend. Not a component inventory.
+4. **Go deep where the risk is (10–15 min).** Pick the part you named as hard. This is where the
+   round is won or lost, and where the interviewer is most likely to push.
+5. **Failure modes and what you would measure (5–8 min).** Volunteer these. If you are asked for
+   them, you have already lost the point.
+6. **Scale, cost, and what you cut (5 min).** What breaks first at ten times the load, what the
+   dominant cost line is, and what you deliberately left out.
+
+<EngineeringNote>
+  The most common way to lose this round is to spend twenty minutes drawing boxes and then be asked
+  about failure modes with five minutes left. Volunteering failure modes early inverts that: it
+  signals operational experience and it front-loads the material that distinguishes you, while there
+  is still time to explore it.
+</EngineeringNote>
+
+## Candidate systems
+
+Each of these is a plausible prompt, and each has a reference architecture with the constraints,
+failure modes, trade-offs, cost, and observability worked out — plus a running implementation.
+
+| Likely prompt | Reference architecture | Running lab |
+| --- | --- | --- |
+| "Design an AI gateway for a company with many teams calling many providers." | [Async AI Gateway](/architecture/systems/async-ai-gateway/) | [`async-ai-gateway`](/build/labs/async-ai-gateway/) |
+| "Design a system to run long agent tasks reliably." | [Durable Agent Execution](/architecture/systems/durable-agent-execution/) | [`durable-agent-task-engine`](/build/labs/durable-agent-task-engine/) |
+| "How would you let agents call tools safely across an org?" | [Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/) | [`policy-gated-tool-runtime`](/build/labs/policy-gated-tool-runtime/) |
+| "Design RAG over our internal documents, which have permissions." | [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/) | [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) |
+| "Design a model serving platform for several teams." | [Model Serving Platform](/architecture/systems/model-serving-platform/) | [`dynamic-batching-inference`](/build/labs/dynamic-batching-inference/) |
+| "Serve MCP to many internal teams from shared infrastructure." | [Enterprise MCP Platform](/architecture/systems/enterprise-mcp-platform/) | [`multi-tenant-mcp-server`](/build/labs/multi-tenant-mcp-server/) |
+| "How do you know the AI platform is healthy, and what happens when it isn't?" | [AI Reliability Platform](/architecture/systems/ai-reliability-platform/) | [`slo-driven-ai-operations`](/build/labs/slo-driven-ai-operations/) |
+
+Read each architecture page's **Constraints** and **Failure Modes** sections first. They are the
+two that most directly convert into interview answers, and they are the two candidates most often
+skip.
+
+## The one hard part, per system
+
+Every prompt above has a decision that dominates the design. Naming it early is the highest-leverage
+thing you can do in the first five minutes.
+
+| System | The decision that dominates |
+| --- | --- |
+| AI gateway | Where quota state lives — per-replica buckets multiply a tenant's real limit by the replica count |
+| Durable agent execution | At-least-once is the ceiling; exactly-once *effect* only comes from idempotent handlers |
+| Tool execution | Scope, validation, quota, and approval are four separate questions in a fixed order |
+| Enterprise RAG | Permission filtering happens inside the index query, never after retrieval |
+| Model serving | Cold start is minutes, so any trailing scaling signal is too late by construction |
+| Enterprise MCP | The credential must live where the SDK's own internal calls carry it |
+| AI reliability | Alerting, scaling, and incident response must read one severity computation |
+
+## Failure patterns specific to AI system design
+
+These are the ones that show up in AI infrastructure rounds and not in generic distributed-systems
+rounds.
+
+<FailureMode title="Treating the model as a black box with no failure modes">
+  Candidates comfortable with distributed systems often design the surrounding infrastructure well
+  and treat the model call as a function that returns a string. Models degrade without erroring,
+  cost real money per call, have latency distributions with long tails, and return different answers
+  to identical inputs. A design that does not account for those has not accounted for the component
+  that motivates the system.
+</FailureMode>
+
+<FailureMode title="No evaluation story">
+  If you cannot say how the system detects its own quality regressing, you have designed something
+  nobody can operate. This is the single most common gap in otherwise strong AI system design
+  answers — and it is asked about directly more often than candidates expect.
+</FailureMode>
+
+<FailureMode title="Ignoring cost per request">
+  Traditional system design treats compute cost as a capacity-planning footnote. In AI systems, cost
+  per request is a first-class design constraint that shapes caching, routing, context size, and
+  model selection. A design that never mentions it reads as one that has never run in production.
+</FailureMode>
+
+<FailureMode title="Retrieval quality assumed rather than measured">
+  "We'll use a vector database" is a component choice, not a retrieval design. Chunking, hybrid
+  retrieval, reranking, and a labelled evaluation set are where retrieval quality actually comes
+  from, and the interviewer asking about RAG almost always wants that layer.
+</FailureMode>
+
+<FailureMode title="Security modelled only at the perimeter">
+  AI systems have injection surfaces that perimeter authentication does not touch: retrieved
+  documents, tool descriptions, and model output that feeds a downstream action. A design whose only
+  security discussion is authentication has missed the interesting half.
+</FailureMode>
+
+## Trade-offs you should be able to argue both ways
+
+The interviewer is often probing whether you hold a position or a preference. Each of these has a
+defensible answer in both directions, and the linked page argues both.
+
+<TradeOff title="Build the abstraction layer, or call providers directly">
+  A gateway buys uniform policy, failover, and cost attribution, and costs a hop plus a component to
+  operate. Direct calls are simpler until the second team needs different quota rules. See
+  [Async AI Gateway → Trade-offs](/architecture/systems/async-ai-gateway/#trade-offs).
+</TradeOff>
+
+<TradeOff title="Shared multi-tenant service, or one deployment per tenant">
+  Sharing amortizes operations and makes isolation a property of code — a missing check becomes a
+  breach. Per-tenant deployment makes isolation structural and grows cost linearly. See
+  [Enterprise MCP Platform → Trade-offs](/architecture/systems/enterprise-mcp-platform/#trade-offs).
+</TradeOff>
+
+<TradeOff title="Fail open or fail closed when the policy store is down">
+  Closed protects the capability surface and converts a policy outage into a full outage; open keeps
+  the system working and silently disables authorization. The good answer decides per tool. See
+  [Policy-Gated Tool Execution → Trade-offs](/architecture/systems/policy-gated-tool-execution/#trade-offs).
+</TradeOff>
+
+<TradeOff title="Database-backed queue, or a dedicated broker">
+  A database gives transactional enqueue alongside your own writes, removing a dual-write problem; a
+  broker gives throughput and a second system to operate. See
+  [Durable Agent Execution → Trade-offs](/architecture/systems/durable-agent-execution/#trade-offs).
+</TradeOff>
+
+## Where the questions live
+
+The handbook keeps interview questions next to the material that answers them, so they stay
+credible. For this round, the highest-yield sets are:
+
+- **Every architecture page's Interview Questions section** — these are written as design-round
+  questions and are the closest match to this track.
+- [Module 0: Principal Engineer Mindset](/learn/modules/00-principal-engineer-mindset/#interview-questions) —
+  decision framing and trade-off articulation.
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/#interview-questions) —
+  idempotency, delivery guarantees, and coordination.
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/#interview-questions) —
+  the platform layer these designs sit on.
+- [Module 12: Observability](/learn/modules/12-observability/#interview-questions) —
+  the "what would you measure" half of every design answer.
+
+## Preparation checklist
+
+<Checklist title="Before a design round">
+  - You can state the dominant decision for each candidate system above without looking.
+  - For each system you can name three failure modes and what you would measure to catch them.
+  - You can argue at least four trade-offs in both directions, not just state a preference.
+  - You have a cost story: what the dominant cost line is and which design lever moves it.
+  - You have an evaluation story: how the system detects its own quality regressing.
+  - You can say what you would deliberately leave out of a v1, and why.
+  - You have run at least one of the labs, so your answers reference something you have operated
+    rather than something you have read.
+</Checklist>
