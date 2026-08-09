@@ -1,0 +1,212 @@
+---
+title: "Track: AI Systems Coding"
+description: The coding round for AI platform roles — what it actually samples, the components you should be able to write from an empty file, and the lab source that shows each one finished.
+version: 1.0.0
+lastUpdated: 2026-08-09
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-09
+    change: Initial publication, routing to Module 1, Module 2, and the lab source rather than duplicating them.
+    author: vinod
+category: interview-track
+---
+
+import { Checklist, EngineeringNote, FailureMode, PrincipalPerspective, TradeOff } from "@handbook/components";
+
+The coding round for AI infrastructure roles is rarely a graph algorithm. It is usually a small,
+real concurrency or correctness problem — a limiter, a retry path, a batcher, a queue — that the
+interviewer has watched dozens of people fail in the same four or five ways. This track says what
+the round samples, lists the components worth being able to write from an empty file, and points at
+the lab source where each one exists finished, tested, and type-checked.
+
+## What is actually being assessed
+
+The systems in [Learn](/learn/) and [Architecture](/architecture/) are made of a small number of
+primitives, and the coding round checks whether you can actually build one rather than name it.
+
+- **Can you write correct concurrent code, not just describe it?** The gap between "I would use a
+  semaphore" and a semaphore released on every exit path — including cancellation — is the whole
+  round.
+- **Do you handle the paths that aren't the happy one?** Timeout, cancellation, partial failure, and
+  shutdown. Code that only works when nothing goes wrong is the single most common failing answer.
+- **Do you reach for the right concurrency model?** Choosing async for CPU-bound work, or threads
+  for something the GIL will serialize, reads as unfamiliarity with the runtime regardless of how
+  clean the code is.
+- **Can you test what you wrote?** Not "I would add tests" — an actual assertion that would fail if
+  the property you claim were broken. Concurrency bugs are invisible to tests written by someone who
+  hasn't thought about which interleaving is the dangerous one.
+- **Do you know what your code costs?** Memory growth under load, connection lifetime, and what
+  happens at ten times the request rate.
+
+<PrincipalPerspective title="At this level the code is a conversation, not a submission">
+  A mid-level candidate writes until the function works. A Principal-level candidate states the
+  invariant first ("no more than N in flight, and a rejected request must not consume a slot"),
+  writes the smallest thing that holds it, then names what they left out and why — bounded queue
+  instead of unbounded, in-process instead of distributed, and what would force the other choice.
+  Interviewers grade the invariant and the omission at least as heavily as the code.
+</PrincipalPerspective>
+
+## The three formats
+
+| Format | What you are handed | What it is really testing |
+| --- | --- | --- |
+| **Applied build** | "Write a rate limiter / retry wrapper / batching queue." 45–60 min, usually one file | Concurrency correctness and whether you cover cancellation and shutdown without being prompted |
+| **Debug and extend** | An existing repository with a failing test or a described symptom | How you navigate unfamiliar code, form a hypothesis, and avoid changing behavior you didn't intend to change |
+| **Algorithmic screen** | A conventional data-structures problem, usually earlier in the loop | Baseline fluency. Real, still filtered on, and not what the later rounds weigh |
+
+The applied build dominates for Principal, Staff, AI Platform, and Founding AI Engineer loops,
+because it is the closest available proxy for the work. Prepare it first.
+
+<EngineeringNote>
+  The strongest preparation is not solving more problems — it is writing four or five of the
+  components below from an empty file, with tests, until the cancellation and shutdown paths are
+  reflex rather than recall. Every one of them appears in the labs, so you can compare your version
+  against a finished one immediately after.
+</EngineeringNote>
+
+## Components worth writing from an empty file
+
+Each of these has been asked, verbatim or nearly, in AI infrastructure loops. Each links to the
+module that explains the design and the lab file where it exists finished.
+
+| Component | The invariant it must hold | Explained in | Finished in |
+| --- | --- | --- | --- |
+| Token-bucket rate limiter | Refill is time-based, not tick-based; a rejected caller consumes nothing | [Module 1](/learn/modules/01-production-python/) | [`rate_limit.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/rate_limit.py) |
+| Retry with exponential backoff and jitter | Bounded attempts, bounded total deadline, jitter to break synchronization | [Module 1](/learn/modules/01-production-python/#implementation) | [`gateway.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/gateway.py) |
+| Circuit breaker | State is derived from elapsed time, so no background timer is needed; one probe in half-open | [Module 1](/learn/modules/01-production-python/#implementation) | [`resilience.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/resilience.py) |
+| Bounded-concurrency worker pool | The slot is released on success, failure, and cancellation alike | [Module 1](/learn/modules/01-production-python/#deep-dive) | [`worker.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/durable-agent-task-engine/src/task_queue/worker.py) |
+| Graceful drain on shutdown | Stop accepting first, then wait for in-flight work, then exit — with a timeout | [Module 1](/learn/modules/01-production-python/#production-example) | [`draining.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/draining.py) |
+| Idempotency key store | Claim-before-execute must be atomic, or two concurrent submissions both execute | [Module 2](/learn/modules/02-distributed-systems/#implementation) | [`store.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/durable-agent-task-engine/src/task_queue/store.py) |
+| Lease-based queue checkout | A lease must be fenced, so a stalled worker cannot complete work already reassigned | [Module 2](/learn/modules/02-distributed-systems/#deep-dive) | [`store.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/durable-agent-task-engine/src/task_queue/store.py) |
+| Latency-bounded request batcher | Flush on size *or* deadline, whichever comes first; a single request must not wait forever | [Module 9](/learn/modules/09-model-serving/) | [`batcher.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/dynamic-batching-inference/src/inference_server/batcher.py) |
+| Reciprocal rank fusion | Combines rankings, not scores — so two retrievers with incomparable scales still merge | [Module 8](/learn/modules/08-rag/) | [`fusion.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/hybrid-retrieval/src/hybrid_retrieval/fusion.py) |
+| Multi-window burn-rate alerting | Fast and slow windows must both fire before paging, or a blip pages someone | [Module 12](/learn/modules/12-observability/) | [`slo.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/slo-driven-ai-operations/src/slo_ops/slo.py) |
+
+Read the corresponding tests as well as the source. In every lab, the test file is where the
+invariant is stated as an executable claim — which is exactly what the interviewer is listening for
+when they ask "how would you know this works?"
+
+## The traps, in the order they come up
+
+<FailureMode title="Blocking the event loop inside async code">
+  `time.sleep()`, a synchronous HTTP client, `requests`, or a CPU-heavy loop inside `async def`
+  freezes every coroutine on that loop — not just the one request. Interviewers plant this
+  deliberately; some hand you code that already contains it. Blocking work belongs in
+  `loop.run_in_executor` or a separate process. See
+  [Module 1 → Failure Modes](/learn/modules/01-production-python/#failure-modes).
+</FailureMode>
+
+<FailureMode title="Acquiring a resource without releasing it on every path">
+  A `semaphore.acquire()` before a `try` whose `finally` you forgot, or a release that only runs on
+  the success branch, leaks capacity until the service wedges. Under cancellation it leaks faster,
+  because the exception path is the one nobody tested. Either `async with` the primitive or put the
+  release in `finally` — and say out loud which you chose.
+</FailureMode>
+
+<FailureMode title="Swallowing CancelledError">
+  A bare `except Exception` around an `await` catches cancellation in older code, and even a correct
+  `except asyncio.CancelledError` that does not re-raise makes the task uncancellable — a shutdown
+  that never completes and a deadline that never takes effect. Cancellation is control flow: clean
+  up in `finally`, then re-raise.
+</FailureMode>
+
+<FailureMode title="Unbounded fan-out">
+  `asyncio.gather()` over a list whose length comes from the request is an easy way to exhaust
+  connections, provider quota, and memory in a single call. If the input size is caller-controlled,
+  the concurrency bound belongs inside the loop, not around it.
+</FailureMode>
+
+<FailureMode title="Testing concurrency by running it once">
+  A test that calls the function sequentially proves nothing about the property you were asked to
+  guarantee. The test that earns the point launches the concurrent calls that would race, then
+  asserts the invariant — that the work executed exactly once, that no more than N ran at a time,
+  that the rejected caller consumed no capacity.
+</FailureMode>
+
+<FailureMode title="Mutable state shared across replicas as if there were one">
+  An in-process counter, cache, or token bucket is correct in the file you just wrote and wrong the
+  moment it runs on three replicas — a tenant gets three times their limit. This is fine as a
+  starting point; it is not fine unstated. Name it as a deliberate scope decision and describe what
+  replacing it costs.
+</FailureMode>
+
+## Trade-offs you will be asked to defend mid-problem
+
+<TradeOff title="asyncio, threads, or processes">
+  Async wins for high-concurrency I/O with async-native libraries. Threads earn their keep only when
+  a required library is blocking and has no async equivalent — they do not improve pure-Python CPU
+  throughput, because of the GIL. Processes are the only real answer for CPU-bound Python, at the
+  cost of serialization and per-process startup. See
+  [Module 1 → Trade-offs](/learn/modules/01-production-python/#trade-offs).
+</TradeOff>
+
+<TradeOff title="In-process state or a shared store">
+  In-process is faster, has no extra dependency, and is correct on exactly one replica. A shared
+  store makes the behavior correct under horizontal scaling and adds a new failure mode: what
+  enforcement does when the store itself is unavailable. The right answer in a 45-minute exercise is
+  usually in-process, stated as such, with the distributed version described.
+</TradeOff>
+
+<TradeOff title="Fail fast or degrade">
+  Rejecting at the door gives callers a fast, honest error and protects the system. Queueing or
+  falling back keeps requests alive and can turn a bounded failure into an unbounded one. The
+  distinguishing answer picks per operation rather than globally, and names the signal that decides.
+</TradeOff>
+
+<TradeOff title="Typed and validated, or terse">
+  Type annotations and validated boundaries catch a class of bug before runtime and make the code
+  readable to the interviewer live. They also cost minutes you may not have. The workable line under
+  time pressure: types on the public signature and the data model, nothing ceremonial inside a
+  helper.
+</TradeOff>
+
+## Debug-and-extend rounds
+
+When you are given a repository rather than an empty file, the round is testing navigation and
+restraint more than authorship.
+
+1. **Reproduce before reading.** Run the failing test first. A symptom you have observed is worth
+   more than a hypothesis formed from reading.
+2. **Find the invariant the code is trying to hold**, then find where it stops holding. Most bugs at
+   this level are a missing release, an unawaited coroutine, an ordering assumption, or state shared
+   across a boundary that was supposed to isolate it.
+3. **Change the smallest thing.** A fix that also refactors is a fix nobody can review, and in an
+   interview it reads as an inability to scope.
+4. **Add the test that would have caught it.** Volunteering this is worth more than the fix.
+5. **Say what you did not change and why.** The adjacent issue you noticed and deliberately left
+   alone is a signal, not an omission — as long as you name it.
+
+The labs are usable as practice material for exactly this: pick one, break an invariant on a scratch
+branch, and see whether the existing test suite catches it. Where it doesn't, you have found a test
+worth writing — which is the same exercise the round is simulating.
+
+## Where the questions live
+
+The handbook keeps interview questions next to the material that answers them. For this round:
+
+- [Module 1: Production Python](/learn/modules/01-production-python/#interview-questions) —
+  event-loop behavior, cancellation, timeouts, and backpressure. The highest-yield set for this
+  track.
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/#interview-questions) —
+  idempotency, delivery guarantees, and queue behavior under load.
+- [Module 9: Model Serving](/learn/modules/09-model-serving/#interview-questions) — batching and
+  the latency/throughput trade it encodes.
+- [Module 12: Observability](/learn/modules/12-observability/#interview-questions) — what you
+  measure, which is the follow-up question to almost every applied build.
+
+## Preparation checklist
+
+<Checklist title="Before a coding round">
+  - You have written a token-bucket limiter, a retry-with-jitter wrapper, and a bounded worker pool
+    from an empty file, without looking, within the last month.
+  - Each of those has a test that fails if the invariant breaks — not a test that only proves the
+    happy path returns.
+  - You can explain what `asyncio.CancelledError` does to a running task, and where cleanup belongs.
+  - You can say, without hedging, which of asyncio, threads, and processes fits a given workload.
+  - You have read at least one lab's tests end to end, so you know what stating an invariant as an
+    assertion looks like.
+  - You can name what your solution does not handle — replicas, persistence, ordering — before the
+    interviewer asks.
+  - You have practiced narrating while typing. The round is scored on reasoning you make audible,
+    and silence for ten minutes loses points a correct answer does not recover.
+</Checklist>
