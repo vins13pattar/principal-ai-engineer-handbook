@@ -1,0 +1,270 @@
+---
+title: "Architecture: Policy-Gated Tool Execution"
+description: A reference architecture for the layer between a model deciding to act and the action happening — capability scope, argument validation, per-tool limits, approval gates, and an audit trail that records refusals.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/policy-gated-tool-runtime implementation.
+    author: vinod
+freshness:
+  # Capability scoping, schema validation, quota, approval, and audit are
+  # authorization-system fundamentals. The protocols carrying tool calls churn;
+  # the enforcement pipeline does not.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import enforcementPipeline from "../../build/labs/policy-gated-tool-runtime.enforcement-pipeline.mmd?raw";
+
+## Problem
+
+A model deciding to call a tool is a *request*, not an authorization. Treating the two as the same
+thing is how an agent platform ends up issuing refunds, deleting records, or emailing customers
+because a model was persuaded to — by a user, by retrieved content, or by a tool description written
+by someone else.
+
+The naive architecture wires the model's tool-call output straight into a dispatch table. That is a
+system whose effective permission set is whatever the model can be talked into, and whose blast
+radius is every capability any agent was ever given.
+
+What is needed is an enforcement layer that sits between the decision and the action, and answers
+five separate questions in a fixed order. They are separate because each fails differently, and
+collapsing any two of them produces a system that is permissive in one direction and brittle in the
+other.
+
+## Requirements
+
+- **Capability scope.** A caller may only invoke tools it was explicitly granted.
+- **Argument validation.** Every call is checked against the tool's schema server-side, regardless of
+  what the model was shown.
+- **Per-tool quota.** Limits are owned by the tool, not shared across the platform.
+- **Human approval for high-risk actions**, with a bounded wait and a defined timeout behaviour.
+- **Complete audit.** Every attempt is recorded with its outcome, including — especially — refusals.
+- **Attributable identity.** Every decision is tied to a verified caller.
+
+## Constraints
+
+- **The model is not a trust boundary.** Tool descriptions and schemas shown to a model are hints
+  that shape its output; they constrain nothing. Every check must hold against an adversarial caller
+  as well as a confused one.
+- **Tool descriptions are untrusted input.** They enter the model's context, so a compromised or
+  hostile tool source is a prompt-injection vector — the same risk class as user input, arriving
+  through metadata.
+- **Approval blocks a request.** Any human-in-the-loop step introduces a wait bounded only by human
+  availability, so it must have a timeout and a defined outcome when it fires.
+- **Identity must be verified, not asserted.** Every control below is scoped by caller, so a
+  forgeable caller identity silently voids all of them at once.
+
+## Request Flow
+
+<Mermaid code={enforcementPipeline} title="Five checks in a fixed order, and every outcome — allowed or denied — reaches the audit log" />
+
+The order is load-bearing, not incidental:
+
+**Scope first**, because it is the cheapest check and the most absolute. A caller with no grant on a
+tool should never reach argument validation — both to avoid the work, and to avoid schema error
+messages that describe a tool it is not entitled to know exists.
+
+**Validation before quota**, so a malformed call cannot consume a well-behaved caller's budget.
+Inverting these lets an attacker exhaust a victim's quota with garbage.
+
+**Approval last**, because it is the only stage that blocks on a human. There is no point paying
+that latency for a call that would have failed a cheaper check anyway.
+
+## Failure Modes
+
+<FailureMode title="Trusting the schema the model was given">
+  The schema in a tool listing shapes what a well-behaved model emits. It guarantees nothing about
+  what arrives. A server that skips validation because "the model was given the schema" is one
+  hallucinated argument — or one adversarial client — from executing a call it never intended to
+  accept.
+</FailureMode>
+
+<FailureMode title="Tool poisoning through descriptions">
+  Tool descriptions are part of the model's context, so a hostile or compromised tool source can
+  write a description crafted to steer behaviour well beyond what the tool does. This is
+  prompt injection arriving through metadata rather than user input, and it bypasses every input
+  filter aimed at the user's message.
+</FailureMode>
+
+<FailureMode title="Approval with no timeout">
+  An approval queue without a bounded wait is an availability incident waiting for the first
+  unavailable operator. Requests pile up holding connections and context; the system degrades in a
+  way that looks like a backend outage rather than a policy stall.
+</FailureMode>
+
+<FailureMode title="Shared quota across tools of different consequence">
+  A cheap read and an irreversible write drawing on one budget means read traffic can exhaust the
+  allowance protecting the dangerous operation — or, worse, that raising the limit to accommodate
+  reads quietly raises it for refunds too.
+</FailureMode>
+
+<FailureMode title="An audit log that records only successes">
+  Audits exist to answer what was *attempted*. A log of successful calls cannot show that an agent
+  repeatedly tried a capability it was never granted, which is the single clearest signal of either
+  a compromised caller or a badly scoped grant.
+</FailureMode>
+
+<FailureMode title="Caller identity from an unverified header">
+  Every control here is scoped by caller. If that caller is a header any client can set, scope,
+  quota, approval routing, and audit attribution are all decorative simultaneously — and the system
+  looks correct in every test that does not try to forge it.
+</FailureMode>
+
+## Scaling
+
+- **Quota state is the coordination point.** In-process token buckets multiply a caller's effective
+  limit by the replica count. A shared atomic limiter (a Redis Lua script, as in
+  [`labs/async-ai-gateway`](/build/labs/async-ai-gateway/)) is what makes the limit mean one thing.
+- **Approval is a stateful island in a stateless service.** Pending approvals must outlive the
+  replica that accepted them, or a deploy silently drops every in-flight request awaiting a human.
+- **Audit write volume grows with attempts, not successes**, and refusal storms are exactly when the
+  log matters most — so the audit path must not be the thing that fails under attack.
+- **Registry reads are hot and change rarely**, which makes them cacheable, and makes cache
+  invalidation the mechanism by which a revoked grant actually takes effect.
+- **Schema validation cost scales with payload size**, so a large-argument tool deserves a size cap
+  before the validator, not after it.
+
+## Security
+
+- **Verify caller identity** from a signed token or mTLS-derived principal, never a bare header.
+- **Validate every argument server-side**, against the server's own copy of the schema.
+- **Treat tool descriptions as untrusted**, and pin provenance for any tool whose description you
+  did not write.
+- **Scope grants to least privilege**, per caller and per tool, and make revocation take effect
+  without a redeploy.
+- **Require approval for irreversible or high-cost actions** as a property of the tool, not a
+  configuration flag that defaults to off.
+- **Make the audit log append-only** and separately access-controlled — a caller able to edit the
+  record of its own refusals has defeated the point.
+- **Record the arguments that were refused**, subject to redaction, since a refusal without its
+  input is not investigable.
+
+## Trade-offs
+
+<TradeOff title="Fail-closed vs. fail-open when the policy store is unavailable">
+  Failing closed protects the capability surface and turns a policy-store outage into a full agent
+  outage. Failing open preserves function and means an outage silently disables authorization. For
+  tools with irreversible effects, closed is the only defensible default; for read-only tools, open
+  with loud alerting is a legitimate choice. Deciding per tool rather than globally is what makes
+  the trade honest.
+</TradeOff>
+
+<TradeOff title="Approval timeout: deny or escalate">
+  Denying on timeout is safe and turns operator unavailability into user-visible failure. Escalating
+  keeps the request alive and extends the wait, which is only useful if the escalation target is
+  genuinely more available. The wrong answer is no timeout at all, which converts a policy decision
+  into an unbounded hang.
+</TradeOff>
+
+<TradeOff title="Per-tool grants vs. role-based grants">
+  Per-tool grants are precise and audit cleanly, and grow unmanageable as tools multiply. Roles
+  compress the grant matrix and introduce the classic problem of a role accumulating capabilities
+  nobody intended. Roles composed of explicit tool grants — rather than roles as opaque labels —
+  keeps auditability while bounding the growth.
+</TradeOff>
+
+<TradeOff title="Enforcing in the runtime vs. at the protocol boundary">
+  Enforcing inside the tool runtime means the checks apply however the call arrives — MCP, HTTP, or
+  an in-process interface — which is why this architecture is deliberately protocol-independent.
+  Enforcing at a protocol gateway is easier to deploy in front of servers you do not control, and
+  gets bypassed by any path that does not traverse it.
+</TradeOff>
+
+## Cost
+
+- **Approval latency is the dominant cost** for gated tools, and it is human-scale. Anything routed
+  through approval should be genuinely consequential, or the gate trains operators to rubber-stamp.
+- **Audit storage grows with attempt volume**, including refusals during an attack — the worst time
+  to be rate-limited by your own logging bill.
+- **Validation is cheap relative to what it prevents**, but a large-payload tool can make it
+  measurable; cap sizes rather than skip checks.
+- **Per-tool quotas are a spend control**, not only an abuse control, when tools call paid APIs.
+
+## Observability
+
+- **Refusals by reason, per caller, per tool.** Scope denial, schema failure, quota exhaustion,
+  approval denial, and approval timeout are five different operational problems that look identical
+  in an aggregate "error rate".
+- **Approval queue depth and wait-time distribution**, with the timeout marked. If the p95 wait is
+  near the timeout, the gate is about to start denying legitimate work.
+- **Quota exhaustion rate per tool**, which distinguishes a caller hitting a fair limit from a limit
+  set wrong.
+- **Schema failure rate by tool**, a leading indicator that a tool's schema and its handler have
+  drifted apart.
+- **Audit write failures alerted on**, because an enforcement layer that stops recording is worse
+  than one that stops enforcing — it fails silently.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - Caller identity is verified cryptographically, not read from an unverified header.
+  - Arguments are validated server-side against the server's own schema copy.
+  - Rate limits are keyed on `(caller, tool)` and enforced through shared atomic state, not
+    per-replica buckets.
+  - Every approval-gated tool has a timeout, and the timeout's outcome is a deliberate choice
+    recorded per tool.
+  - Pending approvals survive a replica restart.
+  - The audit log is append-only, separately access-controlled, and alerted on write failure.
+  - Refusals are recorded with reason and redacted arguments.
+  - Grant revocation takes effect without a redeploy, and that path is tested.
+  - Fail-open versus fail-closed is decided per tool, with irreversible tools closed.
+</Checklist>
+
+<LabCallout repoPath="labs/policy-gated-tool-runtime" status="production-shaped">
+  A running implementation of this pipeline: capability scoping, JSON Schema validation, per-tool
+  token buckets, approval gates with a bounded wait, and an append-only audit log. Deliberately
+  protocol-independent — the same checks apply whether calls arrive over MCP or anything else.
+  [Read the lab documentation →](/build/labs/policy-gated-tool-runtime/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="In what order do you run scope, validation, quota, and approval — and why that order?">
+  Scope first: cheapest, most absolute, and it prevents schema errors disclosing tools the caller
+  should not know exist. Validation next, before quota, so malformed calls cannot spend a
+  well-behaved caller's budget. Approval last, because it is the only stage that blocks on a human
+  and there is no point paying that latency for a call a cheaper check would have rejected. Being
+  able to defend an ordering — rather than listing the controls as an unordered set — is the point
+  of the question.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="The model was given the tool's JSON Schema. Why validate arguments again server-side?">
+  Because the schema shapes what a well-behaved model emits and constrains nothing about what
+  arrives. The model can hallucinate a malformed argument, and a client that is not the model at all
+  can send anything. The schema is a hint to the caller; validation is the server's own guarantee.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Where does prompt injection enter a tool platform, other than user input?">
+  Tool descriptions. They are part of the model's context, so a hostile or compromised tool source
+  can write one crafted to steer behaviour beyond what the tool does — bypassing every filter aimed
+  at the user's message. It is why tool provenance matters and why a platform should not treat
+  third-party tool metadata as trusted.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What breaks if the approval queue has no timeout?">
+  Availability. The wait becomes bounded only by human presence, so requests accumulate holding
+  connections and context, and the first unavailable operator turns a policy control into an
+  outage that presents as a backend failure. The timeout is required; whether it denies or escalates
+  is the actual design decision.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why must an audit log record denials, not just successful calls?">
+  Because the question an audit answers is what was *attempted*. A success-only log cannot show an
+  agent repeatedly probing a capability it was never granted — the clearest available signal of a
+  compromised caller or a mis-scoped grant. It is also the evidence you need after an incident,
+  when the interesting events are precisely the ones that did not happen.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your policy store is down. Do you fail open or closed?">
+  Per tool, not globally. Irreversible or high-cost tools fail closed — an authorization outage
+  must not become an authorization bypass. Read-only tools can fail open with loud alerting, trading
+  a bounded exposure for continued function. A single global answer is the sign of a policy that was
+  never really designed.
+</InterviewQuestion>

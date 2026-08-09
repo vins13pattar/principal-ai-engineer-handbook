@@ -1,0 +1,268 @@
+---
+title: "Architecture: Model Serving Platform"
+description: A reference architecture for serving inference at scale — batching against a latency budget, safe version rollout, and autoscaling a resource with cold starts measured in minutes.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/dynamic-batching-inference implementation.
+    author: vinod
+freshness:
+  # Built on the prefill/decode split, memory-bandwidth limits, and the
+  # throughput/latency trade — properties of the hardware and the algorithm.
+  # Specific runtimes churn; the reasoning does not.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import batchFormation from "../../build/labs/dynamic-batching-inference.batch-formation.mmd?raw";
+
+## Problem
+
+Inference is a throughput problem wearing a latency budget. The accelerator is expensive and idle
+unless it is processing many requests at once; every request in a batch waits for that batch to
+form. Optimizing either objective alone produces a system that fails on the other — a batch-size-only
+tuning gives excellent utilization and unusable tail latency, and a latency-only tuning gives an
+accelerator running at a fraction of what it cost.
+
+Two further properties make this unlike ordinary service capacity planning. Cold start is measured
+in minutes, not seconds, because weights have to be loaded — so reactive autoscaling adds capacity
+after the spike that triggered it has passed. And a new model version can be *worse* without being
+broken: faster, well-formed, and wrong. No health check detects that.
+
+## Requirements
+
+- **Bounded added latency.** Batching must not let any request wait longer than a stated bound.
+- **High accelerator utilization**, since idle capacity is the dominant cost.
+- **Safe version rollout.** A new model reaches a small traffic slice first, with its own metrics.
+- **Fast rollback**, without a deploy.
+- **Tail-latency visibility.** p95 and p99, because the mean hides the failure batching introduces.
+- **Cold-start-aware scaling**, driven by a signal that leads demand rather than trailing it.
+- **Workload isolation**, so one model or tenant cannot starve another on shared hardware.
+
+## Constraints
+
+- **The throughput/latency trade cannot be optimized away**, only positioned. There is no
+  configuration that wins on both; there is only one matched to the actual traffic and SLO.
+- **Cold start bounds how reactive scaling can be.** If a replica takes three minutes to serve
+  traffic, any signal with less than three minutes of lead time is too late by construction.
+- **Batch cost is not linear in batch size.** It grows with the padded sequence length of the batch,
+  so one long sequence makes every short one in that batch pay for its length.
+- **Accelerator memory caps concurrency**, and the KV cache — not the weights alone — is usually what
+  actually caps it.
+- **Quality regressions are invisible to infrastructure.** Liveness, readiness, and error rate all
+  stay green while output quality falls.
+
+## Request Flow
+
+<Mermaid code={batchFormation} title="A batch closes on whichever limit hits first, and each version owns its own batcher" />
+
+A request joins the pending queue for its routed version and awaits its own result. A background
+loop closes the batch when **either** the size limit is reached **or** the wait timer expires —
+whichever fires first — so no request waits longer than the configured bound even during a lull,
+and high traffic still fills batches.
+
+Each model version owns its own batcher and its own metrics. That is what lets a canary run
+different batch tuning from the stable version without the two coupling through a shared queue, and
+what keeps a canary's error rate from being averaged into the aggregate.
+
+## Failure Modes
+
+<FailureMode title="Tail latency nobody is watching">
+  A request arriving just after a batch closes waits nearly the full timeout longer than one
+  arriving just before. Mean latency hides this completely — it is the arithmetic average of a
+  bimodal distribution. Only p95 and p99 show the cost the batching configuration is actually
+  imposing.
+</FailureMode>
+
+<FailureMode title="Canary metrics folded into the aggregate">
+  A canary taking 5% of traffic and failing outright moves a blended error rate by five points —
+  easily inside normal variance. The rollout mechanism reports healthy while the thing it exists to
+  protect against is happening. Per-version metrics are not a nice-to-have; without them the canary
+  is theatre.
+</FailureMode>
+
+<FailureMode title="Cold-start-blind autoscaling">
+  Scaling on current utilization when replicas take minutes to become ready means capacity arrives
+  after the spike and is then scaled back down before the next one. The system oscillates, paying
+  for capacity that is never available when needed.
+</FailureMode>
+
+<FailureMode title="Batch size tuned once, on the wrong distribution">
+  A batch configuration tuned on short prompts behaves differently the moment long ones appear,
+  because padding waste grows with the spread of sequence lengths in a batch. Traffic mix drifts
+  continuously; a launch-day tuning is usually wrong within months and nothing signals it.
+</FailureMode>
+
+<FailureMode title="Health checks that pass while quality regresses">
+  A new version that returns fast, well-formed, wrong answers passes every infrastructure check.
+  Readiness, liveness, latency, and error rate are all green. Only an evaluation signal — offline
+  scores, or an online proxy — distinguishes it from a good version.
+</FailureMode>
+
+<FailureMode title="Noisy-neighbour accelerator sharing">
+  Packing several models onto one device raises utilization and couples their latency. One model's
+  traffic spike degrades every other model on that device, and the symptom appears in a service
+  whose own traffic did not change — which is the hardest kind of incident to diagnose.
+</FailureMode>
+
+## Scaling
+
+- **Scale on queue depth and wait time, not utilization.** Both lead demand; utilization trails it,
+  and with minutes of cold start, trailing signals are useless.
+- **Keep warm headroom rather than scaling to zero**, unless the traffic pattern is genuinely
+  scheduled. The idle cost of a warm replica is usually smaller than the tail-latency cost of a cold
+  start on the critical path.
+- **Batch size and replica count are alternative capacity levers** with different latency
+  consequences: a larger batch adds queueing delay, another replica adds cost. The right mix depends
+  on which side of the SLO is under pressure.
+- **Length-aware batching beats naive batching at scale**, because grouping similar-length sequences
+  reduces the padding waste that makes large batches stop paying for themselves.
+- **Version-count multiplies memory pressure**, since each live version holds its own weights and
+  KV cache. Canarying is not free in capacity terms, which bounds how many versions can be live.
+
+## Security
+
+- **Prompts and completions are user data**, frequently sensitive, and pass through queues, batchers,
+  logs, and traces. Every one of those is a place they can be retained by accident.
+- **A shared batch is a shared failure domain.** A crash while processing a batch affects every
+  request in it, so batch composition must not cross a tenant isolation boundary that matters.
+- **Model weights are assets.** Access to the serving host is access to the weights, which is a
+  supply-chain and IP concern distinct from data protection.
+- **Version pinning must be enforceable.** A caller entitled to a specific version for compliance or
+  reproducibility reasons must not be silently served another by a routing change.
+- **Redact before logging, not after.** Sampled request logging is the standard way prompt content
+  escapes into systems with different retention rules.
+
+## Trade-offs
+
+<TradeOff title="Racing a size trigger against a timeout">
+  A size-only trigger maximizes throughput and lets a lone request wait indefinitely at low traffic.
+  A timeout-only trigger caps latency and wastes capacity under load. Racing both takes the better
+  half of each, at the cost of two coupled parameters that must be tuned together against a real
+  traffic distribution rather than independently.
+</TradeOff>
+
+<TradeOff title="Canary by traffic split vs. shadow evaluation">
+  A traffic split exposes real users to a candidate version and yields real quality signal. Shadow
+  evaluation runs the candidate on mirrored traffic with output discarded, exposing nobody — and
+  costing double compute while proving nothing about user-visible behaviour. Shadow first for
+  correctness, canary for quality, is the usual sequence.
+</TradeOff>
+
+<TradeOff title="Dedicated accelerators vs. multi-model packing">
+  Dedicated capacity gives predictable latency and leaves expensive hardware idle between spikes.
+  Packing raises utilization and couples the latency of unrelated models. The deciding question is
+  whether the models share an availability tier — packing a latency-sensitive model with a batch
+  workload is the specific mistake.
+</TradeOff>
+
+<TradeOff title="Rollback by routing weight vs. by redeploy">
+  Weight-based rollback is seconds and needs no build, which is what makes it usable during an
+  incident. It requires the previous version to still be loaded, consuming memory that bounds how
+  many versions can be live. Redeploy-based rollback frees that memory and is far too slow when it
+  matters.
+</TradeOff>
+
+## Cost
+
+- **Idle accelerator time is the dominant line item**, which is what makes batching a cost
+  mechanism before it is a performance one.
+- **Padding waste is real spend.** Batching mixed-length sequences means paying for the padding, so
+  length-aware batching is a cost optimization as much as a latency one.
+- **Every live version costs memory** whether or not it serves traffic, so canary and rollback
+  headroom is a standing cost, not an incident-time one.
+- **Warm headroom is bought deliberately** as insurance against cold-start latency, and should be
+  sized from the traffic pattern rather than left at whatever the default was.
+- **Tokens are the unit that scales with traffic**, so context growth upstream — in RAG, in agent
+  loops — lands here as a serving bill.
+
+## Observability
+
+- **p50, p95, and p99 latency**, split into queue wait and model time. Mean latency is actively
+  misleading for a batching system.
+- **Per-version everything** — error rate, latency, throughput, and a quality signal — never
+  blended, or the canary mechanism cannot function.
+- **Batch size distribution and time-to-fill.** Batches consistently closing on timeout rather than
+  size mean the size limit is not the binding constraint and the wait is pure added latency.
+- **Queue depth and wait time as the scaling signal**, exported at a resolution useful for a
+  controller rather than a dashboard.
+- **Accelerator utilization and memory headroom**, with KV cache occupancy separated from weights,
+  since that is what actually caps concurrency.
+- **A quality metric on the serving path**, however crude — refusal rate, output length
+  distribution, downstream acceptance. Infrastructure health cannot substitute for it.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - Batch size and wait time were tuned against the real traffic length distribution, and the tuning
+    is dated and re-run on a schedule.
+  - p95 and p99 are alerted on; the mean is not used as the latency SLI.
+  - Every version's metrics are tracked independently, and a canary's failure is provably visible in
+    them.
+  - Rollback is a routing-weight change, and its wall-clock duration has been measured.
+  - Autoscaling is driven by queue depth or wait time, with warm headroom sized from cold-start
+    duration.
+  - Cold-start time is measured, not estimated.
+  - A quality signal exists on the serving path, distinct from health checks.
+  - Prompt and completion redaction is applied before anything is logged or traced.
+  - Multi-model packing decisions record which models share an availability tier.
+</Checklist>
+
+<LabCallout repoPath="labs/dynamic-batching-inference" status="production-shaped">
+  A running implementation of the batching and rollout mechanics: a batch closing on whichever of
+  size or timeout fires first, canary routing with independent per-version metrics, promote and
+  rollback as routing changes, and a p50/p95/p99 benchmark harness. The model call is a fixed-cost
+  sleep, which the lab is explicit about hiding the padding-waste curve.
+  [Read the lab documentation →](/build/labs/dynamic-batching-inference/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="Why does a batch close on whichever of size or timeout fires first?">
+  Because each trigger alone fails at one end of the traffic range. Size-only lets a single request
+  wait indefinitely during a lull; timeout-only caps latency but leaves throughput on the table under
+  load. Racing both bounds the worst-case wait at the timeout while still filling batches when
+  traffic allows. The cost is two parameters that must be tuned together against real traffic.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="You doubled the batch size and throughput barely moved. Why?">
+  Padding waste. Batch cost grows with the padded sequence length, so a batch containing one long
+  sequence makes every short sequence in it pay for that length. Past a point, adding requests adds
+  padding rather than useful work. Optimal batch size is therefore a function of the traffic's
+  length distribution, not its rate — which is why length-aware batching exists and why a launch-day
+  tuning goes stale.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why can't you autoscale inference on CPU or GPU utilization?">
+  Because cold start is minutes, and utilization is a trailing signal. By the time utilization is
+  high, the spike is already being served badly, and a replica started now becomes ready after it
+  has passed. Queue depth and queue wait time lead demand, which is what a controller needs when
+  the actuator is slow. Warm headroom covers the remainder.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your canary is at 5% and the dashboard is green. What would you not have seen?">
+  A canary failing outright moves a blended error rate by five points, which is inside normal
+  variance for most services. If metrics are not tracked per version, the rollout mechanism reports
+  healthy exactly when it should be firing. Independent per-version metrics are what make a canary a
+  control rather than a gesture.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you detect that a new model version is worse, not broken?">
+  Not with health checks — a worse model returns fast, well-formed, wrong answers and passes
+  liveness, readiness, latency, and error rate. It needs a quality signal: offline evaluation before
+  rollout, and an online proxy during it, such as refusal rate, output length distribution, or a
+  downstream acceptance metric. Infrastructure health and output quality are independent axes.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why is rollback a routing change rather than a deploy?">
+  Speed, during the one situation where speed matters most. A weight change is seconds and needs no
+  build; a redeploy is minutes under incident pressure. The cost is that the previous version stays
+  loaded and consumes memory, which bounds how many versions can be live at once — a standing
+  capacity cost paid for incident-time recovery speed.
+</InterviewQuestion>

@@ -1,0 +1,278 @@
+---
+title: "Architecture: Enterprise RAG Platform"
+description: A reference architecture for retrieval over permissioned corpora — two pipelines that must stay in sync, access control at retrieval time, and an evaluation loop that makes quality falsifiable.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/hybrid-retrieval implementation.
+    author: vinod
+freshness:
+  # Chunking, hybrid retrieval, rank fusion, and retrieval metrics are
+  # information-retrieval fundamentals. The vector database and embedding
+  # vendor landscape churns; none of the reasoning here depends on it.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import retrievalPipeline from "../../build/labs/hybrid-retrieval.retrieval-pipeline.mmd?raw";
+
+## Problem
+
+RAG systems fail quietly. Retrieval gets slightly worse after a chunking change, answers get
+slightly less grounded, and nothing errors — no exception, no failed health check, no alert. The
+system that was demoed as working and the system that is now returning subtly wrong answers are
+indistinguishable from the outside.
+
+Two things make this harder at organizational scale. First, the corpus is permissioned: a retrieval
+layer that ignores document ACLs will happily ground an answer in a document the asker may not read,
+and the model will paraphrase it convincingly. Second, ingestion and query are *two pipelines that
+must agree* — on tokenization, on embedding model, on chunk boundaries — and nothing structurally
+prevents them from drifting apart.
+
+The architecture below treats retrieval quality as a measured property rather than an assumed one,
+and access control as a retrieval-time concern rather than an application-layer one.
+
+## Requirements
+
+- **Permission-aware retrieval.** A document the asker cannot read is never a candidate, at any
+  stage.
+- **Pipeline symmetry.** Query-time processing matches index-time processing, and drift is detected
+  rather than discovered.
+- **Hybrid retrieval.** Lexical and semantic signals combined, since each fails where the other
+  works.
+- **Reranking** over a bounded candidate set, so a more expensive scorer stays affordable.
+- **Groundedness checking.** An answer citing something never retrieved is detectable.
+- **Continuous evaluation.** A labelled set and metrics, so a change produces a number that moved.
+- **Freshness.** Index staleness is bounded and observable.
+
+## Constraints
+
+- **Access control cannot be a post-filter.** Retrieving then discarding unauthorized documents
+  leaks through result counts, latency, and any relevance score computed over the full corpus — and
+  wastes the retrieval budget on documents that will be thrown away.
+- **The two pipelines share a contract nothing enforces.** Change the embedding model on one side
+  only and retrieval silently degrades to noise, because vectors from different models are not
+  comparable.
+- **Scores from different retrievers are incommensurable.** BM25 is an unbounded IDF-weighted sum;
+  cosine similarity is bounded in `[-1, 1]`. Their distributions shift independently with query and
+  corpus, so no fixed normalization makes them comparable across queries.
+- **Re-embedding the corpus is expensive.** Changing embedding model is a migration, not a config
+  change, which makes that choice unusually sticky.
+- **Chunk boundaries are a retrieval decision.** They determine what can ever be retrieved as a
+  unit, and are fixed at ingestion time.
+
+## Request Flow
+
+<Mermaid code={retrievalPipeline} title="Two retrievers, fused by rank, reranked over a bounded set, then measured" />
+
+A document is chunked with structure awareness at ingestion and indexed into both a lexical index
+and a vector index. At query time the same processing is applied to the query, both indexes are
+searched **within the asker's permission scope**, and the two rankings are fused by position rather
+than by score. The fused candidates — and only those — go to the reranker. Results feed both the
+answer path and, separately, the evaluation harness.
+
+## Failure Modes
+
+<FailureMode title="Permission filtering applied after retrieval">
+  Retrieving from the full corpus and filtering afterwards leaks through side channels even when no
+  unauthorized text is returned: result counts reveal how many restricted documents matched, and
+  latency correlates with corpus-wide work. It also silently degrades quality, because the top-k
+  budget is spent on documents that get discarded.
+</FailureMode>
+
+<FailureMode title="Embedding model drift between the two pipelines">
+  Upgrade the query-side embedding model without re-indexing and every similarity becomes
+  meaningless — vectors from different models occupy different spaces. There is no error; relevance
+  simply collapses toward random, which reads as "the model got worse" rather than "the index is
+  incompatible".
+</FailureMode>
+
+<FailureMode title="Chunking that splits the answer">
+  Fixed-size chunking cuts mid-sentence, mid-table, and mid-list. The chunk containing the question's
+  keywords and the chunk containing its answer become different chunks, and no amount of retrieval
+  tuning recovers what chunking destroyed. It is invisible because retrieval still returns
+  plausible-looking neighbours.
+</FailureMode>
+
+<FailureMode title="Score averaging across incommensurable retrievers">
+  Normalizing BM25 and cosine scores and averaging them produces a number dominated by whichever
+  scale happens to be larger for that query. It appears to work on the queries used to tune it and
+  behaves unpredictably elsewhere, because the two distributions shift independently.
+</FailureMode>
+
+<FailureMode title="Stale index presented as current">
+  A document updated or deleted at the source but still indexed will be retrieved and cited. For a
+  deletion this is a compliance problem, not a quality one — the system is grounding answers in
+  content it was required to forget.
+</FailureMode>
+
+<FailureMode title="Quality regression with no detector">
+  Without a labelled set and metrics, "retrieval got worse" is unfalsifiable and therefore
+  undetectable. Every other failure mode on this list is silent by default; the evaluation harness
+  is the only thing that makes any of them visible.
+</FailureMode>
+
+## Scaling
+
+- **Permission-scoped retrieval constrains the index design.** Pre-filtering by ACL requires the
+  index to support it efficiently — metadata filters, per-tenant partitions, or separate indexes —
+  and this is a decision that is expensive to change later.
+- **Reranking cost is bounded by candidate-set size, not corpus size**, which is the entire reason
+  a two-stage architecture exists. A reranker over the whole corpus is just a slow retriever.
+- **Ingestion and query scale independently and spikily.** A bulk re-index is a throughput problem
+  with no latency requirement; query is the opposite. Sharing a pool couples them badly.
+- **Re-embedding is a migration**, needing dual-index operation and a cutover, because the two
+  vector spaces cannot be mixed.
+- **Lexical and vector indexes have different growth profiles** — inverted index size tracks
+  vocabulary, vector index tracks chunk count times dimensionality — and they hit limits at
+  different times.
+
+## Security
+
+- **Filter by permission at retrieval time, in the index query**, never after.
+- **Re-check permissions at answer time**, since a long-running session can outlive a revocation.
+- **Treat retrieved content as untrusted input.** Documents can contain instructions; grounding a
+  model in a corpus that anyone can write to is an injection vector with an authoritative tone.
+- **Store chunk-level provenance**, so any answer can be traced to a document, a version, and an
+  access decision.
+- **Honour deletion through the whole pipeline** — source, chunks, both indexes, and any cache.
+  A deleted document still in a vector index is still retrievable.
+- **Log what was retrieved per query**, subject to redaction, since "which documents grounded this
+  answer" is the first question of any investigation.
+- **Isolate tenants at the index level** where the corpus is genuinely per-tenant; a metadata filter
+  is one bug away from a cross-tenant leak, where separate indexes are not.
+
+## Trade-offs
+
+<TradeOff title="Rank fusion vs. score fusion">
+  Reciprocal Rank Fusion discards magnitude and uses only position, which throws away real
+  information — a document ranked first by a wide margin scores the same as one that barely won.
+  In exchange it behaves consistently across queries, which normalized score averaging does not,
+  because BM25 and cosine distributions shift independently with query length and corpus statistics.
+  Consistency wins here because the alternative is only valid for the queries it was tuned on.
+</TradeOff>
+
+<TradeOff title="Chunk size">
+  Small chunks retrieve precisely and lose the context needed to interpret what was retrieved. Large
+  chunks carry context and dilute the embedding, so a single relevant sentence is drowned by
+  surrounding text. Structure-aware chunking sidesteps the worst of the trade by cutting where the
+  document already cuts, rather than at an arbitrary length.
+</TradeOff>
+
+<TradeOff title="Metadata filtering vs. per-tenant indexes">
+  Filters keep one index, are cheap to operate, and make cross-tenant isolation a property of query
+  construction — one missing predicate is a breach. Separate indexes make isolation structural and
+  multiply operational cost and per-tenant capacity floor. The deciding question is whether a
+  cross-tenant leak is survivable.
+</TradeOff>
+
+<TradeOff title="Cross-encoder reranking vs. heuristic reranking">
+  A cross-encoder scores query and chunk jointly and is substantially better than any heuristic. It
+  also costs a model call per candidate, adding latency proportional to candidate-set size. The
+  two-stage design exists to make that affordable; the tuning question is candidate-set size, not
+  whether to rerank.
+</TradeOff>
+
+## Cost
+
+- **Embedding cost is paid twice**: once per chunk at ingestion, once per query. Ingestion dominates
+  initially; query cost dominates at steady state and scales with traffic.
+- **Re-embedding the corpus is the largest single cost event** in this architecture's lifetime,
+  which is why the embedding model choice deserves more scrutiny than its config-line appearance
+  suggests.
+- **Reranking cost scales with candidate-set size**, making that number the primary
+  quality-per-dollar dial.
+- **Retrieved context is generation cost.** Every chunk passed to the model is tokens paid for on
+  every turn, so retrieving ten chunks where three suffice is a recurring bill, not a one-off.
+- **Storing both indexes roughly doubles index storage**, which is the price of hybrid retrieval.
+
+## Observability
+
+- **Retrieval metrics on a labelled set** — precision@k, recall@k, MRR — run continuously, not once.
+  This is the only detector for most failures above.
+- **Groundedness rate**: the proportion of answers whose citations point at chunks actually
+  retrieved. A drop means the generation step is inventing sources.
+- **Index staleness**, as the age distribution of indexed content against the source. Bounded
+  staleness is a design choice; unbounded staleness is a defect.
+- **Permission-filter selectivity per query.** A sudden change means an ACL bug or a permission
+  model change, and it moves quality without touching retrieval code.
+- **Latency split by stage** — lexical, vector, fusion, rerank — since a rerank regression and a
+  vector-index regression need entirely different responses.
+- **Zero-result and low-confidence rate**, the earliest signal of a corpus gap or a query
+  distribution shift.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - Permission filtering happens inside the index query, and a test proves an unauthorized document
+    is never a candidate.
+  - Query-side and index-side processing share one code path or one versioned contract, and a
+    mismatch fails loudly.
+  - The embedding model and its version are recorded in the index, and a mismatch is refused rather
+    than silently served.
+  - A labelled evaluation set exists and runs in CI, with thresholds that fail a regression.
+  - Deletion propagates to source, chunks, both indexes, and caches, verified end to end.
+  - Chunk-level provenance is stored, so any answer traces to document, version, and access
+    decision.
+  - Retrieved content is treated as untrusted in the prompt path.
+  - Index staleness is measured and alerted against a stated bound.
+  - Re-embedding has a documented dual-index migration path.
+</Checklist>
+
+<LabCallout repoPath="labs/hybrid-retrieval" status="production-shaped">
+  A running implementation of the retrieval half: structure-aware chunking, BM25 and vector
+  retrieval fused by rank, reranking over the fused set, groundedness checking, and an evaluation
+  harness reporting precision@k, recall@k, and MRR. The embedding function is a deterministic
+  hashing stand-in with no semantic similarity, which the lab is explicit about.
+  [Read the lab documentation →](/build/labs/hybrid-retrieval/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Why must permission filtering happen during retrieval rather than after it?">
+  Post-filtering leaks through side channels even when no unauthorized text is returned — result
+  counts reveal how many restricted documents matched, and latency correlates with corpus-wide work.
+  It also degrades quality, because the top-k budget is spent on documents that are then discarded,
+  so an authorized user gets worse results the more restricted content exists.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why fuse lexical and vector results by rank instead of normalizing and averaging their scores?">
+  BM25 is an unbounded sum of IDF-weighted contributions; cosine similarity is bounded in [-1, 1].
+  They are different kinds of quantity, and their distributions shift independently with query length
+  and corpus statistics, so any fixed normalization is only valid for the query it was fitted on.
+  Rank fusion discards magnitude — a real loss — in exchange for behaviour that is consistent across
+  queries.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="You upgraded the embedding model on the query side only. What happens?">
+  Relevance collapses toward random, with no error anywhere. Vectors from different models occupy
+  different spaces, so similarity between them is meaningless. It reads as a quality regression
+  rather than an incompatibility, which is why the index should record its embedding model and
+  version and refuse a mismatch.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you detect that retrieval quality has regressed?">
+  A labelled evaluation set with precision@k, recall@k, and MRR, run continuously with thresholds
+  that fail a build. Without it, every failure in this architecture is silent — nothing throws,
+  nothing alerts, and the only signal is users gradually trusting answers less. Groundedness rate
+  and zero-result rate are useful secondary detectors that need no labels.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="A document is deleted for compliance reasons. What has to happen?">
+  Deletion has to propagate to the source, the chunk store, the lexical index, the vector index, and
+  any cache — and be verified end to end. A deleted document still present in a vector index is
+  still retrievable and will still be cited, which converts a quality concern into a compliance
+  breach. Chunk-level provenance is what makes the deletion traceable.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why rerank a small candidate set instead of the whole corpus?">
+  Because a cross-encoder scores each query-chunk pair jointly, so its cost is linear in candidates.
+  Running it corpus-wide is just an expensive retriever. The two-stage design exists to make a
+  better scorer affordable by only paying for it where cheap retrieval already indicated relevance.
+</InterviewQuestion>

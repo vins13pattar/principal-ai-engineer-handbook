@@ -1,0 +1,272 @@
+---
+title: "Architecture: AI Reliability Platform"
+description: A reference architecture for running AI services against an error budget — multiwindow burn-rate alerting, an autoscaler that reads severity, and incident automation that escalates rather than retries.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/slo-driven-ai-operations implementation.
+    author: vinod
+freshness:
+  # Error budgets, burn-rate alerting, and control-loop autoscaling are SRE
+  # fundamentals. What is AI-specific here — quality as an SLI, cold-start-bound
+  # actuation — follows from the workload, not from any vendor's tooling.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import controlLoop from "../../build/labs/slo-driven-ai-operations.control-loop.mmd?raw";
+
+## Problem
+
+"Is the platform healthy" is a question most teams answer by looking at a dashboard and forming an
+impression. That does not scale, does not automate, and does not survive being asked at 3am by
+someone who did not build the system.
+
+An error budget replaces the impression with a number that can be spent, alerted on, and acted upon.
+But the number is only useful if three consumers agree on it: the alerting that decides whether to
+wake someone, the autoscaler that decides whether to add capacity, and the incident automation that
+decides how far to escalate. When those read separate signals — which is the default, because they
+are usually built at different times by different people — they disagree during exactly the
+incidents where clarity matters most.
+
+AI workloads add two wrinkles. The actuator is slow: adding capacity takes minutes because weights
+must load, so the control loop has a long dead time. And the most important SLI is often *quality*,
+which no infrastructure signal captures.
+
+## Requirements
+
+- **An SLO derived from user impact**, not from what is easy to hit.
+- **Burn-rate alerting** that distinguishes a blip from a sustained burn and clears promptly.
+- **One severity signal** consumed by alerting, scaling, and incident response alike.
+- **Capacity response that reads severity**, not just utilization.
+- **Runbook automation** that escalates rather than retrying, with a bounded attempt per step.
+- **An honest terminal state** when automation is exhausted.
+- **Quality as a first-class SLI**, alongside availability and latency.
+
+## Constraints
+
+- **Burn rate needs two windows.** A single window cannot both suppress blips and clear quickly —
+  those requirements pull in opposite directions on window length.
+- **The actuator has minutes of dead time.** Any control loop whose correction takes longer than the
+  incident it is correcting will oscillate rather than stabilize.
+- **An error budget is only meaningful over a defined window.** "99.9%" without a window is not an
+  SLO; the window determines how much failure is affordable and how fast it accrues.
+- **Quality cannot be measured by infrastructure.** Availability and latency SLIs are free from the
+  serving layer; a quality SLI must be constructed deliberately and is always a proxy.
+- **Automation acting during an incident changes the incident.** Anything the platform does
+  automatically becomes a variable a responder has to reason about.
+
+## Request Flow
+
+<Mermaid code={controlLoop} title="One severity signal drives both the scaling decision and the incident response" />
+
+Request outcomes feed a rolling window, pruned to the SLO's budget window. Burn rate is the observed
+error rate divided by the rate the budget permits — 1.0 exhausts the budget exactly at window end.
+Each alert rule evaluates that rate over a **long and a short window**, and fires only when both
+exceed its threshold: the long window filters noise, the short window lets the alert clear within
+minutes of the burn stopping.
+
+The resulting severity is read by both the autoscaling controller and the incident runner. Because
+both derive it from the same computation, they cannot disagree about how bad things are.
+
+## Failure Modes
+
+<FailureMode title="Single-window burn-rate alerting">
+  One window forces a choice between two bad outcomes. Short, and every transient blip pages someone
+  and then flaps. Long, and a genuine fast burn goes unnoticed for most of its duration, then keeps
+  alerting long after it stopped because the stale average has not decayed.
+</FailureMode>
+
+<FailureMode title="Cooldowns that suppress the response an outage needs">
+  A cooldown exists to stop an autoscaler flapping on noisy samples. Applied uniformly, it also
+  delays the capacity response to a real, fast-burning outage — the one case where waiting is
+  actively harmful. The control needs an explicit escape hatch for the case it was never designed to
+  slow down.
+</FailureMode>
+
+<FailureMode title="Utilization-only scaling that cannot see why load is high">
+  Utilization does not distinguish "traffic grew" from "the service is failing and client retries are
+  inflating load". In the second case, adding capacity feeds a retry storm. Severity is what
+  disambiguates them, which is why the scaling decision should read it.
+</FailureMode>
+
+<FailureMode title="Runbook automation that retries instead of escalating">
+  Retrying a failed remediation assumes the step's execution was the problem. Far more often the step
+  was the wrong remediation — a restart does not fix a capacity problem — so retrying burns the
+  incident's clock while producing no new information and no audit trail of who was told.
+</FailureMode>
+
+<FailureMode title="Incident automation with no exhausted state">
+  Automation that loops, or that stops silently when its steps run out, withholds the single most
+  important fact from the responder: nobody has fixed this, and it is now yours. An honest terminal
+  state is a feature, not an admission of failure.
+</FailureMode>
+
+<FailureMode title="An SLO nobody derived from users">
+  A target chosen because it is comfortably achievable produces a budget that never depletes, alerts
+  that never fire, and a false sense of health. The failure is invisible precisely because
+  everything looks green — the instrument was calibrated to always read fine.
+</FailureMode>
+
+## Scaling
+
+- **The SLI pipeline must outscale the service it measures.** Instrumentation that degrades under
+  load blinds you exactly during an incident, which is the one time the measurement matters.
+- **Burn-rate windows are queries over retained data**, so window length sets retention and query
+  cost. A 30-day budget window with 5-minute resolution is a real storage decision.
+- **Per-service SLOs multiply**, and a platform with dozens needs SLO definitions to be data rather
+  than code, or the alerting configuration becomes the bottleneck.
+- **Scaling actuation is bounded by cold start** (see the
+  [Model Serving Platform](/architecture/systems/model-serving-platform/) page), so the controller's
+  cadence must exceed the actuator's latency or it will act on stale state.
+- **Incident automation must be idempotent**, since a runbook step may fire twice under a retry, a
+  partition, or a second alert for the same underlying cause.
+
+## Security
+
+- **Runbook steps act with privilege.** Automation that restarts services or scales infrastructure
+  holds credentials that a compromised alerting path could exercise — the trigger is as
+  security-relevant as the action.
+- **Escalation targets are personal data** and an availability map of the organization; a leaked
+  on-call schedule tells an attacker exactly when response is thinnest.
+- **Incident records contain the worst-case data**, since they capture systems at their least
+  redacted and are retained the longest.
+- **SLI pipelines carry production traffic characteristics**, and request-level telemetry frequently
+  contains user content that needs redaction before it becomes metrics.
+- **Automated remediation needs an audit trail** matching any human action — what fired, why, with
+  what authority, and what it changed.
+
+## Trade-offs
+
+<TradeOff title="Multiwindow alerting vs. a single threshold">
+  Two windows per rule buys noise suppression and fast clearing simultaneously, which no single
+  window achieves. The cost is configuration complexity — each severity needs a threshold and two
+  window lengths — and rules that are harder to explain to whoever is paged by them. The complexity
+  is worth it because the alternative is either alert fatigue or blindness, and both erode trust in
+  the alert itself.
+</TradeOff>
+
+<TradeOff title="Automated remediation vs. paging a human immediately">
+  Automation resolves common causes in seconds and, when it fails, has consumed time and changed
+  system state before a human arrives. Paging immediately is slower for routine failures and gives
+  the responder an unmodified system. Bounding each automated step with a timeout and escalating
+  rather than retrying is what keeps the first option's downside finite.
+</TradeOff>
+
+<TradeOff title="Tight SLO vs. achievable SLO">
+  A tight target surfaces real degradation and spends engineering time on reliability that users may
+  not value. A loose one is cheap and never fires. The test is not what the team can hit but what
+  users actually notice — an SLO that has never depleted its budget is measuring the wrong thing or
+  is set too loose to be an instrument.
+</TradeOff>
+
+<TradeOff title="Quality as an SLI vs. availability and latency only">
+  Availability and latency are free from the serving layer and miss the failure mode that matters
+  most for AI systems — fast, well-formed, wrong output. A quality SLI catches it and is always a
+  proxy, needs its own pipeline, and can itself regress silently. Having an imperfect quality signal
+  beats having none, provided its limitations are stated.
+</TradeOff>
+
+## Cost
+
+- **Telemetry retention is set by the longest burn-rate window**, so a 30-day budget window commits
+  to 30 days of queryable resolution.
+- **Alert-driven scaling spends money on a signal**, which makes a mis-tuned burn-rate rule a
+  direct billing event as well as a paging one.
+- **Warm headroom held for fast-burn response is standing cost**, justified by the incident latency
+  it removes rather than by utilization.
+- **Every automated remediation step has a cost when wrong** — a needless scale-up, a restart that
+  drops in-flight work — which is why steps should be cheap and reversible before they are clever.
+- **On-call is the largest cost in this architecture** and is spent by alert quality; noisy alerting
+  is expensive in the least visible way.
+
+## Observability
+
+- **Burn rate per rule, with both windows exposed.** An alert that fired should show which window
+  crossed and when, or it cannot be debugged after the fact.
+- **Budget remaining as a signed quantity.** Clamping at zero discards the most useful
+  information — how far over.
+- **Severity as an explicit, queryable signal**, since it is the contract between alerting, scaling,
+  and incident response.
+- **Scaling decisions with their reason recorded** — proportional target, cooldown hold, or fast-burn
+  override — so post-incident review can reconstruct why capacity moved.
+- **Runbook step outcomes: resolved, timed out, escalated, exhausted**, per incident, which is what
+  turns automation from a black box into something reviewable.
+- **Time-to-detect and time-to-escalate**, the two intervals automation is supposed to compress and
+  the only proof that it does.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - The SLO target and window were derived from user impact, and the derivation is written down.
+  - Burn-rate rules use two windows per severity, and both are exported when an alert fires.
+  - Alerting, scaling, and incident severity all read one computation, not three.
+  - The autoscaler's cooldown has an explicit fast-burn override, and the override is tested.
+  - Every runbook step has a timeout and a named escalation target.
+  - Runbook steps are idempotent, verified by running one twice.
+  - Exhausted automation reports an explicit terminal state naming who was last paged.
+  - A quality SLI exists alongside availability and latency, with its proxy nature stated.
+  - The SLI pipeline is load-tested to outlast the service it measures.
+  - Automated remediation writes an audit trail equivalent to a human action.
+</Checklist>
+
+<LabCallout repoPath="labs/slo-driven-ai-operations" status="production-shaped">
+  A running implementation of this control loop: error-budget tracking with multiwindow burn-rate
+  alerting, an autoscaling controller whose cooldown a fast burn deliberately overrides, and runbook
+  execution that escalates rather than retrying — all reading one shared severity signal. The
+  metrics source, scaling target, and paging integration are in-process stand-ins.
+  [Read the lab documentation →](/build/labs/slo-driven-ai-operations/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Why does burn-rate alerting need two windows rather than one threshold?">
+  Because one window cannot satisfy both requirements. A short window pages on transient blips and
+  then flaps; a long window misses most of a fast burn and keeps alerting after it stops, because
+  the stale average has not decayed. Requiring a long and a short window to both cross the threshold
+  gets the long window's noise suppression and the short window's fast clearing. The cost is
+  configuration complexity, which is worth paying because alert fatigue and blindness are both
+  worse.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="When should an autoscaler ignore its own cooldown?">
+  When the error budget is burning at page severity. The cooldown exists to prevent flapping on
+  noisy utilization samples — but a fast burn is not noise, it means users are being failed now, and
+  waiting out a timer designed to suppress noise is the wrong response. Checking severity before
+  checking cooldown gives a narrow, deliberate escape hatch while every other decision still
+  respects it.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why should alerting, scaling, and incident response read the same severity signal?">
+  Because otherwise they can disagree, and they will disagree during exactly the incidents where
+  clarity matters. Three subsystems reading three signals produce contradictory automation — scaling
+  up while the incident is marked resolved, or paging while capacity is being removed. Deriving all
+  three from one computation makes that class of confusion structurally impossible.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why should incident automation escalate rather than retry a failed step?">
+  Because retrying assumes the step's execution failed, when far more often the step was the wrong
+  remediation — a restart does not fix a capacity problem. Retrying burns the incident clock,
+  produces no new information, and leaves no record of who was notified. Escalating to a named
+  contact at each hop produces an audit trail and moves toward someone who can actually resolve it.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What should automation do when it runs out of runbook steps?">
+  Report an explicit exhausted state naming the last contact escalated to. Looping or stopping
+  silently withholds the fact the responder needs first — nobody has fixed this and it is now theirs.
+  An honest terminal state is a feature; automation that hides its own failure is worse than no
+  automation, because it delays the human response it was supposed to accelerate.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your SLO's error budget has never depleted. Is that good?">
+  It is a warning. Either the target is set loose enough to be uninformative, or the SLI is not
+  measuring what users actually notice. An error budget is an instrument, and one that always reads
+  fine has not been calibrated against real impact. The corollary is that occasional budget
+  depletion is expected and healthy — it is the signal the SLO exists to produce.
+</InterviewQuestion>

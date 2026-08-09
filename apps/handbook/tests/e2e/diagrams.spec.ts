@@ -1,4 +1,4 @@
-import { readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { expect, test } from "@playwright/test";
 
@@ -17,29 +17,41 @@ import { expect, test } from "@playwright/test";
 
 const CONTENT_ROOT = join(import.meta.dirname, "..", "..", "src", "content", "docs");
 
-function findDiagramFiles(directory: string, out: string[] = []): string[] {
+function findPages(directory: string, out: string[] = []): string[] {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) findDiagramFiles(path, out);
-    else if (entry.name.endsWith(".mmd")) out.push(path);
+    if (entry.isDirectory()) findPages(path, out);
+    else if (entry.name.endsWith(".mdx")) out.push(path);
   }
   return out;
 }
 
 /**
- * Maps a diagram file to the page that imports it. Diagrams are named
- * `<page-slug>.<diagram-name>.mmd` beside their page, so the slug is everything
- * before the first dot: `learn/modules/06-mcp.stateless-routing.mmd` renders on
- * `/learn/modules/06-mcp/`.
+ * Maps a content file to the URL it renders at:
+ * `architecture/systems/foo.mdx` → `./architecture/systems/foo/`, and a
+ * section's `index.mdx` → the section root.
  */
-function pageUrlForDiagram(diagramPath: string): string {
-  const relativePath = relative(CONTENT_ROOT, diagramPath).replaceAll("\\", "/");
-  const withoutDiagramSuffix = relativePath.replace(/\.[^/.]+\.mmd$/, "");
-  return `./${withoutDiagramSuffix}/`;
+function pageUrl(pagePath: string): string {
+  const relativePath = relative(CONTENT_ROOT, pagePath).replaceAll("\\", "/");
+  const withoutExtension = relativePath.replace(/\.mdx$/, "").replace(/\/index$/, "");
+  return `./${withoutExtension}/`;
 }
 
+/**
+ * Discovered by scanning pages for `.mmd` imports rather than by locating
+ * `.mmd` files and inferring their page.
+ *
+ * The earlier approach derived the URL from each diagram's own path, which
+ * silently missed every page that imports a diagram from somewhere else — the
+ * Architecture pages all reuse their lab's `.mmd`, so none of them were covered
+ * despite the suite reporting green.
+ */
 const pagesWithDiagrams = [
-  ...new Set(findDiagramFiles(CONTENT_ROOT).map(pageUrlForDiagram)),
+  ...new Set(
+    findPages(CONTENT_ROOT)
+      .filter((page) => /from\s+["'][^"']+\.mmd\?raw["']/.test(readFileSync(page, "utf-8")))
+      .map(pageUrl),
+  ),
 ].sort();
 
 test.describe("mermaid diagrams", () => {
