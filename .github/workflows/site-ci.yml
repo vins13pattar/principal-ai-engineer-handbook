@@ -8,6 +8,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "package.json"
+      - ".nvmrc"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "tsconfig.base.json"
@@ -20,6 +21,7 @@ on:
       - "packages/**"
       - "scripts/**"
       - "package.json"
+      - ".nvmrc"
       - "pnpm-workspace.yaml"
       - "pnpm-lock.yaml"
       - "tsconfig.base.json"
@@ -42,7 +44,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies
@@ -74,7 +76,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies
@@ -106,7 +108,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: pnpm
 
       - name: Install dependencies
