@@ -1,0 +1,279 @@
+---
+title: "Architecture: Durable Agent Execution"
+description: A reference architecture for running long, interruptible agent work exactly as reliably as the delivery guarantees allow — leases, fencing, checkpoints, and the dead-letter boundary.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/durable-agent-task-engine implementation.
+    author: vinod
+freshness:
+  # "Agent" is in the title, but nothing here tracks an AI API. Leases, fencing
+  # tokens, visibility timeouts, and at-least-once delivery are queueing
+  # fundamentals that predate LLMs and will outlast the current agent tooling.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import taskLifecycle from "../../build/labs/durable-agent-task-engine.task-lifecycle.mmd?raw";
+
+## Problem
+
+Agent work is long, expensive, and interrupted constantly. A multi-step run that dies on step seven
+should not restart at step one; a submission retried by an impatient client should not create a
+second run; and a worker killed mid-task must not leave that task invisible forever.
+
+Running agent work as ordinary synchronous request handling fails all three. The request's lifetime
+becomes the work's lifetime, so a deploy, a timeout, or an OOM kill destroys progress that cost real
+money to produce. The usual first fix — a background thread or a fire-and-forget task — removes the
+symptom and keeps the disease: nothing durable records that the work exists, so nothing can recover
+it.
+
+What is actually needed is a delivery guarantee, and the honest one is **at-least-once**. Exactly-once
+delivery is not available; exactly-once *effect* is achievable only by making handlers idempotent.
+Every design decision below follows from accepting that.
+
+## Requirements
+
+- **Durable submission.** Work survives the process that accepted it.
+- **Idempotent submission.** A client-supplied key deduplicates retries into one task.
+- **Automatic recovery.** A worker that dies mid-task releases that work without operator action and
+  without a separate supervisor.
+- **Bounded retries.** A task that cannot succeed stops being retried and becomes visible to a human.
+- **Resumable progress.** A long task continues from its last recorded checkpoint rather than
+  restarting.
+- **Safe concurrency.** Two workers must never both believe they own the same task.
+- **Graceful shutdown.** A deploy drains in-flight work instead of manufacturing the exact crash the
+  rest of the system exists to survive.
+
+## Constraints
+
+- **At-least-once is the ceiling.** Any handler with side effects must be idempotent, because a
+  handler *will* occasionally run twice. Nothing downstream may assume otherwise.
+- **The store defines the guarantee, not the application.** Correct behaviour depends on a
+  single-round-trip atomic claim. Application-level "check then update" reintroduces the race no
+  matter how carefully it is written.
+- **Clock skew is real.** Lease expiry compares timestamps produced somewhere; if that somewhere is
+  the worker rather than the store, two workers with skewed clocks disagree about who owns a task.
+- **Checkpoint size is bounded by the store.** Checkpointing is only cheap while the checkpoint stays
+  small — it is a resumption cursor, not a place to stash intermediate results.
+
+## Request Flow
+
+<Mermaid code={taskLifecycle} title="Every failure mode this architecture handles is a transition on this diagram" />
+
+A task is submitted with an idempotency key and persisted as `Pending`. A worker **leases** it,
+receiving a fencing token and a visibility deadline; the task is invisible to other workers only
+while that lease holds. On success the worker acks with its token and the task is `Succeeded`. On
+failure it fails with its token and returns to `Pending` with its retry budget decremented — or
+dead-letters if the budget is spent.
+
+If the worker dies, nobody renews the lease, it expires, and the task returns to `Pending` on its
+own. **The visibility timeout is the crash-recovery mechanism.** There is no heartbeat service, no
+watchdog, and no liveness probe involved — which is one fewer component that can itself fail.
+
+## Failure Modes
+
+<FailureMode title="The zombie worker">
+  A worker paused long enough for its lease to expire — a long GC pause, a suspended VM, a blocked
+  syscall — wakes up still believing it owns work that has already been reissued and possibly
+  completed by someone else. Without fencing, its late ack marks a task done that another worker is
+  still running, or its late checkpoint overwrites newer progress. The fencing token is what makes
+  at-least-once safe rather than merely tolerable.
+</FailureMode>
+
+<FailureMode title="The crash-looping poison task">
+  A task whose handler reliably kills its worker never records an explicit failure — the process is
+  gone before it can. If the retry budget only decrements on reported failures, the task is
+  redelivered forever, taking down a worker each time. Counting *delivery attempts* rather than
+  failures bounds crash-driven redelivery by exactly the same limit as explicit failure.
+</FailureMode>
+
+<FailureMode title="Idempotent submission mistaken for idempotent execution">
+  Deduplicating submissions by key prevents duplicate *tasks*. It does nothing about the same task
+  being delivered twice, which at-least-once guarantees will happen. A team that ships the key and
+  believes the problem solved has built a system that double-charges customers under exactly the
+  conditions that matter.
+</FailureMode>
+
+<FailureMode title="Lease shorter than the work">
+  A visibility timeout tuned for a fast task silently breaks when a slower one appears: the lease
+  expires mid-execution, the task is reissued while the original worker is still running it, and now
+  two workers race. The symptom is duplicate side effects under load, which looks like an
+  application bug rather than a configuration one. Long tasks must extend their lease as they work.
+</FailureMode>
+
+<FailureMode title="A dead-letter queue nobody reads">
+  Dead-lettering is only a safety mechanism if a human sees it. An unmonitored dead-letter queue
+  converts a loud failure into a silent one — work that was accepted, acknowledged to the caller,
+  and then quietly abandoned.
+</FailureMode>
+
+<FailureMode title="Deploys that manufacture the crash">
+  A rolling deploy that SIGKILLs workers with in-flight tasks generates lease-expiry recovery on
+  every release. Recovery is designed for unplanned death; using it for planned death means every
+  deploy pays redelivery and duplicate-execution cost that graceful draining would avoid.
+</FailureMode>
+
+## Scaling
+
+- **The claim operation is the scaling bottleneck**, not throughput. Every worker polling for work
+  contends on the same rows. `SELECT ... FOR UPDATE SKIP LOCKED` exists precisely so contending
+  readers step over locked rows instead of queueing behind them.
+- **Poll interval trades latency against load.** Aggressive polling gives low pickup latency and
+  quadratic-ish load growth as workers are added; long polling or a notification channel
+  (`LISTEN/NOTIFY`, a stream) decouples the two.
+- **Partition by queue before partitioning by shard.** Separate queues per workload class isolate a
+  slow, high-volume workload from a latency-sensitive one, and are far simpler to reason about than
+  hash-sharding one queue.
+- **Dead-letter growth is a capacity signal.** A dead-letter queue growing faster than it is drained
+  means a dependency is broken, and retry traffic is currently amplifying load rather than
+  absorbing it.
+- **Checkpoint writes scale with progress granularity.** Checkpointing after every unit of work on a
+  thousand-step task makes the store, not the handler, the bottleneck.
+
+## Security
+
+- **Task payloads are stored data and frequently contain user content.** They inherit whatever
+  retention, encryption-at-rest, and deletion obligations that content carries; a queue is not
+  exempt from a deletion request because it is "just infrastructure".
+- **Idempotency keys must be scoped per tenant.** A globally-scoped key namespace lets one tenant
+  collide with — and therefore read the result of — another tenant's submission.
+- **Fencing tokens are capability tokens.** A worker holding one can complete or modify a task.
+  They should be unguessable and never logged alongside task identifiers.
+- **Dead-letter contents are the most sensitive data in the system**, because they are the payloads
+  that failed repeatedly and are now sitting in an operator-facing surface indefinitely.
+- **Checkpoints inherit the payload's classification.** A checkpoint holding partial results of a
+  sensitive task is sensitive, and is easy to forget when scoping encryption or deletion.
+
+## Trade-offs
+
+<TradeOff title="Visibility timeout vs. explicit heartbeat supervision">
+  A visibility timeout needs no extra component: absence of renewal *is* the failure signal. The
+  cost is recovery latency bounded below by the timeout, so a short timeout recovers fast but risks
+  reissuing work from a merely-slow worker. An explicit heartbeat service can distinguish "slow"
+  from "dead" more sharply, at the cost of another distributed component that can fail, partition,
+  or lie.
+</TradeOff>
+
+<TradeOff title="Counting delivery attempts vs. counting explicit failures">
+  Counting deliveries bounds crash-looping tasks, which counting failures cannot. The cost is that a
+  task can dead-letter after transient infrastructure trouble that was never the task's fault — an
+  unlucky task consumes its budget on redeliveries it never caused. Counting failures is fairer to
+  individual tasks and unsafe in aggregate.
+</TradeOff>
+
+<TradeOff title="Checkpoint granularity">
+  Frequent checkpoints minimize rework after a crash and maximize store write load; infrequent ones
+  invert both. The right granularity is set by what a unit of work costs to redo, which is why
+  expensive model calls usually deserve a checkpoint and cheap transformations do not.
+</TradeOff>
+
+<TradeOff title="Database-backed queue vs. dedicated broker">
+  A relational store gives transactional enqueue alongside business writes — the task and the row
+  that justifies it commit together, eliminating a whole class of inconsistency. A dedicated broker
+  gives higher throughput and purpose-built semantics, at the cost of a second system to operate and
+  a dual-write problem at the boundary. Below a few thousand tasks per second the transactional
+  guarantee is usually worth more than the throughput.
+</TradeOff>
+
+## Cost
+
+- **Redelivered work is paid twice.** With expensive model calls in the handler, duplicate execution
+  is a direct line-item cost, which makes checkpointing and correctly-sized leases a spend decision
+  rather than a purely technical one.
+- **Polling has a floor cost** proportional to worker count times poll frequency, paid continuously
+  whether or not there is work. At low utilization this can exceed the cost of the work itself.
+- **Retry budgets are a cost cap.** An unbounded retry on a failing paid dependency is an unbounded
+  bill; the budget is what makes the worst case finite.
+- **Checkpoint and payload storage grows with retention**, and dead-lettered tasks are retained
+  longest by definition.
+
+## Observability
+
+- **Queue depth and oldest-pending age.** Depth alone is ambiguous — a deep queue draining quickly
+  is fine. Age of the oldest pending task is the honest latency signal.
+- **Lease expiry rate.** This is the crash rate, and it should be near zero. A rise means workers are
+  dying or leases are too short for current work, and those two need distinguishing.
+- **Delivery attempts per task, as a distribution.** A rising tail is the earliest visible sign of a
+  poison task or a degrading dependency.
+- **Dead-letter arrival rate, alerted on.** This is the one metric that must page: it means accepted
+  work is being abandoned.
+- **Drain duration on shutdown.** If it approaches the deploy's termination grace period, deploys
+  are about to start killing in-flight work.
+- **Trace continuity across redelivery.** Attempt two must be linkable to attempt one, or debugging
+  a retried task means reconstructing it from timestamps.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - The claim operation is atomic in a single round trip (`FOR UPDATE SKIP LOCKED` or an equivalent
+    atomic script), not a read-then-write in application code.
+  - Lease deadlines are computed from the *store's* clock, not each worker's.
+  - Long-running handlers extend their lease as they work, and the extension is tested.
+  - Retry budgets decrement on delivery, and a crash-looping task is proven to dead-letter.
+  - The dead-letter queue has an owner, an alert, and a documented triage path.
+  - Termination grace period exceeds the observed p99 drain time, with headroom.
+  - Handlers are idempotent, and that property is tested by running one twice rather than asserted
+    in a comment.
+  - Idempotency keys are namespaced per tenant.
+  - Payload and checkpoint retention match the data classification of what they carry.
+</Checklist>
+
+<LabCallout repoPath="labs/durable-agent-task-engine" status="production-shaped">
+  A running implementation of this architecture: leases with visibility timeouts, fencing tokens,
+  idempotent submission, checkpointed resumption, and dead-lettering by delivery attempt. The store
+  is in-memory by design and written as a specification for what a durable backend must guarantee
+  atomically. [Read the lab documentation →](/build/labs/durable-agent-task-engine/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="Why does a visibility timeout remove the need for a heartbeat supervisor?">
+  Because absence of renewal is itself the failure signal. A leased task is invisible only while its
+  lease holds; a worker that dies stops renewing, the lease expires, and the task returns to the
+  pending pool on its own. That removes an entire component — one that would need its own
+  availability, its own partition behaviour, and its own failure handling.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="A worker resumes after a long GC pause and acknowledges a task. What stops that from corrupting state?">
+  Lease fencing. The acknowledgement carries the token issued with the lease; once the lease has
+  expired and been reissued, that token is stale and the store rejects it. Without fencing, the
+  zombie's ack marks complete a task another worker may still be running — which is how
+  at-least-once delivery turns into silent data corruption rather than mere duplication.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why count delivery attempts rather than explicit failures for dead-lettering?">
+  Because a handler that kills its worker never reports a failure. Counting failures leaves such a
+  task redelivered forever, taking down a worker each cycle. Counting deliveries bounds
+  crash-driven redelivery by the same budget as explicit failure. The cost is that transient
+  infrastructure trouble can consume an innocent task's budget — fairness traded for a guaranteed
+  termination.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="You added idempotency keys. Are duplicate side effects solved?">
+  No, and conflating the two is the common mistake. The key deduplicates *submissions* into one
+  task. At-least-once delivery still means that task can execute more than once, so the handler
+  itself must be idempotent. Both are required; neither substitutes for the other.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Would you build this on Postgres or a dedicated broker?">
+  Below a few thousand tasks per second, Postgres usually wins on the strength of transactional
+  enqueue: the task and the business row that justifies it commit together, which removes a dual-write
+  inconsistency a broker forces you to solve separately. A broker wins on throughput and purpose-built
+  semantics, and costs a second system to operate. The deciding question is whether enqueue needs to
+  be transactional with your own writes — if it does, that guarantee is usually worth more than the
+  throughput headroom.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="How do you deploy this without losing in-flight work?">
+  Stop leasing new tasks, wait for in-flight handlers to finish, then exit — with a termination grace
+  period longer than observed p99 drain time. Without that, every deploy triggers lease-expiry
+  recovery, which is a mechanism designed for unplanned death: you pay redelivery and
+  duplicate-execution cost on a schedule you control and could have avoided.
+</InterviewQuestion>

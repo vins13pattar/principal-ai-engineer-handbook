@@ -1,0 +1,287 @@
+---
+title: "Architecture: Enterprise MCP Platform"
+description: A reference architecture for serving many tenants from shared MCP infrastructure under the 2026-07-28 protocol — identity per request, isolation that survives caching, and a stateless fleet.
+version: 1.0.0
+lastUpdated: 2026-08-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-08
+    change: Initial publication, backed by the labs/multi-tenant-mcp-server implementation.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
+  verifiedOn: 2026-08-08
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff, Warning } from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import requestPath from "../../build/labs/multi-tenant-mcp-server.request-path.mmd?raw";
+
+## Problem
+
+Once more than one team wants MCP servers, running one server per team per integration stops
+scaling: every server is a separate deployment, a separate credential, a separate thing to patch.
+The obvious consolidation — one server, many tenants — moves the problem into the server, where a
+single missing check exposes one customer's tools to another.
+
+The `2026-07-28` protocol revision changes the shape of that problem in two ways that matter
+architecturally. Removing the session means identity can no longer be established once per
+connection; it has to be re-established per request. Adding `cacheScope` means a listing response is
+now something infrastructure may legitimately store and replay — which creates a leak class that did
+not previously exist.
+
+<Warning>
+  This page describes the `2026-07-28` protocol. Material written for `2025-11-25` assumes an
+  `initialize` handshake and a session that this revision removed, which changes both the identity
+  model and the deployment topology below.
+</Warning>
+
+## Requirements
+
+- **Per-request identity.** Every request authenticates on its own; nothing is trusted because an
+  earlier request on the same connection was trusted.
+- **Discovery isolation.** A tenant's `tools/list` and `resources/list` return only what that tenant
+  was granted.
+- **Invocation authorization.** A tenant cannot call what it was not granted, whether or not it
+  appeared in a listing.
+- **Non-disclosure on refusal.** A refusal must not reveal that the refused capability exists.
+- **Cache safety.** No response is ever advertised as shareable across tenants.
+- **Horizontal scale without affinity.** Any replica serves any request.
+- **Auditability.** Every call and every refusal is attributable to a tenant.
+
+## Constraints
+
+- **Credentials must live where the SDK's own calls carry them.** An SDK issues protocol requests
+  application code never writes — validation, revalidation, retries. Any credential scoped to
+  application-issued requests has gaps invisible from your own call sites. In practice this means
+  the transport's `Authorization` header, not per-request `_meta`.
+- **`server/discover` cannot require authentication.** A client needs it to learn how to talk to the
+  server, so gating it deadlocks bootstrapping. Everything in that response is therefore public by
+  construction.
+- **Filtering happens below model serialization.** Middleware sees outbound dicts, not typed result
+  models, so isolation logic manipulates the wire representation.
+- **Dynamic Client Registration is deprecated.** New integrations use Client ID Metadata Documents,
+  and issuers are validated per RFC 9207.
+
+## Request Flow
+
+<Mermaid code={requestPath} title="Identity is resolved before any handler runs, which is what makes it cover the SDK's own calls too" />
+
+A request arrives at any replica carrying a bearer credential. The token verifier resolves it to a
+tenant before dispatch; an absent or invalid credential is rejected at the transport with `401`.
+Tenant-scoped methods then pass through isolation: listings are filtered to the tenant's grants, and
+invocations are authorized independently against those same grants.
+
+`server/discover` bypasses that boundary deliberately, and is safe to do so **only** because its
+response carries capability flags and supported protocol versions — never tenant-scoped names. That
+is a property to verify per server, not a general guarantee.
+
+## Failure Modes
+
+<FailureMode title="Credentials that the SDK's own requests do not carry">
+  The most expensive mistake available here, because it looks correct in every application code
+  path. Putting the tenant credential in per-request `_meta` fails the moment the SDK makes a call
+  of its own: `call_tool()` internally issues a `tools/list` to validate the output schema, carrying
+  no application metadata. The server refuses its own client. The tempting fix — exempt `tools/list`
+  from authentication — reopens exactly the hole the design was closing.
+</FailureMode>
+
+<FailureMode title="cacheScope: public on a tenant-filtered listing">
+  A one-word setting that instructs every cache on the path — client, gateway, CDN — that one
+  tenant's filtered tool list may be served to another. It has no local symptom: the server behaves
+  correctly, and the leak happens in infrastructure the server never sees. This failure mode did not
+  exist before `2026-07-28` introduced the field.
+</FailureMode>
+
+<FailureMode title="Filtering the listing and calling it authorization">
+  A caller can name a tool it never listed. A server that filters `tools/list` but does not check
+  `tools/call` has built a UI convention, not a security boundary — and it demos perfectly, because
+  every client-driven path respects the filter.
+</FailureMode>
+
+<FailureMode title="Refusals that confirm existence">
+  If "forbidden" is distinguishable from "not found", a tenant can enumerate every other tenant's
+  capabilities one call at a time. Error text and status codes are part of the security surface, and
+  this is usually discovered by a security review rather than a test.
+</FailureMode>
+
+<FailureMode title="Per-connection state under a stateless protocol">
+  Code ported from the previous revision often caches an identity, a capability set, or an
+  in-progress operation for "the connection". Nothing guarantees the next request lands on the same
+  replica, so the symptom is intermittent and load-dependent — correct on one replica in
+  development, wrong behind a load balancer.
+</FailureMode>
+
+<FailureMode title="Tenant-scoped data in the discover response">
+  Because `server/discover` is served unauthenticated, anything that leaks into it is public. A
+  server that grows tenant-specific capability advertisement has published it to anyone who can
+  reach the endpoint.
+</FailureMode>
+
+## Scaling
+
+- **Statelessness is what makes the fleet ordinary.** No session store, no affinity, no drain-on-
+  deploy for session migration. This is the largest operational consequence of the protocol revision
+  and it accrues to platform teams rather than tool authors.
+- **`Mcp-Method` enables policy at the edge.** Because the operation is visible without parsing the
+  body, a gateway can rate limit `tools/call` differently from `tools/list`, route expensive
+  operations to dedicated capacity, or shed load by operation class.
+- **Cache keys must include the tenant.** `cacheScope: private` prevents *shared* caches from
+  cross-serving; it says nothing to a single client acting for several tenants, whose own cache keys
+  on the method. Multi-tenant hosts need per-tenant cache partitions.
+- **Discovery dominates request mix.** Hosts list far more often than they call. Correct `ttlMs`
+  turns most of that traffic into cache hits, and ignoring the field forfeits the revision's main
+  performance win.
+- **Tool count per tenant is a context cost, not just a server cost.** Every listed tool typically
+  enters the model's context, so large grants degrade the caller's quality and spend before they
+  strain the server.
+
+## Security
+
+- **Verify tokens against an authorization server**, validating the issuer per RFC 9207 and binding
+  the credential to that issuer. Static tokens are a lab convenience, not a deployment.
+- **Use Client ID Metadata Documents** rather than Dynamic Client Registration, which this revision
+  deprecated.
+- **Authorize invocation independently of discovery**, since the two answer different questions.
+- **Make refusals indistinguishable** from "does not exist", including status code, shape, and text.
+- **Set `cacheScope: private` on every tenant-scoped response**, and assert it in a test rather than
+  leaving it to review.
+- **Treat tool descriptions from any tenant-supplied source as untrusted**, since they enter the
+  model's context — the tool-poisoning risk from [Module 6](/learn/modules/06-mcp/#failure-modes)
+  applies within a platform as much as across one.
+- **Sign, bound, and expire `requestState`.** In a Multi-Round-Trip Request it is client-held state
+  that resumes server-side execution; the official SDK binds it to the authenticated principal, and
+  a platform should not do less.
+- **Audit refusals as carefully as successes.** Refusals are the security-interesting half, and the
+  only durable evidence of attempted cross-tenant access.
+
+## Trade-offs
+
+<TradeOff title="Shared multi-tenant server vs. one deployment per tenant">
+  A shared server amortizes operations, patching, and capacity across tenants, and makes a new
+  tenant a configuration change rather than a deployment. The cost is that isolation becomes a
+  property of code rather than of infrastructure — a missing check is a cross-tenant breach, where
+  separate deployments would have contained it. Per-tenant deployment buys isolation with operational
+  cost that grows linearly in tenants.
+</TradeOff>
+
+<TradeOff title="Per-request authentication vs. per-session authentication">
+  Per-request costs a verification on every call and buys a fleet with no affinity requirement, no
+  session store, and no partially-authenticated state to reason about. Per-session amortizes the
+  verification and reintroduces exactly the stickiness the protocol revision removed. Token
+  verification is cheap enough that this trade is rarely close for a network-exposed server.
+</TradeOff>
+
+<TradeOff title="Filtering listings server-side vs. returning everything and filtering at the host">
+  Server-side filtering is the only option that is actually secure, since the host is not a trust
+  boundary. Returning everything is simpler and lets one cached response serve all tenants — which
+  is precisely why it is wrong, and precisely the shortcut `cacheScope: public` makes available.
+</TradeOff>
+
+<TradeOff title="Granting tools per tenant vs. per tenant-and-role">
+  Tenant-level grants are simple to model and audit. Role-level grants within a tenant match how
+  organizations actually delegate, at the cost of a second dimension in every check, every cache
+  key, and every audit query. Adding the dimension later is expensive because cache keys and audit
+  history both encode the old shape.
+</TradeOff>
+
+## Cost
+
+- **Token verification runs per request**, so its cost scales with call volume rather than
+  connection count. Cache verification results by token with a short TTL, bounded by the token's own
+  expiry.
+- **Correct `ttlMs` is a direct saving**, because discovery dominates the request mix and each cache
+  hit is a request the fleet does not serve.
+- **Per-tenant grant size drives model spend**, since listed tools enter the caller's context on
+  every turn. Over-granting is a bill, not just a risk.
+- **Audit retention is the quiet cost.** Recording every call and refusal per tenant, retained long
+  enough to be useful in an investigation, is usually the largest storage line in the platform.
+
+## Observability
+
+- **Every log line and span carries a tenant identifier**, or nothing here is answerable.
+- **Refusal rate per tenant, per tool.** A rise is either a misconfigured grant or an enumeration
+  attempt, and distinguishing them requires the per-tool breakdown.
+- **`401` rate split by cause** — absent credential versus invalid one. Absent usually means a
+  broken client; invalid usually means expiry or rotation.
+- **Cache hit ratio on `tools/list`.** A low ratio means clients are ignoring `ttlMs`, and the
+  fleet is serving traffic it should not see.
+- **Latency by `Mcp-Method`.** Aggregate latency blends cheap listings with expensive calls into a
+  number that describes neither.
+- **Protocol version distribution across callers**, which is what tells you when legacy-era clients
+  have actually stopped connecting.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - Credentials are verified at the transport, and a test proves the SDK's own internal calls are
+    covered.
+  - Tokens are validated against an authorization server with RFC 9207 issuer validation; CIMD
+    replaces Dynamic Client Registration.
+  - `tools/call` is authorized independently of `tools/list` filtering, and a test calls an
+    unlisted-but-existing tool.
+  - Refusals are byte-identical to "unknown", asserted by test.
+  - Every tenant-scoped response sets `cacheScope: private`, asserted by test.
+  - `server/discover` is confirmed to contain no tenant-scoped names.
+  - The fleet runs stateless with no session affinity, verified by round-robining a multi-step
+    interaction across replicas.
+  - Audit records tenant, method, tool, and outcome for every request including refusals.
+  - Protocol version support is pinned and monitored, with a review trigger when the SDK adds a
+    version.
+</Checklist>
+
+<LabCallout repoPath="labs/multi-tenant-mcp-server" status="production-shaped">
+  A running implementation of this architecture on the official SDK: transport-level tenant
+  authentication, per-tenant discovery, invocation authorized separately, refusals that leak
+  nothing, and statelessness proven by test.
+  [Read the lab documentation →](/build/labs/multi-tenant-mcp-server/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Where does the tenant credential live in an MCP platform, and why?">
+  On the transport — the `Authorization` header — not in per-request `_meta`. An SDK issues protocol
+  calls application code never writes; the Python SDK's `call_tool()` internally issues a
+  `tools/list` to validate output schemas, carrying no application metadata. A credential in `_meta`
+  therefore fails on the SDK's own calls, and exempting those calls reopens the hole. The general
+  form: a credential must live where every request the transport sends carries it, including the
+  ones you did not write.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your tools/list is filtered per tenant. What does cacheScope have to be, and what happens if it is wrong?">
+  `private`. `public` tells every cache on the path that the response may be shared, so a gateway or
+  CDN can serve one tenant's filtered list to another. The server itself behaves correctly
+  throughout — the leak lives in infrastructure the server never sees, which is why this belongs in
+  a test rather than a review comment. It is also new: the previous protocol revision had no
+  `cacheScope` to get wrong.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Is filtering tools/list per tenant sufficient isolation?">
+  No. A caller can name a tool it never listed, so `tools/call` must be authorized independently.
+  Filtering is discovery; authorization is a separate decision. A server that does only the first
+  demos perfectly, because every client-driven path respects the filter.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why must a refusal look identical to 'unknown tool'?">
+  Otherwise it is an enumeration oracle: a tenant that can distinguish "exists but forbidden" from
+  "does not exist" can map every other tenant's capabilities one call at a time, which undoes the
+  listing filter entirely. Error text, shape, and status are part of the security surface.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why is server/discover served without authentication?">
+  Because requiring a credential to discover how to authenticate is a bootstrapping deadlock. That
+  is only safe while the response contains no tenant-scoped data — capability flags and supported
+  protocol versions only. It is a property to verify for your server rather than assume, and a
+  reason to keep the unauthenticated method list explicit rather than inferred.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="What did removing the session change about how you deploy this?">
+  It removed session affinity as a deployment requirement, which removes the session store, sticky
+  routing, and session-draining on deploy. The fleet becomes an ordinary stateless HTTP service. The
+  cost is that identity is verified per request rather than once per connection, and any code that
+  implicitly cached per-connection state has to stop.
+</InterviewQuestion>
