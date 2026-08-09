@@ -24,7 +24,7 @@ jobs:
           cache: pip
           cache-dependency-path: labs/async-ai-gateway/pyproject.toml
       - name: Install dependencies
-        run: pip install -e '.[dev,observability,redis]'
+        run: pip install -e '.[dev,observability,redis,auth]'
       - name: Ruff
         run: ruff check .
       - name: MyPy
@@ -52,7 +52,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: pip install -e '.[dev,redis]'
+      - run: pip install -e '.[dev,redis,auth]'
       - name: Redis integration tests
         env:
           REDIS_URL: redis://localhost:6379/0
