@@ -1,12 +1,20 @@
 ---
 title: "Module 6: MCP"
 description: The Model Context Protocol's host/client/server architecture — three primitives with three different owners of the invocation decision, over a protocol that went stateless in its 2026-07-28 revision.
-version: 2.0.0
+version: 2.1.0
 lastUpdated: 2026-08-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
+    author: vinod
+  - version: 2.1.0
+    date: 2026-08-08
+    change: >-
+      Verified the module's claims against the official Python SDK (mcp 2.0.0): no initialize on a
+      modern connection, exact _meta key names, and the modern/legacy protocol version split. Added
+      a Security entry on why application credentials belong in the transport rather than in _meta,
+      found while building against the SDK.
     author: vinod
   - version: 2.0.0
     date: 2026-08-08
@@ -18,7 +26,7 @@ revisionHistory:
     author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP 2026-07-28"
+  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
   verifiedOn: 2026-08-08
 category: learn-module
 moduleNumber: 6
@@ -131,6 +139,13 @@ information, and client capabilities that were once exchanged once at connection
 `_meta` on every request, and a client that wants server capabilities up front calls
 `server/discover` explicitly rather than receiving them as handshake output. Every request is
 self-contained.
+
+Verified against the official Python SDK (`mcp` 2.0.0), a modern connection issues **no
+`initialize` at all** — the first method on the wire is `server/discover`, and the three `_meta`
+keys carried on every subsequent request are `io.modelcontextprotocol/protocolVersion`,
+`io.modelcontextprotocol/clientInfo`, and `io.modelcontextprotocol/clientCapabilities`. The SDK
+lists `2026-07-28` as its only *modern* protocol version, with `2024-11-05` through `2025-11-25`
+retained separately as legacy handshake versions.
 
 **Routing headers (SEP-2243).** Streamable HTTP now requires an `Mcp-Method` header on every
 request, plus an `Mcp-Name` header on the requests that name a specific thing — `tools/call`,
@@ -348,7 +363,19 @@ properties needed either session affinity or shared session storage.
 - **Reject requests whose routing headers disagree with their body**, since infrastructure upstream
   has already made routing, rate-limiting, and authorization decisions on those headers alone.
 - **Treat `requestState` as untrusted on return.** Sign it, bound its size, and expire it; it is
-  client-held state that resumes server-side execution.
+  client-held state that resumes server-side execution. The official SDK does exactly this — it
+  ships an AES-GCM `requestState` codec that binds the state to the authenticated principal, which
+  is a good indication of the threat model the specification authors had in mind.
+- **Put credentials in the transport, not in `_meta`.** "Every request is self-describing" makes
+  per-request application credentials look natural, and `_meta` looks like the obvious place for
+  them. It is the wrong place: an SDK makes protocol calls of its own that application code never
+  issues, and those carry no application metadata. Concretely, the Python SDK's `call_tool()`
+  invokes `validate_tool_result()`, which issues an *internal* `tools/list` to check the output
+  schema — with no `_meta`. A server authorizing on a token in `_meta` therefore rejects its own
+  client's internal call, and a server that quietly allows unauthenticated `tools/list` to
+  compensate has opened exactly the hole it was trying to close. Authorization belongs on the
+  Authorization header, where every request the transport sends — application-issued or not —
+  carries it.
 - **Follow the hardened authorization model.** `2026-07-28` requires RFC 9207 issuer validation and
   binds credentials to the issuing authorization server. Dynamic Client Registration is deprecated
   in favour of Client ID Metadata Documents (CIMD) — new integrations should use CIMD.
@@ -508,5 +535,6 @@ No dedicated MCP lab exists yet — see the [Roadmap](/roadmap/) for what's plan
 
 | Version | Date | Change |
 | --- | --- | --- |
+| 2.1.0 | 2026-08-08 | Verified against the official Python SDK (`mcp` 2.0.0); added the transport-versus-`_meta` credential-placement lesson found while building against it. |
 | 2.0.0 | 2026-08-08 | Rewritten against the 2026-07-28 specification: stateless protocol, routing headers, Multi-Round-Trip Requests, caching fields, and the HTTP+SSE / Roots / Sampling / Logging deprecations. |
 | 1.0.0 | 2026-08-05 | Initial publication. |

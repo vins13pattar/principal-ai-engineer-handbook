@@ -89,12 +89,24 @@ re-verified and honestly re-labelled on arrival rather than moved wholesale —
 [Durable Agent Task Engine](/build/labs/durable-agent-task-engine/), then
 [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/), then
 [Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/), then
-[Dynamic Batching Inference](/build/labs/dynamic-batching-inference/). One remains: the
-multi-tenant MCP server.
+[Dynamic Batching Inference](/build/labs/dynamic-batching-inference/). All five straightforward
+ports are done.
 
-The MCP server lab is deliberately last: it was written against the `2025-11-25` protocol and
-described itself as "MCP-style", so it needs rebuilding against the current specification and an
-official SDK rather than porting. See [Module 6](/learn/modules/06-mcp/) for what changed.
+The multi-tenant MCP server lab is **not migrated and remains unbuilt**, deliberately. The donor
+version targeted `2025-11-25` and described itself as "MCP-style", so porting it would import a
+protocol that no longer exists.
+
+A rebuild against the official SDK (`mcp` 2.0.0, which reports `2026-07-28` as its only modern
+protocol version) got as far as working tenant-scoped listings before hitting a design problem
+worth stating plainly: **a credential carried in per-request `_meta` cannot secure an MCP server.**
+The SDK issues protocol calls of its own — `call_tool()` internally calls `validate_tool_result()`,
+which issues a `tools/list` with no `_meta` — so a server authorizing on `_meta` rejects its own
+client, and a server that exempts `tools/list` to compensate has reopened the hole. Authorization
+has to sit on the transport, where every request carries it.
+
+That finding is now written up in [Module 6](/learn/modules/06-mcp/#security). The lab will be
+rebuilt on the SDK's `token_verifier` seam over Streamable HTTP with a real `Authorization` header,
+rather than shipped with a known authorization gap.
 
 ## How this roadmap works
 
