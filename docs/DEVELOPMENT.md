@@ -64,13 +64,13 @@ automatically — no additional configuration needed for either.
 misconfigured project fails silently from GitHub's side (see ADR-0005). Check these once on the
 live URL:
 
-| Check | Why it can break |
-| --- | --- |
-| The homepage loads and the sidebar renders | Wrong build output directory serves an empty site |
-| A deep link works on a hard refresh, e.g. `/learn/modules/06-mcp/` | Confirms directory-style routing is being served, not just client-side |
-| Search opens and returns a result | Pagefind's index lives in `dist/pagefind/`; a partial upload breaks it silently |
-| A Mermaid diagram renders | Diagrams render client-side, so the build cannot catch a broken one |
-| `view-source:` shows a canonical URL on the real domain | Confirms Cloudflare passed `CF_PAGES_URL` through to the build |
+| Check                                                              | Why it can break                                                                |
+| ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
+| The homepage loads and the sidebar renders                         | Wrong build output directory serves an empty site                               |
+| A deep link works on a hard refresh, e.g. `/learn/modules/06-mcp/` | Confirms directory-style routing is being served, not just client-side          |
+| Search opens and returns a result                                  | Pagefind's index lives in `dist/pagefind/`; a partial upload breaks it silently |
+| A Mermaid diagram renders                                          | Diagrams render client-side, so the build cannot catch a broken one             |
+| `view-source:` shows a canonical URL on the real domain            | Confirms Cloudflare passed `CF_PAGES_URL` through to the build                  |
 
 Once the production URL is final, update the fallback in `apps/handbook/astro.config.mjs` — it is
 what canonical URLs and `sitemap-0.xml` use for any build where `CF_PAGES_URL` is absent.
