@@ -17,7 +17,6 @@ export default [
       "**/test-results/**",
       "**/public/pagefind/**",
       "labs/**",
-      "legacy/**",
     ],
   },
   js.configs.recommended,

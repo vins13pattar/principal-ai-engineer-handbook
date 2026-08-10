@@ -48,7 +48,6 @@ packages/diagrams/   Client-side Mermaid diagram component
 packages/shared/     Content schemas, versioning types, structural content linter
 labs/                Production-quality labs (independent Python projects)
 docs/                Contributor-facing guides (content authoring, local development)
-legacy/              Retired static-HTML prototype, superseded by apps/handbook
 scripts/             Repo-level tooling (content structure lint)
 .github/workflows/   CI (lint, typecheck, test, build, e2e) — deployment is Cloudflare, not Actions
 ```

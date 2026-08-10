@@ -7,7 +7,6 @@ test-results/
 public/pagefind/
 pnpm-lock.yaml
 labs/
-legacy/
 CHANGELOG.md
 
 # Prettier's MDX/remark parser corrupts fenced code blocks that are children of a

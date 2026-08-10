@@ -11,7 +11,6 @@ packages/shared/     Content-type Zod schemas, versioning types, the heading-lin
 labs/                Production-quality labs (Python, independent of the pnpm workspace)
 scripts/             Repo-level Node scripts (content structure lint)
 docs/                This guide and the content authoring guide
-legacy/               Retired static-HTML prototype, kept for content migration reference
 ```
 
 `apps/*` and `packages/*` are a pnpm workspace (`pnpm-workspace.yaml`); `labs/*` is intentionally
