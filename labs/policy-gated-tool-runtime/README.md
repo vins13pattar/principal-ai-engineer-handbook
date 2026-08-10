@@ -135,7 +135,7 @@ boundary.
 
 Wiring it to real MCP hosts means putting an official SDK in front of `ToolGateway.call()` — the
 enforcement pipeline itself needs no changes, which is the point of keeping it protocol-independent.
-See [Module 6](https://principal-ai-engineer-handbook.pages.dev/learn/modules/06-mcp/) for the
+See [Module 6](https://handbook.vinodspattar.in/learn/modules/06-mcp/) for the
 current protocol.
 
 ## What would make this production-ready

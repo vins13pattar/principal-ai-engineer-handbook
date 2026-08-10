@@ -12,10 +12,7 @@ const REPO = "https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Ha
 // works on Workers Builds — `CF_PAGES_URL` is a Cloudflare *Pages* variable and is simply absent
 // there, which would silently stamp the fallback onto every canonical URL and the whole sitemap.
 // It is kept as the second choice so a Pages deployment still works unchanged. See ADR-0007.
-const site =
-  process.env.SITE_URL ??
-  process.env.CF_PAGES_URL ??
-  "https://principal-ai-engineer-interview-handbook.pages.dev";
+const site = process.env.SITE_URL ?? process.env.CF_PAGES_URL ?? "https://handbook.vinodspattar.in";
 
 export default defineConfig({
   site,

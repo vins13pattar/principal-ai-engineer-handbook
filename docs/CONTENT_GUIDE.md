@@ -1,8 +1,8 @@
 # Content authoring guide
 
 This is the practical reference for adding a page to the handbook. For _why_ the content model is
-shaped this way, see the ADRs in [`/adr/`](https://principal-ai-engineer-handbook.pages.dev/adr/),
-especially [ADR-0004](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0004-single-docs-collection-schema/).
+shaped this way, see the ADRs in [`/adr/`](https://handbook.vinodspattar.in/adr/),
+especially [ADR-0004](https://handbook.vinodspattar.in/adr/decisions/0004-single-docs-collection-schema/).
 
 ## Where a page lives
 
@@ -175,7 +175,7 @@ import { TradeOff, InterviewQuestion } from "@handbook/components";
 
 Keep Mermaid source in its own `.mmd` file next to the page and import it as raw text — do not put
 diagram source in the component's slot (see the doc comment in
-`packages/diagrams/src/Mermaid.astro` and [ADR-0003](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0003-client-side-mermaid-rendering/) for why).
+`packages/diagrams/src/Mermaid.astro` and [ADR-0003](https://handbook.vinodspattar.in/adr/decisions/0003-client-side-mermaid-rendering/) for why).
 
 ```mdx
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
@@ -187,7 +187,7 @@ import flow from "./my-page.request-flow.mmd?raw";
 ## Code examples inside doc components
 
 Content pages under `apps/handbook/src/content/docs/**` are excluded from Prettier (see
-`.prettierignore` and [ADR-0006](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0006-exclude-content-mdx-from-prettier/)):
+`.prettierignore` and [ADR-0006](https://handbook.vinodspattar.in/adr/decisions/0006-exclude-content-mdx-from-prettier/)):
 Prettier's MDX formatter was found silently corrupting fenced code blocks nested inside a JSX
 component (like `<CodeWalkthrough>`) — stripping indentation and escaping underscores as Markdown
 syntax — once a blank line appeared inside the fence. Never run `pnpm format` (or your editor's
@@ -203,7 +203,7 @@ before committing.
 ## Internal links
 
 The site has no base path — it is served from a domain root by Cloudflare (see
-[ADR-0005](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0005-cloudflare-pages-deployment/)).
+[ADR-0005](https://handbook.vinodspattar.in/adr/decisions/0005-cloudflare-pages-deployment/)).
 Write internal links root-relative, with no prefix:
 
 ```md

@@ -12,7 +12,7 @@ together.
 - **Content changes** (new Learn module, Architecture page, ADR, ...): follow
   [`docs/CONTENT_GUIDE.md`](docs/CONTENT_GUIDE.md) for frontmatter and required sections. A PR
   adding an incomplete module (missing required sections) will fail CI's `pnpm lint:content` check
-  by design — see [ADR-0004](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0004-single-docs-collection-schema/)
+  by design — see [ADR-0004](https://handbook.vinodspattar.in/adr/decisions/0004-single-docs-collection-schema/)
   for why that's a separate check from the build.
 - **Lab changes** (`labs/*`): each lab is an independent Python project with its own tests and CI
   workflow. Follow the existing lab's conventions (ruff, mypy, pytest) rather than introducing new

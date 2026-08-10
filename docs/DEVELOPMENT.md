@@ -16,7 +16,7 @@ legacy/               Retired static-HTML prototype, kept for content migration 
 
 `apps/*` and `packages/*` are a pnpm workspace (`pnpm-workspace.yaml`); `labs/*` is intentionally
 outside it — each lab is its own Python project with its own `pyproject.toml` and CI job (see
-[ADR-0002](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0002-pnpm-monorepo-layout/)).
+[ADR-0002](https://handbook.vinodspattar.in/adr/decisions/0002-pnpm-monorepo-layout/)).
 
 ## Setup
 
