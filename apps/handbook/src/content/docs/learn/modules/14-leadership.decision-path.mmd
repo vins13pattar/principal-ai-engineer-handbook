@@ -1,0 +1,26 @@
+flowchart TD
+    SIGNAL[A problem surfaces<br/>incident, cost spike, blocked team] --> FRAME[Frame it as a decision<br/>what question needs answering]
+
+    FRAME --> REVERSIBLE{Reversible in<br/>one deploy?}
+
+    REVERSIBLE -->|Yes| OWNER[The team closest to it decides<br/>no review, no meeting]
+    OWNER --> SHIP[Ship and measure]
+
+    REVERSIBLE -->|No| WRITE[Write it down<br/>context, options, cost of each]
+    WRITE --> CIRCULATE[Circulate for written objection<br/>async, timeboxed]
+
+    CIRCULATE --> DISAGREE{Objection<br/>on constraints<br/>or conclusions?}
+    DISAGREE -->|Constraints| RESOLVE[Resolve the constraint first<br/>most arguments end here]
+    DISAGREE -->|Conclusions| EVIDENCE[Name the evidence that<br/>would settle it, and its cost]
+    DISAGREE -->|Neither| DECIDE
+
+    RESOLVE --> WRITE
+    EVIDENCE --> SPIKE[Timeboxed spike]
+    SPIKE --> DECIDE[Decide and record<br/>including what was rejected]
+
+    DECIDE --> ENFORCE[Encode it in a mechanism<br/>linter, test, review gate]
+    ENFORCE --> SHIP
+
+    SHIP --> REVISIT{Evidence contradicts<br/>the record?}
+    REVISIT -->|Yes| WRITE
+    REVISIT -->|No| HOLD([Decision holds])

@@ -1,0 +1,416 @@
+---
+title: "Module 14: Leadership"
+sidebar:
+  label: "14 · Leadership"
+description: Technical leadership as engineering work — routing decisions by reversibility, encoding conclusions in mechanisms rather than memory, and the artifacts that carry a decision after the person who made it has moved on.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Initial publication, completing the Learn track.
+    author: vinod
+category: learn-module
+moduleNumber: 14
+difficulty: expert
+estimatedMinutes: 50
+prerequisites:
+  - 00-principal-engineer-mindset
+  - 13-system-design
+relatedLabs: []
+---
+
+import {
+  Checklist,
+  CodeWalkthrough,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewAnswer,
+  InterviewQuestion,
+  PrincipalPerspective,
+  ResearchNote,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import decisionPath from "./14-leadership.decision-path.mmd?raw";
+
+## Executive Summary
+
+At Principal scope the constraint stops being what you can build and becomes what you can cause to
+be built correctly by people who do not report to you. That is not a soft skill wrapped around the
+engineering — it is engineering work with a different output: decisions, and the mechanisms that
+make decisions stick.
+
+This module covers that work concretely. How to route a decision by how hard it is to reverse, how
+to disagree in a way that converges, and how to encode a conclusion so it survives without you
+repeating it. AI platforms sharpen all of this, because they sit between research and product with
+genuinely different definitions of "done", and because a system that degrades silently needs someone
+to have insisted on measurement before anyone felt the pain.
+
+## Mental Model
+
+**Your output is decisions and mechanisms, not opinions and reminders.**
+
+An opinion has to be re-litigated every time a new person joins. A recorded decision — with the
+options that lost and what would change the answer — is read once and settles the question. A
+reminder decays the week you stop giving it. A mechanism that fails the build does not.
+
+Three consequences:
+
+1. **Route by reversibility, not by importance.** Most decisions are cheap to undo and belong with
+   whoever is closest to the code. A few are expensive for years. Treating everything as significant
+   makes you the bottleneck; treating nothing as significant is how a data boundary gets decided in
+   a standup.
+2. **Written beats spoken, for anything you want to outlive the meeting.** Not ceremony — writing
+   forces the constraints into the open, and it is the only form that scales to people who were not
+   in the room, including your future self.
+3. **A norm nobody enforces is a preference.** "We document decisions" is a preference. A CI check
+   that fails when an ADR is missing its Consequences section is a mechanism. Convert the ones that
+   matter; leave the rest as preferences and stop mentioning them.
+
+<PrincipalPerspective title="Influence is a function of being right in a way others can check">
+  Authority makes people comply; a checkable argument makes them agree, which is the only version
+  that holds when you are not in the room. That means showing your constraints, naming what would
+  change your mind, and being visibly willing to update. Engineers who are right and unfalsifiable
+  get routed around within two quarters — not because the org dislikes rigor, but because nobody
+  can tell their strong claims from their weak ones.
+</PrincipalPerspective>
+
+## Architecture
+
+How a decision should move, and where most of them should stop early.
+
+<Mermaid code={decisionPath} title="Routing a technical decision by reversibility" />
+
+The left branch is the one people under-use. If a decision can be undone in a deploy, the correct
+process is no process — and a Principal engineer who pulls those into review is destroying
+throughput while feeling productive. The right branch is where the writing, the disagreement, and
+the mechanism belong.
+
+## Deep Dive
+
+**Reversibility as the routing key.** Ask what fixing it costs if it is wrong. A retry policy is a
+config change. A queue technology is a week. A tenant data boundary is a migration, an audit, and a
+disclosure. Rank by that, then spend attention in the same order —
+[Module 13](/learn/modules/13-system-design/#deep-dive) applies the same test inside a single design.
+
+**Disagreement that converges.** Almost every technical argument is one of three things, and naming
+which one collapses most of them:
+
+- **A constraint disagreement.** You think it must serve 200 requests per second; they think 20.
+  You are not arguing about architecture at all. Resolve this first — a startling share of design
+  arguments end the moment someone writes the requirement down.
+- **A conclusion disagreement from shared constraints.** Legitimate, and resolvable by naming the
+  evidence that would settle it plus what that evidence costs. A two-day spike beats a two-week
+  argument, and beats a two-year wrong decision.
+- **A preference.** Same constraints, same evidence, different taste. This is a two-way door: let
+  whoever owns the code decide and move on. Spending senior attention here is the most common way
+  it gets wasted.
+
+**Mechanisms over vigilance.** Anything you find yourself saying twice is a candidate for
+automation. The question is not "how do I get people to remember this" but "what would make
+forgetting it impossible". A linter, a required section, a test that fails, a default that is
+already correct. This is the highest-leverage move available at Principal scope and the one most
+often skipped in favor of a document nobody re-reads.
+
+**The AI-platform-specific tension.** Research and product measure "done" differently — a model that
+improves a benchmark by two points is a result to one and a migration to the other. Platform work
+sits between them, and the recurring leadership job is making that boundary explicit: what the
+platform guarantees, what it does not, and who absorbs the cost when a model changes underneath a
+product that assumed it was stable.
+
+<ResearchNote source="Google, Site Reliability Engineering — the error budget chapter">
+  The clearest worked example of a mechanism replacing an argument. "Ship faster" versus "be more
+  reliable" is unwinnable as a debate and trivial as arithmetic once both sides agree on a number:
+  budget remaining means ship, budget exhausted means stabilize. The lesson generalizes well beyond
+  reliability — find the number both sides would accept, and the recurring argument disappears.
+</ResearchNote>
+
+## Implementation
+
+The mechanism this repository uses to keep decisions recorded, rather than reminding people to
+record them. Every ADR must carry the same seven sections, and CI fails if one is missing:
+
+<CodeWalkthrough title="A norm converted into a mechanism, from packages/shared and scripts/">
+```ts
+/** Sections every ADR must contain. */
+export const REQUIRED_ADR_SECTIONS = [
+  "Status",
+  "Context",
+  "Problem",
+  "Options",
+  "Decision",
+  "Consequences",
+  "References",
+] as const;
+
+// scripts/lint-content-structure.ts
+const CHECKED_SECTIONS: CheckedSection[] = [
+  { directory: "learn/modules", required: REQUIRED_MODULE_SECTIONS },
+  { directory: "architecture/systems", required: REQUIRED_ARCHITECTURE_SECTIONS },
+  { directory: "adr/decisions", required: REQUIRED_ADR_SECTIONS },
+  { directory: "reference/lookups", required: REQUIRED_REFERENCE_SECTIONS },
+];
+
+for (const file of files) {
+  const missing = findMissingSections(extractHeadings(stripFrontmatter(source)), required);
+  if (missing.length > 0) {
+    failures.push(`${relativePath}\n  missing sections: ${missing.join(", ")}`);
+  }
+}
+```
+
+The interesting entries are **Options** and **Consequences**. Requiring Options forces the rejected
+alternatives to be written down, which is what makes a decision auditable later — without it you
+cannot tell a considered choice from a default. Requiring Consequences forces the cost to be stated
+by the person best placed to know it, at the moment they are most honest about it.
+
+Note what this does *not* do: it never checks whether the content is any good. A mechanism that
+tried would be unusable. It enforces the shape, and the shape is what makes a bad decision visible
+during review.
+</CodeWalkthrough>
+
+<EngineeringNote>
+  The test of a mechanism is whether it fails loudly on your own work. This one has — it rejected a
+  page of mine mid-session for a renamed heading, which is the only evidence that it is doing
+  anything. A check that has never failed is indistinguishable from a check that cannot fail.
+</EngineeringNote>
+
+## Production Example
+
+This handbook's own direction was reversed by a review, and the sequence is a usable template.
+
+The project had built substantial content on a static-HTML architecture while a separate branch
+carried a documentation platform. An outside review argued the static site was the retired one and
+should not be merged forward. That claim, accepted uncritically, would have discarded weeks of work;
+rejected reflexively, it would have compounded a wrong foundation.
+
+What actually happened: each claim was checked against the repository rather than the argument. Two
+of the review's assertions turned out to be wrong — the lab migration was not mechanical, because
+only one lab had production artifacts, and the real hazard was not the branch but that `main` still
+served the retired site. The rest held, and the direction changed.
+
+The transferable part is the order. **Verify the claims, then decide, then record why** — including
+which parts of the incoming argument did not survive. A decision that only records what was accepted
+reads, six months later, as though there was never any doubt, which is exactly the impression that
+makes the next person afraid to challenge it.
+
+<Warning title="The reversal is the cheap part">
+  Changing direction cost less than the weeks of content built before anyone asked whether the
+  foundation was right. The leadership failure was not the late reversal — it was that no one had
+  written down which architecture was canonical, so both could look correct at the same time.
+</Warning>
+
+## Failure Modes
+
+<FailureMode title="Becoming the bottleneck">
+  Routing every decision through yourself feels like diligence and reads as throughput loss to
+  everyone waiting. The tell is a queue of small reversible decisions with your name on it. The fix
+  is explicit: name the classes of decision teams own outright, and say so once, publicly.
+</FailureMode>
+
+<FailureMode title="Deciding by proximity instead of by cost">
+  Attention drifts to whatever is loudest — the incident this week, the team that asks most often.
+  Meanwhile the one-way door gets walked through quietly by someone who did not know it was one.
+  Reversibility is the sort key, and it does not correlate with urgency.
+</FailureMode>
+
+<FailureMode title="Being right in a way nobody can check">
+  Strong conclusions with unstated constraints and no falsifying evidence. People cannot evaluate
+  the claim, so they either defer or route around you, and both are bad. State the constraint, state
+  what would change your mind.
+</FailureMode>
+
+<FailureMode title="Norms without mechanisms">
+  "We always write ADRs" holds for about a quarter after the person saying it stops saying it. If a
+  norm matters, it needs to fail a build; if it does not matter enough to automate, it probably does
+  not matter enough to repeat.
+</FailureMode>
+
+<FailureMode title="Hoarding the interesting work">
+  The senior engineer who takes every hard problem produces a team that cannot handle hard problems
+  and a single point of failure with a calendar. The work to delegate is specifically the work you
+  would enjoy — that is the signal that it is growth for someone else.
+</FailureMode>
+
+<FailureMode title="Letting quality regressions have no owner">
+  In AI platforms this is the one that bites. Latency has an owner and a pager. Model quality often
+  has neither, so it degrades for weeks with everyone assuming someone else is watching. Naming an
+  owner and a threshold is a leadership act before it is a technical one.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Decide now, or gather more evidence">
+  Deciding early keeps people unblocked and risks being wrong in a way that compounds. Waiting buys
+  accuracy and costs momentum, and the cost is often invisible because nobody logs time spent
+  blocked. Route by reversibility: two-way doors decide now, one-way doors buy the evidence — and
+  bound the gathering with a timebox, or "more evidence" becomes the decision.
+</TradeOff>
+
+<TradeOff title="Consistency across teams, or team autonomy">
+  A shared stack means one set of runbooks and engineers who can move between services; autonomy
+  means each team fits its own problem and the operational surface multiplies. Set the small number
+  of things that must be consistent — usually identity, observability, and deployment — and let
+  everything else vary.
+</TradeOff>
+
+<TradeOff title="Fix it yourself, or coach someone through it">
+  Fixing it is faster today and buys nothing tomorrow. Coaching costs your time and theirs, and is
+  the only version that scales past one person. The line worth holding: fix it yourself only when
+  the deadline is real and the lesson is small.
+</TradeOff>
+
+<TradeOff title="Enforce with a mechanism, or trust the norm">
+  Mechanisms are reliable and rigid — a linter that is wrong 5% of the time gets disabled entirely,
+  taking the other 95% with it. Norms flex but decay. Automate the invariants where a violation is
+  unambiguous and costly, and leave judgement calls to review.
+</TradeOff>
+
+## Security
+
+- **Approval authority is a design decision.** Who can grant an agent tool access, widen a data
+  boundary, or ship a model that touches customer data — these need named owners before an incident,
+  not during one. The [Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/)
+  page is the technical half; the organizational half is who is allowed to say yes.
+- **Threat modelling belongs at design review, not before launch.** A security review that arrives
+  after the data boundary is set can only document risk, not remove it. Moving it earlier is a
+  process change only a senior engineer can push through.
+- **Blast radius is the number to ask for.** Not "is this secure" but "what can this component
+  reach if it is fully compromised". It is answerable, it is reviewable, and it converts a vague
+  discussion into a scoping decision.
+- **Make the secure path the easy path.** A reviewer catching secrets in code is a norm; a scanner
+  failing the build is a mechanism. The same asymmetry as everywhere else in this module.
+- **Incidents are the highest-signal teaching moment and the worst time to assign blame.** A review
+  that produces a mechanism is worth more than one that produces a culprit, and the difference is
+  visible to everyone watching how you run it.
+
+## Performance
+
+- **Time-to-decision is a measurable quantity** and usually a worse bottleneck than anyone admits.
+  If a design decision sits for three weeks, that is three weeks of a team's throughput, and it does
+  not appear on any dashboard.
+- **Written and asynchronous beats a meeting for anything that needs consideration.** It scales to
+  people who were not there, it produces the artifact for free, and it surfaces objections from
+  people who would not interrupt.
+- **Review latency compounds.** A pull request waiting a day costs more than a day, because context
+  has to be rebuilt on both sides. Fast review is a leadership behavior with a measurable effect on
+  delivery.
+- **Count the meeting.** Eight people for an hour is a working day. Some decisions are worth a
+  working day; most recurring meetings have never been checked against that bar.
+- **Optimize for the team's throughput, not your own.** The senior engineer with the highest personal
+  output is often the one whose review queue is the constraint on everyone else.
+
+## Scaling
+
+- **Mechanisms scale, attention does not.** Every check that runs without you is capacity returned.
+  This is the whole game past a certain team size.
+- **Delegate decision rights, not just tasks.** "Own this component, including what goes in it" is
+  transferable; "do this task" needs you again next week.
+- **Written artifacts are how you scale across time**, not just headcount. The reader you are
+  writing for is the engineer joining in a year with none of the context and no one left to ask.
+- **Pick the small set of things that must be consistent** as the org grows and defend those hard —
+  identity, observability, deployment. Defending everything means defending nothing.
+- **Grow the people who will replace you on the current work.** The measure of technical leadership
+  at this level is what keeps working after you move to the next problem, which is also the only way
+  you ever get to move to the next problem.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="How do you drive a technical decision across teams that don't report to you?">
+  Establish the constraints in writing first — most cross-team disagreement is about unstated
+  requirements, not architecture. Then separate constraint disagreements from conclusion
+  disagreements from preferences, and handle each differently: resolve constraints, buy evidence for
+  conclusions, and let preferences go to whoever owns the code. Record the decision including what
+  was rejected, then encode it in something that fails without you.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Tell me about a time you were wrong about a technical decision.">
+  The answer that lands names what the evidence was, when it arrived, how long the gap was between
+  the evidence and the reversal, and what changed so the next one is caught earlier. The gap is the
+  interesting number — everyone has been wrong, and few have measured how long they took to notice.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="expert" title="How do you decide what to standardize and what to leave to teams?">
+  Standardize where inconsistency has a compounding operational cost — identity, observability,
+  deployment — because those are what on-call, incident response, and engineer mobility all depend
+  on. Leave the rest, and be explicit that you are leaving it. The failure mode is standardizing on
+  taste, which spends authority on something that produces no operational return.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you handle a disagreement with a senior colleague who has a different design?">
+  Find out whether you disagree about constraints or conclusions. If constraints, resolve that
+  first and the design argument often dissolves. If conclusions, name the evidence that would settle
+  it and what it costs to get; a timeboxed spike is almost always cheaper than the argument. If it
+  is preference within the same constraints, it is a two-way door — concede it and spend the
+  credibility somewhere it matters.
+</InterviewQuestion>
+
+<InterviewAnswer title="What 'encode it in a mechanism' sounds like concretely">
+  "We kept re-deciding whether a page needed its trade-offs written down, so I moved it into the
+  content contract: a required section, checked in CI, failing the build with the file and the
+  missing heading. It caught my own page the week after. The rule stopped needing a person, and the
+  cost was about thirty lines."
+</InterviewAnswer>
+
+<InterviewQuestion difficulty="expert" title="A model update improves benchmarks but breaks a downstream product assumption. How do you handle it?">
+  This is a contract question wearing a model-quality costume. The immediate move is finding out
+  whether the platform ever promised stability on that dimension — usually it did not, and nobody
+  wrote it down. Short term, give the product team a pinned version and a migration window. Long
+  term, the fix is a written contract for what the platform guarantees across model changes, plus an
+  eval set the product team owns, so the next update surfaces the break before it ships rather than
+  after.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+This module has no companion lab — its subject is the decisions around the code rather than the
+code. The closest thing to a lab is the [ADR](/adr/) section, which is this repository practising
+what the module argues for, including the decisions that were later superseded.
+
+<Exercise title="Convert one norm into a mechanism" difficulty="advanced">
+  Find something your team says more than once a month — a review-checklist item, a naming rule, a
+  "don't forget to". Write the check that makes forgetting it fail: a lint rule, a CI step, a
+  required template section. Then verify it fails on a deliberately broken input, because an
+  unfired check is indistinguishable from a broken one. Note how long it took; it is usually under
+  an hour, which is the point.
+</Exercise>
+
+<Exercise title="Write the ADR for a decision already made" difficulty="intermediate">
+  Take a significant decision your team made in the last year and write it up in the seven-section
+  format above — Status, Context, Problem, Options, Decision, Consequences, References. The
+  revealing section is Options: if you cannot reconstruct what was rejected and why, that decision
+  is currently unauditable, and so is every one like it.
+</Exercise>
+
+<Checklist title="Signals you are operating at this level">
+  - Decisions you are not in the room for still go the way the written record implies.
+  - The things you used to repeat are now checks that fail without you.
+  - You can name the last time you were wrong, and how long it took you to notice.
+  - Teams own the reversible decisions in their area outright, and know that they do.
+  - The irreversible decisions in your area have a written record naming what was rejected.
+  - Model or retrieval quality has a named owner and a threshold, not just latency.
+  - Someone else can do the work you were doing a year ago.
+</Checklist>
+
+## References
+
+- Google, *Site Reliability Engineering*, chapters on error budgets and postmortems — the reference
+  worked example of replacing a recurring argument with a shared number.
+- Will Larson, *An Elegant Puzzle* and *Staff Engineer* — the clearest writing on senior technical
+  scope and the shape of the work at this level.
+- Camille Fournier, *The Manager's Path* — the chapters on tech lead and architect scope, useful
+  precisely because they draw the line between technical leadership and management.
+- Michael Nygard, *Documenting Architecture Decisions* — the original ADR format this handbook's
+  [ADR](/adr/) section is built on.
+- [Module 0: Principal Engineer Mindset](/learn/modules/00-principal-engineer-mindset/) and
+  [Module 13: System Design](/learn/modules/13-system-design/) — the framing and the method this
+  module operates on.
+
+## Revision History
+
+| Version | Date       | Change                                        |
+| ------- | ---------- | --------------------------------------------- |
+| 1.0.0   | 2026-08-10 | Initial publication, completing the Learn track. |

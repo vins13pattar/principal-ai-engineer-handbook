@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 1.9.0
-lastUpdated: 2026-08-09
+version: 2.0.0
+lastUpdated: 2026-08-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -44,12 +44,16 @@ revisionHistory:
     date: 2026-08-09
     change: Marked Module 13 (System Design) published and narrowed v0.8 to Module 14.
     author: vinod
+  - version: 2.0.0
+    date: 2026-08-10
+    change: Marked v0.8 shipped — Module 14 completes the Learn track. Closed out the lab migration section, which is finished.
+    author: vinod
 category: section-overview
 ---
 
-## Current version: v0.7.0 — Observability, plus Module 13
+## Current version: v0.8.0 — the Learn track is complete
 
-The documentation platform (v0.1.0) and the first fourteen Learn modules are complete:
+The documentation platform (v0.1.0) and all fifteen Learn modules are complete:
 [Module 0](/learn/modules/00-principal-engineer-mindset/) · [Module 1](/learn/modules/01-production-python/) ·
 [Module 2](/learn/modules/02-distributed-systems/) · [Module 3](/learn/modules/03-networking/) ·
 [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) ·
@@ -58,7 +62,8 @@ The documentation platform (v0.1.0) and the first fourteen Learn modules are com
 [Module 8: RAG](/learn/modules/08-rag/) · [Module 9: Model Serving](/learn/modules/09-model-serving/) ·
 [Module 10: Kubernetes](/learn/modules/10-kubernetes/) · [Module 11: Cloud](/learn/modules/11-cloud/) ·
 [Module 12: Observability](/learn/modules/12-observability/) ·
-[Module 13: System Design](/learn/modules/13-system-design/).
+[Module 13: System Design](/learn/modules/13-system-design/) ·
+[Module 14: Leadership](/learn/modules/14-leadership/).
 The [Architecture](/architecture/) section now has a design-review page for every lab: seven
 systems, each with a running implementation behind it. [Build](/build/) documents the same systems
 from a run-it-and-verify-it angle. The [Interview](/interview/) section now has two tracks:
@@ -78,8 +83,8 @@ five-section page contract that CI now enforces.
 | ~~`v0.5`~~ | ~~Learn Modules 8–9 (RAG, Model Serving)~~ — shipped 2026-08-07                                              |
 | ~~`v0.6`~~ | ~~Learn Modules 10–11 (Kubernetes, Cloud)~~ — shipped 2026-08-07                                             |
 | ~~`v0.7`~~ | ~~Learn Module 12 (Observability)~~ — shipped 2026-08-07                                                     |
-| `v0.8`     | Learn Module 14 (Leadership) and the leadership interview track                                              |
-| `v0.9`     | The remaining ten Reference lookups, and Cheat Sheets for every topic introduced so far                       |
+| ~~`v0.8`~~ | ~~Learn Module 14 (Leadership)~~ — shipped 2026-08-10                                                        |
+| `v0.9`     | The leadership interview track, the remaining ten Reference lookups, and Cheat Sheets                         |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
 
 Every module below also has a companion lab planned in [Build](/build/), tracked separately since a
@@ -99,17 +104,18 @@ bump the way a module does:
 | Semantic Cache                                                    | Module 4         | Planned           |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
 
-### Migration in progress
+### Lab migration: complete
 
-A parallel branch built six labs and several modules against the retired static-HTML prototype
-before this platform existed. Those labs are being migrated into `labs/` one at a time, each
-re-verified and honestly re-labelled on arrival rather than moved wholesale —
-[SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/) came first, then
-[Durable Agent Task Engine](/build/labs/durable-agent-task-engine/), then
-[Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/), then
-[Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/), then
-[Dynamic Batching Inference](/build/labs/dynamic-batching-inference/). All five straightforward
-ports are done, and the sixth lab was rebuilt rather than ported — see below.
+A parallel branch built seven labs against the retired static-HTML prototype before this platform
+existed. All seven now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
+than moved wholesale. That branch has been deleted; nothing on it is unique.
+
+Five were straightforward ports:
+[SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/),
+[Durable Agent Task Engine](/build/labs/durable-agent-task-engine/),
+[Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/),
+[Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/), and
+[Dynamic Batching Inference](/build/labs/dynamic-batching-inference/).
 
 The [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) was **rebuilt rather than
 migrated**. The donor version targeted `2025-11-25` and described itself as "MCP-style", so porting
@@ -117,13 +123,18 @@ it would have imported a protocol that no longer exists. It is now a real MCP se
 SDK (`mcp` 2.0.0, which reports `2026-07-28` as its only modern protocol version), tested through
 the SDK's own client over Streamable HTTP.
 
-The rebuild took two attempts, and the failed one is documented because it is the more useful half:
+That rebuild took two attempts, and the failed one is recorded because it is the more useful half:
 **a credential carried in per-request `_meta` cannot secure an MCP server.** The SDK issues protocol
 calls of its own — `call_tool()` internally calls `validate_tool_result()`, which issues a
 `tools/list` with no `_meta` — so a server authorizing on `_meta` rejects its own client, and a
 server that exempts `tools/list` to compensate has reopened the hole. Authorization sits on the
 transport, where every request carries it. See
 [Module 6](/learn/modules/06-mcp/#security) and the lab's own write-up.
+
+The [Async AI Gateway](/build/labs/async-ai-gateway/) needed no migration but did need a fix: it
+was labelled `production-ready` while its CI omitted a dependency extra, so test collection aborted
+before anything ran — masking 13 type errors and a failing test. A label is a claim, and that one
+was not being checked.
 
 ## How this roadmap works
 
