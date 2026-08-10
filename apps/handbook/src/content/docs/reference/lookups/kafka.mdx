@@ -1,0 +1,86 @@
+---
+title: Kafka
+description: A partitioned, replicated commit log — what its ordering and delivery guarantees actually cover, and the operational limits that decide partition counts.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the Kafka lookup.
+    author: vinod
+category: Messaging
+---
+
+## At a Glance
+
+A distributed, append-only commit log. Producers append to partitions; consumers read forward at
+their own pace and track their own position. Messages are retained by time or size rather than
+deleted on read, which is the property that separates Kafka from a queue and makes replay possible.
+
+Reach for it when you need durable ordered history, replay, or several independent consumers of the
+same stream. Reach for a broker with per-message acknowledgement and flexible routing when you need
+a work queue with competing consumers and per-message retry.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Topic | A named log, split into partitions. The unit of subscription |
+| Partition | The unit of ordering, parallelism, and storage. Ordering is guaranteed *within* one, never across |
+| Offset | A monotonically increasing position within a partition. The consumer owns it, not the broker |
+| Consumer group | A set of consumers sharing a subscription; each partition is assigned to exactly one member |
+| Rebalance | Reassignment of partitions when membership changes — briefly stops consumption |
+| Replication factor | Copies of each partition across brokers |
+| ISR | In-sync replicas: those caught up enough to be eligible for leadership |
+| `acks` | How many acknowledgements a producer waits for: `0`, `1`, or `all` |
+| `min.insync.replicas` | With `acks=all`, the minimum ISR count for a write to succeed |
+| Log compaction | Retention that keeps the latest value per key instead of a time window |
+| Idempotent producer | Deduplicates retries within a producer session, preventing duplicates from retry alone |
+| Transactions | Atomic writes across partitions plus consumer offsets — the real mechanism behind "exactly-once" |
+| Consumer lag | Log end offset minus committed offset. The single most useful health metric |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Ordering scope | One partition | The most misquoted guarantee in the system |
+| Max useful consumers per group | Partition count | Extra consumers sit idle; partitions set your parallelism ceiling |
+| Common replication factor | 3 | With `min.insync.replicas=2`, survives one broker loss and still accepts writes |
+| Durable write configuration | `acks=all` + `min.insync.replicas=2` | Anything less can acknowledge a write that a failover loses |
+| Default delivery semantics | At-least-once | Exactly-once needs transactions, or idempotent consumers |
+| Partition count changes | Increase only | You cannot reduce it, and increasing breaks key-to-partition stability |
+| Retention default | Commonly 7 days | Storage-bound, not consumption-bound — a slow consumer does not extend it |
+| Rebalance cost | Consumption pauses | Frequent rebalances from long processing loops look exactly like an outage |
+| Practical partitions per cluster | Thousands, not millions | Each costs file handles, memory, and recovery time |
+
+## Common Gotchas
+
+- **"Kafka guarantees ordering" is only true per partition.** Multi-partition topics interleave, so
+  ordering per entity requires that entity's key to hash to one partition.
+- **Adding partitions breaks key affinity.** Existing keys rehash to different partitions, so
+  per-key ordering is violated across the change. Size partitions before you need them.
+- **A slow consumer does not extend retention.** Fall behind past the retention window and records
+  are gone — the consumer resumes at the earliest available offset, having silently skipped data.
+- **Committing offsets before processing turns at-least-once into at-most-once.** Commit after the
+  work is durable, and make the work idempotent, because you will reprocess.
+- **`acks=1` acknowledges a write the leader has not yet replicated.** If that leader dies before
+  replication, the write is gone despite a success response.
+- **Rebalances are triggered by slow processing.** Exceed `max.poll.interval.ms` and the group
+  assumes the consumer is dead, reassigns its partitions, and the work is reprocessed elsewhere.
+- **Exactly-once is scoped narrower than the phrase suggests.** It covers Kafka-to-Kafka processing
+  with transactions. A side effect on an external system is still at-least-once, so the handler must
+  be idempotent regardless.
+- **Consumer lag in messages can mislead.** Ten thousand small records and ten thousand large ones
+  are very different recovery times; watch lag in time as well as count.
+- **Compacted topics still keep tombstones for a while**, and compaction is asynchronous — a
+  compacted topic is not a key-value store with read-your-writes.
+
+## Where to Go Deeper
+
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — delivery guarantees,
+  idempotency, and the queue-versus-broker trade-off argued in both directions.
+- [Durable Agent Execution](/architecture/systems/durable-agent-execution/) — the same guarantees
+  applied to long-running agent work, including why at-least-once is the ceiling.
+- [`durable-agent-task-engine`](/build/labs/durable-agent-task-engine/) — lease-based checkout,
+  fencing, and dead-lettering as running, tested code.
+- [CAP theorem](/reference/lookups/cap-theorem/) — the frame for `acks` and ISR configuration.

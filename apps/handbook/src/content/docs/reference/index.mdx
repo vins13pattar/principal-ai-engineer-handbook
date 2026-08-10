@@ -1,8 +1,8 @@
 ---
 title: Reference
 description: One-page lookups for the tools and primitives referenced throughout the handbook.
-version: 1.1.0
-lastUpdated: 2026-08-09
+version: 1.2.0
+lastUpdated: 2026-08-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -11,6 +11,10 @@ revisionHistory:
   - version: 1.1.0
     date: 2026-08-09
     change: Published the first three lookups and documented the enforced page contract.
+    author: vinod
+  - version: 1.2.0
+    date: 2026-08-10
+    change: Published six more lookups, covering every stable topic on the list.
     author: vinod
 category: section-overview
 ---
@@ -29,23 +33,27 @@ the deeper material. Anything that needs more than that belongs in a Learn modul
 
 | Topic                                          | Category                   |
 | ---------------------------------------------- | -------------------------- |
+| [Python](/reference/lookups/python/)           | Language                   |
 | [asyncio](/reference/lookups/asyncio/)         | Concurrency                |
+| [Kafka](/reference/lookups/kafka/)             | Messaging                  |
+| [Redis](/reference/lookups/redis/)             | Data store                 |
 | [CAP theorem](/reference/lookups/cap-theorem/) | Distributed systems theory |
 | [Raft](/reference/lookups/raft/)               | Consensus                  |
+| [Docker](/reference/lookups/docker/)           | Runtime                    |
+| [Kubernetes](/reference/lookups/kubernetes/)   | Orchestration              |
+| [AWS](/reference/lookups/aws/)                 | Cloud platform             |
 
 ## Planned
 
-| Topic      | Category               |
-| ---------- | ---------------------- |
-| Python     | Language               |
-| Kafka      | Messaging              |
-| Redis      | Data store             |
-| LangGraph  | Agent orchestration    |
-| MCP        | Agent protocol         |
-| RAG        | Retrieval architecture |
-| Vector DB  | Data store             |
-| Docker     | Runtime                |
-| Kubernetes | Orchestration          |
-| AWS        | Cloud platform         |
+The four that remain all cover fast-moving subject matter, so each will carry a `freshness`
+declaration naming the release it was verified against — and CI will fail once one passes its
+90-day review window rather than letting it quietly go stale.
+
+| Topic     | Category               |
+| --------- | ---------------------- |
+| MCP       | Agent protocol         |
+| LangGraph | Agent orchestration    |
+| RAG       | Retrieval architecture |
+| Vector DB | Data store             |
 
 See the [Roadmap](/roadmap/) for the authoring schedule.

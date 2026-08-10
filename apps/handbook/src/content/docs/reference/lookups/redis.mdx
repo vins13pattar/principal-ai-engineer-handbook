@@ -1,0 +1,86 @@
+---
+title: Redis
+description: An in-memory data structure server — why single-threaded execution is a feature, what its persistence modes actually guarantee, and the failure modes that surprise people in production.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the Redis lookup.
+    author: vinod
+category: Data store
+---
+
+## At a Glance
+
+An in-memory server exposing data structures — strings, hashes, lists, sets, sorted sets, streams —
+rather than rows. Command execution is single-threaded, which sounds like a limitation and is
+actually the reason its operations are atomic without any locking you have to reason about.
+
+In AI infrastructure it usually shows up as the thing that makes per-replica state correct across
+replicas: distributed rate limiting, idempotency keys, leases, and caches. Reach for it when the
+in-process version of one of those has become wrong under horizontal scaling.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Single-threaded command loop | Commands execute one at a time, so each is atomic. Networking and some deletes use other threads |
+| Sorted set (ZSET) | Score-ordered set with `O(log n)` rank operations — the structure behind leaderboards, sliding windows, and delay queues |
+| Stream | Append-only log with consumer groups and acknowledgements. Redis's answer to a durable work queue |
+| Lua script / function | Multiple commands executed atomically server-side. The correct way to build refill-and-consume in one step |
+| `SET key val NX EX n` | Atomic claim-if-absent with expiry — a lock, an idempotency claim, or a lease in one command |
+| Pipelining | Batching commands over one round trip. Not a transaction; no atomicity implied |
+| `MULTI`/`EXEC` | Queued commands executed together, but without rollback — a failing command does not undo its siblings |
+| RDB | Point-in-time fork-and-dump snapshot. Compact, fast to restore, loses everything since the last one |
+| AOF | Append-only command log, replayed on start. Larger and slower to load, far smaller loss window |
+| Replication | Asynchronous by default. A write acknowledged to the client may not have reached any replica |
+| Sentinel | Failover supervision for a primary/replica setup |
+| Cluster | Sharding across nodes by hash slot, with no cross-slot multi-key operations |
+| Eviction policy | What happens at `maxmemory`. The default is to reject writes, not to evict |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Hash slots in a cluster | 16384 | Fixed. Keys map to slots by CRC16; slots map to nodes |
+| Default `maxmemory` | 0 (unlimited) | Redis will happily consume all RAM and be OOM-killed |
+| Default eviction policy | `noeviction` | At the limit, writes error rather than evicting — a cache that stops accepting writes |
+| `appendfsync` default | `everysec` | Up to about one second of acknowledged writes lost on a crash |
+| Replication acknowledgement | Asynchronous | `WAIT` gives replica acknowledgement, still not a consensus guarantee |
+| Keyspace expiry | Lazy plus sampled | An expired key can occupy memory until touched or sampled |
+| `KEYS` complexity | `O(n)` over the whole keyspace | Blocks the single command loop; use `SCAN` |
+| Max string value | 512 MB | A ceiling worth knowing before storing anything blob-shaped |
+| Pipeline round trips | 1 for the batch | Usually the single biggest latency win available |
+
+## Common Gotchas
+
+- **`KEYS *` in production blocks everything.** One thread runs commands; an `O(n)` scan stalls
+  every other client. `SCAN` is the cursor-based alternative.
+- **The default eviction policy is not eviction.** A "cache" with `noeviction` and no `maxmemory`
+  either fills RAM or starts rejecting writes. Both surprise people mid-incident.
+- **Replication is asynchronous, so failover can lose acknowledged writes.** Redis is not a
+  consensus system — do not use it as the source of truth for anything that must not be lost.
+- **A naive distributed lock is not safe.** `SET NX` plus expiry is fine until a process pauses past
+  its TTL and another takes the lock; you need a fencing token to make the stale holder's writes
+  rejected. See [Module 2](/learn/modules/02-distributed-systems/).
+- **`MULTI`/`EXEC` has no rollback.** If one queued command fails at runtime, the others still
+  applied. It is not a database transaction.
+- **Cluster forbids multi-key operations across slots.** Code that works on a single node breaks on
+  a cluster unless keys share a hash tag like `{tenant}`.
+- **Read-modify-write from the client is a race.** Two clients `GET`, both compute, both `SET`, one
+  update is lost. Do it in a Lua script or with an atomic command.
+- **Expiry is not a scheduler.** Keys vanish approximately at their TTL, and nothing runs on expiry
+  unless you have enabled and are consuming keyspace notifications.
+- **Memory is not just your data.** Per-key overhead, fragmentation, replication buffers, and the
+  RDB fork's copy-on-write pages all count, and the fork can transiently need far more.
+
+## Where to Go Deeper
+
+- [Module 2: Distributed Systems](/learn/modules/02-distributed-systems/) — idempotency, leases,
+  and fencing, which are what Redis usually gets used to implement.
+- [Module 1 → Trade-offs](/learn/modules/01-production-python/#trade-offs) — in-process versus
+  distributed rate limiting, and what the new dependency costs.
+- [Async AI Gateway → Trade-offs](/architecture/systems/async-ai-gateway/#trade-offs) — the
+  same decision at architecture scale, including what happens when Redis itself is unavailable.
+- [CAP theorem](/reference/lookups/cap-theorem/) — the frame for Redis's replication guarantees.

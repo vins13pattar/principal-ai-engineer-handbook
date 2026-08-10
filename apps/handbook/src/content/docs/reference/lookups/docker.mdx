@@ -1,0 +1,82 @@
+---
+title: Docker
+description: Containers as kernel features rather than machines — what an image layer actually is, and the build and runtime details that decide image size, startup time, and whether signals reach your process.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the Docker lookup.
+    author: vinod
+category: Runtime
+---
+
+## At a Glance
+
+A container is a process on the host kernel with restricted visibility — namespaces limit what it
+can see, cgroups limit what it can consume. There is no virtual machine and no guest kernel. That
+single fact explains both why containers start in milliseconds and why kernel-level isolation is
+weaker than a VM's.
+
+An image is a stack of read-only filesystem layers plus metadata. Almost every build problem is
+really a question about which layer changed and therefore what the cache had to discard.
+
+## Key Concepts
+
+| Concept | What it actually is |
+| --- | --- |
+| Namespace | Kernel isolation of what a process sees: PID, network, mount, user, UTS, IPC |
+| cgroup | Kernel limits on what it consumes: CPU, memory, I/O |
+| Image layer | The filesystem delta from one build instruction, content-addressed and shared between images |
+| Build cache | Layers reused when the instruction and its inputs are unchanged. Invalidated for every layer after the first change |
+| Multi-stage build | Build in one stage, copy only the artifacts into a minimal final stage |
+| `ENTRYPOINT` vs `CMD` | Entrypoint is the executable; command is the default arguments, overridable at `docker run` |
+| Exec vs shell form | `CMD ["a","b"]` runs directly as PID 1; `CMD a b` wraps in a shell, which usually swallows signals |
+| PID 1 | The first process gets no default signal handlers and does not reap orphans |
+| Volume vs bind mount | A managed volume versus a host path; the latter carries host permissions and paths into the container |
+| `.dockerignore` | Excludes files from the build context. Missing it is the usual reason a build is slow |
+| Distroless / scratch | Final images with no shell or package manager — smaller and far less to attack |
+| OCI | The image and runtime specification, which is why images are portable beyond Docker |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Guest kernels | 0 | Containers share the host kernel; a kernel exploit crosses the boundary |
+| Layers invalidated by a change | That one and everything after | Instruction order determines cache hit rate |
+| Default PID 1 signal handling | None | Without an init or explicit handling, `SIGTERM` is ignored and shutdown becomes `SIGKILL` |
+| Default `docker stop` grace | 10 seconds | Then `SIGKILL`. In-flight requests need draining faster than that, or a longer timeout |
+| Default container user | `root` | Unless a `USER` instruction says otherwise |
+| Default network | Bridge, all ports outbound | Egress is unrestricted unless you restrict it |
+| Build context | Everything in the directory | Sent to the daemon before the build starts, `.dockerignore` notwithstanding |
+| Layer sharing | By content digest | Identical base layers are stored and pulled once across images |
+| Typical size reduction, multi-stage | Often an order of magnitude | Compilers and build dependencies never reach the final image |
+
+## Common Gotchas
+
+- **Copying source before installing dependencies destroys the cache.** Copy the lockfile, install,
+  then copy source — otherwise every source edit reinstalls everything.
+- **`RUN rm` does not shrink the image.** The file still exists in the earlier layer. Remove it in
+  the same `RUN` that created it, or use a multi-stage build.
+- **Shell-form `CMD` breaks graceful shutdown.** The shell becomes PID 1 and often does not forward
+  `SIGTERM`, so your drain logic never runs and the container is killed mid-request.
+- **`latest` is not a version.** It is a mutable tag, so two builds a week apart can produce
+  different images from identical Dockerfiles. Pin by digest for anything reproducible.
+- **Containers default to root.** A container escape then starts as root on the host. Add a `USER`.
+- **Secrets in build arguments persist in image history**, readable by anyone with the image. Use
+  build secrets or inject at runtime.
+- **Zombie processes accumulate without an init.** PID 1 is expected to reap orphans; most
+  application processes do not, which is what `--init` exists for.
+- **A container's memory limit is not what the process sees.** Runtimes that read host memory rather
+  than the cgroup limit will over-allocate and get OOM-killed.
+- **Architecture mismatches surface at runtime.** An image built on arm64 fails on amd64 unless it
+  is multi-arch, and the error rarely says so plainly.
+
+## Where to Go Deeper
+
+- [Module 10: Kubernetes](/learn/modules/10-kubernetes/) — scheduling, resource requests and
+  limits, and what an orchestrator adds on top of these primitives.
+- [Module 1 → Production Example](/learn/modules/01-production-python/#production-example) —
+  graceful drain, which is exactly what PID 1 signal handling either allows or silently breaks.
+- [Module 11: Cloud](/learn/modules/11-cloud/) — where images are stored, scanned, and deployed.
+- [Kubernetes](/reference/lookups/kubernetes/) — the next layer up.

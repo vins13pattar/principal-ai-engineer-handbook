@@ -1,0 +1,88 @@
+---
+title: AWS
+description: The service shapes and cost mechanics that matter for AI platforms — what each compute option actually costs you in constraints, and where the bill comes from.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the AWS lookup.
+    author: vinod
+category: Cloud platform
+---
+
+## At a Glance
+
+A large catalogue in which a handful of decisions carry almost all the weight: which compute model
+you run on, where your data physically sits, and how traffic crosses boundaries. Everything else is
+mostly configuration.
+
+Two properties shape AI platform design more than any service choice. Data transfer out of a region
+is billed and data transfer in is generally not, which pulls compute toward data. And the durability
+of a managed service is not the same as its availability — a service can be extremely unlikely to
+lose your data and still be unavailable often enough to matter.
+
+## Key Concepts
+
+| Concept | What it is |
+| --- | --- |
+| Region / Availability Zone | A region is a geographic area; an AZ is an isolated failure domain within it. Multi-AZ is the default answer to hardware failure |
+| IAM role vs user | A role is assumed temporarily and issues short-lived credentials; a user carries long-lived keys. Prefer roles everywhere |
+| Instance profile / IRSA | How a workload gets a role without a stored secret — the EC2 and Kubernetes forms of the same idea |
+| VPC endpoint | Private access to a service without traversing the public internet, avoiding NAT charges |
+| NAT gateway | Egress for private subnets. Billed hourly *and* per GB, and a routine source of surprise cost |
+| S3 storage class | Standard through Glacier — a trade of retrieval latency and cost against storage price |
+| EBS vs instance store | Network-attached and persistent versus local and lost on stop |
+| Spot instance | Large discount, interruptible with a short warning. Excellent for batch, hazardous for serving |
+| Reserved / Savings Plan | Commitment in exchange for a discount, at the cost of flexibility |
+| ECS vs EKS vs Lambda | Managed containers, managed Kubernetes, or functions — decreasing control, decreasing operational surface |
+| CloudWatch | Metrics, logs, and alarms, billed by ingestion and retention |
+| KMS | Managed keys. Envelope encryption, with per-request charges at high volume |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Data transfer in | Generally free | Ingesting is cheap; the bill is on the way out |
+| Data transfer out | Billed per GB, cross-region and internet | Moves compute toward data, not the reverse |
+| Cross-AZ traffic | Billed in both directions | A chatty service spread across AZs pays for its own chattiness |
+| NAT gateway | Hourly plus per-GB | A private subnet pulling large model weights through NAT is a recurring surprise |
+| S3 durability design | 11 nines | Durability, not availability — the two are different guarantees |
+| Spot interruption notice | About 2 minutes | Enough to drain a request, not enough to finish a long training step |
+| Lambda maximum timeout | 15 minutes | A hard ceiling that rules it out for most inference and all training |
+| Lambda cold start | Milliseconds to seconds | Grows with package size; a large model makes it unusable |
+| GPU instance quotas | Zero by default | New accounts cannot launch accelerators until a quota increase is granted — plan lead time |
+| IAM policy evaluation | Explicit deny always wins | An allow anywhere cannot override a deny anywhere |
+
+## Common Gotchas
+
+- **Durability is not availability.** S3's famous figure describes losing objects, not being
+  reachable. Design for the service being briefly unavailable regardless.
+- **NAT gateway charges accumulate quietly.** Every private-subnet pull of an image or model weight
+  is billed twice, hourly and by volume. VPC endpoints remove most of it.
+- **Cross-AZ chatter is billed both ways.** Spreading for availability is correct, and a
+  conversational service spread across AZs pays continuously for it.
+- **Spot for serving trades cost for a two-minute eviction.** Fine for batch and evaluation, poor
+  for anything holding a request.
+- **GPU quotas start at zero**, and increases take time. Discovering this the week you need capacity
+  is a schedule problem, not a technical one.
+- **Long-lived access keys are the most common credential leak.** Roles issue short-lived
+  credentials and are supported everywhere that matters.
+- **An explicit deny cannot be overridden.** Debugging "I granted the permission and it still fails"
+  almost always ends at a deny in an SCP or boundary policy.
+- **CloudWatch is billed on ingestion and retention.** Verbose logging at scale can cost more than
+  the compute producing it.
+- **Deleting an S3 bucket does not delete versions.** Versioned objects and incomplete multipart
+  uploads keep accruing storage until a lifecycle rule removes them.
+- **Region choice is close to irreversible.** Data residency, latency to users, and per-region
+  service availability all follow from it, and moving later means moving data you now pay to move.
+
+## Where to Go Deeper
+
+- [Module 11: Cloud](/learn/modules/11-cloud/) — multi-region architecture, cost, and the
+  provider-agnostic version of these decisions.
+- [Module 13 → Deep Dive](/learn/modules/13-system-design/#deep-dive) — cost per request as a
+  first-class design constraint rather than a capacity footnote.
+- [Kubernetes](/reference/lookups/kubernetes/) — what EKS is orchestrating.
+- [Model Serving Platform](/architecture/systems/model-serving-platform/) — accelerator capacity,
+  cold start, and the cost model behind serving decisions.

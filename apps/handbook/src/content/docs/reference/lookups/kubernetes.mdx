@@ -1,0 +1,90 @@
+---
+title: Kubernetes
+description: A control loop over declared state — the objects worth knowing, the scheduling and eviction rules that decide what runs, and why GPU workloads break the usual assumptions.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the Kubernetes lookup.
+    author: vinod
+category: Orchestration
+---
+
+## At a Glance
+
+You declare desired state; controllers reconcile actual state toward it, forever. Nothing is
+imperative — `kubectl apply` records an intention, and the outcome arrives asynchronously or not at
+all. Almost every confusing behavior makes sense once you ask which controller is reconciling what,
+and what it can observe.
+
+For AI platforms the interesting parts are narrow: how the scheduler places pods, what requests and
+limits actually do, and why accelerator workloads violate the assumptions that make autoscaling work
+for stateless web services.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Pod | The scheduling unit: one or more containers sharing a network namespace and volumes |
+| Deployment | Manages a ReplicaSet, which manages pods. Rolling updates and rollback live here |
+| StatefulSet | Stable identities and stable storage, with ordered rollout — for things that are not interchangeable |
+| Service | A stable virtual IP load-balancing across pods matching a selector |
+| Requests vs limits | Requests drive scheduling; limits drive enforcement. They are different numbers doing different jobs |
+| QoS class | Guaranteed, Burstable, or BestEffort — derived from requests and limits, and it decides eviction order |
+| Taint / toleration | A node repels pods unless they tolerate the taint. How GPU nodes stay reserved |
+| Affinity / anti-affinity | Attracts or repels pods relative to nodes or other pods, for spreading or co-location |
+| PodDisruptionBudget | The minimum availability that voluntary disruptions must respect |
+| Probes | Liveness restarts, readiness gates traffic, startup suppresses the other two while booting |
+| HPA | Scales replicas on observed metrics |
+| Cluster autoscaler | Adds and removes nodes when pods cannot be scheduled |
+| Operator | A custom controller plus CRD, applying the same reconciliation loop to your own objects |
+| etcd | The Raft-backed store holding all cluster state |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Default scheduling input | Requests, not limits | A pod with no requests can be scheduled onto a node with nothing left |
+| CPU limits | Throttling | Exceeding a CPU limit throttles the container; it is not killed |
+| Memory limits | OOMKill | Exceeding a memory limit kills the container. CPU and memory fail differently |
+| Eviction order under pressure | BestEffort, then Burstable, then Guaranteed | QoS class is what protects a workload, and it is derived, not set |
+| Guaranteed QoS condition | Requests equal limits, for every resource and container | Easy to lose accidentally by setting one and not the other |
+| GPU allocation | Whole devices, no overcommit | Unlike CPU, you cannot request a fraction by default |
+| Default grace period | 30 seconds | `SIGTERM`, then `SIGKILL`. Drain must finish inside it |
+| etcd cluster size | 3 or 5 | It is a Raft group, with Raft's quorum arithmetic |
+| Default namespace isolation | None on the network | Without a NetworkPolicy, any pod can reach any pod |
+| Failed liveness probe | Container restart | A probe that checks a dependency turns a dependency blip into a restart loop |
+
+## Common Gotchas
+
+- **Liveness probes that check dependencies cause cascading restarts.** If the probe fails when the
+  database is slow, Kubernetes restarts healthy pods during a database incident, making it worse.
+  Liveness answers "is this process wedged", not "is the system healthy".
+- **Missing resource requests break scheduling silently.** The scheduler assumes near-zero, packs
+  the node, and everything on it degrades together.
+- **CPU limits throttle rather than kill**, so a latency problem from throttling looks like slow code
+  rather than a misconfiguration. Watch throttling metrics directly.
+- **Cold start is minutes for model workloads** — image pull, model download, accelerator
+  initialization. Any autoscaling signal that reacts to current load is already too late; see
+  [Model Serving Platform](/architecture/systems/model-serving-platform/).
+- **HPA on CPU is the wrong signal for I/O-bound services.** CPU stays flat until the service falls
+  over. Scale on queue depth, concurrency, or latency.
+- **`kubectl apply` returning success means the API accepted your object**, not that anything runs.
+  The controller reconciles afterwards, and may never succeed.
+- **No NetworkPolicy means a flat network.** Namespaces are an organizational boundary, not a
+  security one, until you add policies.
+- **Rolling updates can break PodDisruptionBudgets into a deadlock** — a budget stricter than the
+  rollout can afford stalls the rollout indefinitely.
+- **GPU nodes need taints or they fill with ordinary pods**, leaving expensive capacity occupied by
+  workloads that cannot use it.
+
+## Where to Go Deeper
+
+- [Module 10: Kubernetes](/learn/modules/10-kubernetes/) — scheduling, scaling, and the accelerator
+  specifics in depth.
+- [Model Serving Platform](/architecture/systems/model-serving-platform/) — cold start as the
+  dominant constraint, and what that forces on autoscaling design.
+- [Docker](/reference/lookups/docker/) — the container primitives underneath.
+- [Raft](/reference/lookups/raft/) — etcd is a Raft cluster, which is why control-plane topology
+  looks the way it does.

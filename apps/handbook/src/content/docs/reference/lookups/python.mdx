@@ -1,0 +1,85 @@
+---
+title: Python
+description: The runtime semantics that decide how a Python service behaves under load — the GIL, the object model, and the numbers people misremember in design discussions.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the Python lookup.
+    author: vinod
+category: Language
+---
+
+## At a Glance
+
+A dynamically typed, garbage-collected language whose reference implementation (CPython) executes
+bytecode on a stack machine, one thread at a time per interpreter. Almost every surprising
+performance characteristic of a Python service traces back to that last clause or to the fact that
+everything — including integers and functions — is a heap-allocated object.
+
+For AI infrastructure the practical reading is narrow: Python is the coordination layer. The work
+that matters for throughput happens in C, in a database, or on an accelerator, and Python's job is
+to orchestrate it without becoming the bottleneck itself.
+
+## Key Concepts
+
+| Concept | What it actually is |
+| --- | --- |
+| GIL | A mutex around the interpreter. One thread executes Python bytecode at a time; it is released around blocking I/O and inside many C extensions |
+| Reference counting | The primary memory strategy. An object dies the moment its count hits zero — deterministic, unlike a tracing collector |
+| Cycle collector | The generational backup for reference cycles, which refcounting alone cannot free |
+| `__slots__` | Replaces an instance `__dict__` with fixed storage — meaningful memory savings on many small objects |
+| Descriptor protocol | What makes `property`, `classmethod`, and ORM fields work. `__get__`/`__set__` on a class attribute |
+| MRO (C3 linearization) | The deterministic order in which multiple inheritance resolves attributes |
+| Iterator vs generator | Generators are lazy and single-pass; consuming one twice yields nothing the second time |
+| Context manager | `__enter__`/`__exit__`, the only construct that guarantees cleanup on the exception path |
+| Type hints | Erased at runtime by default. `mypy --strict` checks them; the interpreter does not |
+| Virtual environment | Directory-level dependency isolation. Not a sandbox and not a container |
+| Wheel vs sdist | A wheel is a prebuilt binary; an sdist compiles on install and is where "works on my machine" starts |
+| GC generations | Three, tuned for the observation that most objects die young |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Threads running Python bytecode | 1 per interpreter | Threads help blocking I/O, never pure-Python CPU work |
+| Recursion limit | 1000 by default | Deep recursion raises rather than segfaults; raising it trades one crash mode for another |
+| Small-int cache | −5 to 256 | Why `is` appears to work on small integers and then fails at 257 |
+| Dict insertion order | Guaranteed since 3.7 | An implementation detail in 3.6 that became a language guarantee |
+| `str` immutability | Always | Repeated `+=` in a loop is quadratic; `"".join()` is linear |
+| Default `float` | IEEE 754 double | `0.1 + 0.2 != 0.3`; money belongs in `Decimal` or integer minor units |
+| Object overhead | Tens of bytes each | A million-element list of ints is far larger than a million machine words |
+| `multiprocessing` start method | `spawn` on macOS and Windows, `fork` on Linux | `fork` plus threads is a documented deadlock source |
+| Import side effects | Run once per interpreter | Module-level code executes on first import, not on call |
+
+## Common Gotchas
+
+- **Mutable default arguments** are evaluated once at definition. `def f(x=[])` shares one list
+  across every call — use `None` and build inside.
+- **Late-binding closures.** `[lambda: i for i in range(3)]` gives three functions all returning
+  `2`. Bind with a default argument: `lambda i=i: i`.
+- **`is` is not `==`.** Identity, not equality. It appears to work for small integers and short
+  strings because of interning, which makes the bug intermittent.
+- **Bare `except:` catches `SystemExit` and `KeyboardInterrupt`** — and since 3.8,
+  `asyncio.CancelledError` no longer inherits from `Exception`, so `except Exception` behaves
+  differently than older code assumed.
+- **`__del__` is not a destructor you can rely on.** Order at interpreter shutdown is undefined, and
+  an exception inside it is swallowed. Use a context manager.
+- **Threads do not speed up CPU-bound Python.** They add context-switching overhead to work the GIL
+  already serializes. Use processes.
+- **`fork` copies memory lazily but copies refcounts eagerly** — touching objects in a child dirties
+  pages, so copy-on-write saves less than expected.
+- **Module-level state is per-process.** A cache or counter defined at import time is not shared
+  across workers, which is the same class of bug as an in-process rate limiter across replicas.
+- **`sys.setrecursionlimit` does not grow the C stack.** Push it far enough and the process
+  segfaults rather than raising.
+
+## Where to Go Deeper
+
+- [Module 1: Production Python](/learn/modules/01-production-python/) — the concurrency model,
+  layered timeouts, backpressure, and graceful shutdown in a real service.
+- [asyncio](/reference/lookups/asyncio/) — the async runtime built on top of these semantics.
+- [Track: AI Systems Coding](/interview/tracks/ai-systems-coding/) — where these details get
+  examined directly.
+- [`async-ai-gateway`](/build/labs/async-ai-gateway/) — a typed, tested service applying all of it.
