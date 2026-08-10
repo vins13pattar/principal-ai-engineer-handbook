@@ -1,0 +1,77 @@
+---
+title: "Cheat Sheet: Design Review"
+sidebar:
+  label: "Design Review"
+description: One page for reviewing someone else's design — the order that finds real problems fastest, the questions worth asking per section, and the review habits that waste everyone's time.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the design review cheat sheet.
+    author: vinod
+category: cheatsheet
+printable: true
+---
+
+## Use This When
+
+Someone has sent you a design document and you have an hour. This is the reviewing side, not the
+producing side — for the round where you present, use
+[Design Round](/cheatsheets/sheets/design-round/).
+
+Depth lives in [Module 13](/learn/modules/13-system-design/) and
+[Module 14](/learn/modules/14-leadership/). The [Architecture](/architecture/) pages are worked
+examples of what a design that survives review contains.
+
+## The Sequence
+
+1. **Read the constraints before the diagram.** If they are missing or written as adjectives, stop
+   there — every downstream comment is unanchored, and that is the finding.
+2. **Check that the requirements would change the design.** If you could swap the volume or latency
+   target and the architecture stayed identical, the constraints are decoration.
+3. **Find the decision that is hardest to reverse.** Data boundary, state ownership, external
+   contract. Ask whether the author knows which one it is — most review value concentrates here.
+4. **Trace one request end to end** and look for the seam nobody described: retries, partial
+   failure, what holds state, what happens on redeploy.
+5. **Ask what would refute it.** Each claim needs a measurement and a threshold. "It will scale" is
+   not reviewable.
+6. **Comment on cost and observability last but always.** They are the two sections most often
+   missing and the two that predict operability.
+7. **Separate blocking from non-blocking**, explicitly, in writing. Reviews that mix them get
+   treated as all-optional or all-mandatory, and both are wrong.
+
+## Quick Reference
+
+**Questions that find real problems**
+
+| Section | Ask |
+| --- | --- |
+| Constraints | Peak rps, p99 target, what "correct" means, whose data, cost per call |
+| Capacity | Does `arrival_rate × latency` agree with the configured pool and replica counts? |
+| State | Who owns it, what a failure loses, what happens on the second replica |
+| Retries | Bounded attempts, bounded total deadline, jitter — and is the handler idempotent? |
+| Failure | What breaks first at 10×? What is the blast radius of full compromise? |
+| Data | Is permission filtering inside the query, or applied after retrieval? |
+| Quality | Is there an eval set, a threshold, and an owner? Or only latency monitoring? |
+| Rollout | Reversible in one deploy? If not, what evidence would change the decision? |
+
+**Reversibility sort** — config change (minutes) → component swap (a week) → data model or tenant
+boundary (a migration, an audit, a disclosure). Spend review attention in that order, not in the
+order the document is written.
+
+**Feedback that lands** — name the constraint you are reasoning from, state the failure you predict
+concretely, and say what would change your mind. A comment with all three is hard to dismiss and
+easy to act on.
+
+## Red Flags
+
+- **In the design:** technologies chosen before constraints · capacity in adjectives · the model
+  treated as a function returning a string · no evaluation story · security discussed only as
+  authentication · no stated cost for any decision.
+- **In your review:** rewriting the design as the one you would have written — that is a different
+  document, not a review.
+- Litigating a two-way door. If it is reversible in a deploy and the author owns the code, let it go.
+- Comments with no stated constraint behind them, which read as preference and get treated as such.
+- Approving because it is well written. Prose quality and design quality are uncorrelated.
+- Blocking on something you have not said how to fix, or how you would know it was fixed.
