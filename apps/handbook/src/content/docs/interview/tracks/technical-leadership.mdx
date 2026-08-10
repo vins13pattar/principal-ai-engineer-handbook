@@ -1,0 +1,194 @@
+---
+title: "Track: Technical Leadership"
+sidebar:
+  label: "Technical Leadership"
+description: The leadership round for Principal and Staff roles — what it actually samples, why it is a technical round in disguise, and the decisions in your own history worth being able to reconstruct.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Initial publication, completing the Interview section's three tracks.
+    author: vinod
+category: interview-track
+---
+
+import { Checklist, EngineeringNote, FailureMode, PrincipalPerspective, TradeOff } from "@handbook/components";
+
+This is the round people prepare for last and lose most often. Not because it is soft — because it
+is misread as soft. The interviewer is sampling the same thing as the design round, on a different
+input: whether your technical judgement holds up when the details are supplied by your own memory
+instead of a whiteboard.
+
+That reframing is the whole track. What follows is what the round samples, what makes an answer
+verifiable, and which parts of your own history are worth being able to reconstruct in detail.
+
+## What is actually being assessed
+
+- **Did you make the decision, or were you nearby when it was made?** The single most reliable
+  separator. Interviewers probe for the constraints you established, the options you rejected, and
+  who disagreed — because those are hard to narrate convincingly if you were not the one deciding.
+- **Can you be specific under follow-up?** A confident summary that dissolves into vagueness on the
+  second question reads worse than a modest claim that holds up on the fifth.
+- **Do you know what your decisions cost?** Every real decision has a downside. An account with no
+  costs is an account that has been sanded smooth, and interviewers at this level have heard enough
+  of them to notice.
+- **How do you behave when you are wrong?** Not whether you have been — everyone has. How long it
+  took you to notice, what you did in the gap, and what changed afterwards.
+- **Do you scale beyond yourself?** Whether what you built keeps working after you moved on, and
+  whether anyone else can now do what only you could.
+- **How do you disagree?** With peers, with people more senior, and with people who report to
+  nobody you influence. This is asked in almost every loop, usually more than once.
+
+<PrincipalPerspective title="It is a technical round conducted on your history">
+  The interviewer cannot verify your system design against production, so they verify it against
+  itself: do the constraints you cite explain the architecture you chose, do the trade-offs you name
+  follow from those constraints, and does the outcome follow from the decision? Internal consistency
+  under questioning is the signal. This is why accounts assembled for the interview fail — they hold
+  at one level of detail and come apart at three.
+</PrincipalPerspective>
+
+## Why this round is harder at Principal level
+
+At Senior, the question is whether you delivered. At Principal, it is whether you changed what the
+organization does — and the evidence for that is different in kind.
+
+| What is sampled | Senior | Principal |
+| --- | --- | --- |
+| Scope of the decision | Your team's system | Something spanning teams you don't control |
+| Evidence of impact | It shipped and worked | It is still working, and others build on it |
+| Handling disagreement | You resolved it with your team | You changed a decision without authority to make it |
+| What you left behind | Working code | A mechanism, a contract, or a standard that outlives you |
+| Being wrong | You fixed it | You noticed sooner because of something you had built |
+
+The practical consequence: the strongest material is usually not your most technically impressive
+project. It is the decision that had to survive other people disagreeing with it.
+
+## The decisions worth being able to reconstruct
+
+Not a list to rehearse — a list to check you can actually answer. Each maps to material in this
+handbook that says what a strong answer contains.
+
+| Situation | What it samples | Grounded in |
+| --- | --- | --- |
+| A decision that was hard to reverse | Whether you recognized it as such *at the time* | [Module 14 → Deep Dive](/learn/modules/14-leadership/#deep-dive) |
+| A technical disagreement you lost | Whether you can distinguish being overruled from being wrong | [Module 14 → Trade-offs](/learn/modules/14-leadership/#trade-offs) |
+| A decision you reversed | The gap between the evidence arriving and you acting | [Module 14 → Interview Questions](/learn/modules/14-leadership/#interview-questions) |
+| Something you standardized across teams | Whether you standardized where it compounds, or on taste | [Module 14 → Scaling](/learn/modules/14-leadership/#scaling) |
+| An incident you led | Whether the outcome was a mechanism or a culprit | [Module 12](/learn/modules/12-observability/) · [AI Reliability Platform](/architecture/systems/ai-reliability-platform/) |
+| A system whose quality degraded quietly | Whether anyone owned the quality signal | [Module 13 → Failure Modes](/learn/modules/13-system-design/#failure-modes) |
+| A cost or capacity problem you owned | Whether you had numbers or adjectives | [Module 13 → Implementation](/learn/modules/13-system-design/#implementation) |
+| Work you handed to someone else | Whether you delegated decisions or only tasks | [Module 14 → Scaling](/learn/modules/14-leadership/#scaling) |
+
+If any row makes you reach for a project where you were *adjacent* to the decision, that is the
+useful finding. It is better to have three decisions you genuinely owned than eight you can
+describe.
+
+<EngineeringNote>
+  The most efficient preparation is not rehearsal — it is writing two or three of your own past
+  decisions in the seven-section [ADR](/adr/) format: Context, Problem, Options, Decision,
+  Consequences. The Options section does the work. If you cannot reconstruct what you rejected and
+  why, you will not survive the follow-up question, and you have just found that out in private
+  rather than in the room.
+</EngineeringNote>
+
+## Failure patterns
+
+<FailureMode title="The account that has no cost">
+  Every decision traded something away. An account where the approach was chosen, it worked, and
+  nothing was given up describes either a trivial decision or a remembered one. Naming the cost is
+  the cheapest credibility available, and most candidates skip it.
+</FailureMode>
+
+<FailureMode title="'We' with no visible seam">
+  Some rounds are explicitly scored on distinguishing your contribution from your team's. Undivided
+  "we" reads as either modesty or concealment, and the interviewer cannot tell which — so they
+  probe, and the probing consumes the time you needed. Say what the team did, then what you decided.
+</FailureMode>
+
+<FailureMode title="Depth that stops one question early">
+  You get through the summary and the first follow-up, then the third question reaches past what you
+  actually remember. The fix is not more polish on the summary — it is picking material you can go
+  four levels deep on, which usually means fewer projects than you planned to bring.
+</FailureMode>
+
+<FailureMode title="Conflict answers with no real conflict">
+  "We discussed it and aligned on the best approach" is a non-answer, and it is the most common one.
+  The interviewer wants to know what happens when alignment does not arrive on its own. An answer
+  where you were genuinely overruled — and can say whether you were also wrong — is far stronger
+  than one where everything resolved amicably.
+</FailureMode>
+
+<FailureMode title="Impact measured in effort">
+  "I spent six months migrating it" is effort. What changed as a result — a number, a capability
+  that did not exist, a class of incident that stopped happening — is impact. At this level the
+  second is the only one that counts.
+</FailureMode>
+
+<FailureMode title="Treating it as the round that doesn't need preparation">
+  Candidates who prepare thoroughly for design and coding often walk into this one cold, on the
+  theory that they will simply recall their own work. Recall under follow-up questioning is a
+  different task from recall, and the difference shows within about four minutes.
+</FailureMode>
+
+## Trade-offs you will be asked to defend
+
+These come up as questions about your judgement, and each has a defensible answer in both
+directions. [Module 14 → Trade-offs](/learn/modules/14-leadership/#trade-offs) argues them out.
+
+<TradeOff title="Decide now, or gather more evidence">
+  Deciding early keeps people unblocked and risks compounding a mistake. Waiting buys accuracy at a
+  cost nobody logs, because time spent blocked does not appear on a dashboard. The answer that lands
+  routes by reversibility and timeboxes the gathering — otherwise "more evidence" quietly becomes
+  the decision.
+</TradeOff>
+
+<TradeOff title="Consistency across teams, or team autonomy">
+  A shared stack gives one set of runbooks and engineers who can move between services; autonomy
+  fits each problem better and multiplies the operational surface. Strong answers name the small set
+  worth standardizing — usually identity, observability, deployment — and say what they deliberately
+  left alone.
+</TradeOff>
+
+<TradeOff title="Fix it yourself, or coach someone through it">
+  Fixing is faster today and buys nothing tomorrow. Interviewers listen for whether you know the
+  difference and can name the condition under which you would still just fix it — a real deadline
+  and a small lesson.
+</TradeOff>
+
+<TradeOff title="Build the mechanism, or trust the norm">
+  A mechanism is reliable and rigid; one that is wrong even occasionally gets disabled entirely,
+  taking its useful coverage with it. A norm flexes and decays. The distinguishing answer automates
+  where a violation is unambiguous and leaves judgement calls to review.
+</TradeOff>
+
+## Where the questions live
+
+Behavioral questions sit next to the material that makes the answers credible, same as everywhere
+else in this handbook.
+
+- [Module 14: Leadership](/learn/modules/14-leadership/#interview-questions) — driving decisions
+  without authority, being wrong, what to standardize, disagreeing with a senior colleague, and the
+  model-update-breaks-a-product question. The highest-yield set for this track.
+- [Module 0: Principal Engineer Mindset](/learn/modules/00-principal-engineer-mindset/#interview-questions) —
+  decision framing and trade-off articulation, which is what the follow-ups probe.
+- [Module 12: Observability](/learn/modules/12-observability/#interview-questions) — the incident
+  and on-call material most of these rounds reach for.
+- [ADR](/adr/) — this repository's own decision records, including
+  [one that was superseded](/adr/decisions/0005-cloudflare-pages-deployment/), as worked examples of
+  the format an answer should be able to fill.
+
+## Preparation checklist
+
+<Checklist title="Before a leadership round">
+  - You have three decisions you personally made, each of which you can go four questions deep on.
+  - For each, you can name the options you rejected and why — not just the one you chose.
+  - For each, you can name what it cost. A decision with no downside was not a decision.
+  - You have one you got wrong, including how long the gap was between the evidence and your acting
+    on it.
+  - You have one where you were overruled, and you can say whether you were also wrong.
+  - You can point to something still working that you are no longer involved in.
+  - You can separate what your team did from what you decided, without either hiding behind "we" or
+    erasing them.
+  - At least one of your examples has a number attached that is not a duration.
+</Checklist>
