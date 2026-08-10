@@ -4,9 +4,9 @@
 [![Async AI Gateway CI](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-Deployed via [Cloudflare Pages](https://pages.cloudflare.com/) git integration — every push to
+Deployed to Cloudflare as a Worker with static assets — every push to
 `main` and every pull request gets its own build and preview URL. See
-[ADR-0005](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0005-cloudflare-pages-deployment/)
+[ADR-0007](apps/handbook/src/content/docs/adr/decisions/0007-workers-static-assets-deployment.mdx)
 and [`docs/DEVELOPMENT.md`](docs/DEVELOPMENT.md#deployment) for the Cloudflare project settings.
 
 An open-source knowledge system for Principal AI Engineers: production architecture reference,
@@ -47,7 +47,7 @@ labs/                Production-quality labs (independent Python projects)
 docs/                Contributor-facing guides (content authoring, local development)
 legacy/              Retired static-HTML prototype, kept for migration reference
 scripts/             Repo-level tooling (content structure lint)
-.github/workflows/   CI (lint, typecheck, test, build, e2e) — deployment is Cloudflare Pages, not Actions
+.github/workflows/   CI (lint, typecheck, test, build, e2e) — deployment is Cloudflare, not Actions
 ```
 
 ## Local development

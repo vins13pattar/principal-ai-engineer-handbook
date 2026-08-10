@@ -1,0 +1,120 @@
+---
+title: "ADR-0007: Deploy as a Worker with static assets instead of a Pages project"
+sidebar:
+  label: "0007 · Workers static assets"
+description: Why the site now deploys through Workers Builds as a static-assets Worker, what that breaks about the Pages-shaped configuration, and the two settings that fail silently.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Accepted, superseding ADR-0005.
+    author: vinod
+category: adr
+adrNumber: 7
+adrStatus: accepted
+---
+
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={7} status="accepted" date={new Date("2026-08-10")} />
+
+## Status
+
+Accepted, superseding [ADR-0005](/adr/decisions/0005-cloudflare-pages-deployment/). Implemented by
+replacing `pages_build_output_dir` in `wrangler.toml` with an `[assets]` block, and by preferring
+`SITE_URL` over `CF_PAGES_URL` in `apps/handbook/astro.config.mjs`.
+
+## Context
+
+ADR-0005 chose Cloudflare Pages via git integration, and its build settings — build command
+`pnpm build`, output directory `apps/handbook/dist`, root directory `/` — were written against the
+**Workers & Pages → Create → Pages → Connect to Git** flow.
+
+That flow is no longer where Cloudflare puts new git-connected projects. Creating one now lands in
+**Workers Builds**, whose setup form asks for a *deploy command* (`npx wrangler deploy`) rather than
+an output directory, and which deploys a Worker rather than a Pages project. The decision in
+ADR-0005 was not wrong when it was made; the platform moved underneath it.
+
+## Problem
+
+Three things break when the same repository is pointed at Workers Builds unchanged, and none of
+them announce themselves:
+
+- **`wrangler deploy` rejects the Pages configuration.** `pages_build_output_dir` marks the project
+  as Pages, and the Workers deploy command is not valid against it.
+- **Bare `wrangler deploy` refuses to run at a pnpm workspace root**, with "The Cloudflare
+  application detection logic has been run in the root of a workspace instead of targeting a
+  specific project." Wrangler tries to infer which workspace package to deploy and declines to
+  guess. This is specific to monorepos and does not appear in any single-package guide.
+- **`CF_PAGES_URL` does not exist on Workers Builds.** It is a Pages variable. The site config read
+  it to derive `site`, so on Workers it would fall through to the hard-coded fallback and stamp a
+  wrong canonical URL onto all 50 pages and every entry of `sitemap-0.xml` — while the build stays
+  green and the site looks correct to a human.
+
+## Options
+
+- **Stay on Pages by finding the legacy creation flow.** Possible for now, but it means building on
+  the path Cloudflare is steering projects away from, and the flow may not survive. It also leaves
+  the monorepo and canonical-URL problems unexamined rather than solved.
+- **Move the site out of the workspace into its own repository** so wrangler's auto-detection has a
+  single package to find. This trades a one-line deploy flag for splitting the labs, packages, and
+  content away from the site they document — the monorepo exists for exactly that cohesion
+  ([ADR-0002](/adr/decisions/0002-pnpm-monorepo-layout/)).
+- **Deploy as a Worker with static assets, keeping the monorepo.** No server code and no `main`
+  entry point, so Cloudflare serves the built directory from its edge — functionally what Pages did.
+  Costs an explicit `-c` flag on the deploy command and an explicitly configured site URL.
+
+## Decision
+
+Deploy as a static-assets Worker through Workers Builds.
+
+`wrangler.toml` declares an `[assets]` block pointing at `apps/handbook/dist`, with
+`not_found_handling = "404-page"` so Astro's own 404 is served instead of Cloudflare's. There is no
+`main`, so no Worker code runs on a request.
+
+The deploy command must name the config file — `npx wrangler deploy -c wrangler.toml` — which skips
+workspace auto-detection entirely. Paths inside the config resolve relative to the config file, so
+the repository root stays the correct working directory and `pnpm build` still resolves the
+workspace.
+
+`site` now reads `SITE_URL` first, set explicitly in the Cloudflare build settings, falling back to
+`CF_PAGES_URL` so a Pages deployment continues to work unchanged.
+
+Cloudflare project settings, for the record:
+
+| Setting | Value |
+| --- | --- |
+| Build command | `pnpm run build` |
+| Deploy command | `npx wrangler deploy -c wrangler.toml` |
+| Path | `/` |
+| Environment variable | `SITE_URL` = the deployment's own URL |
+
+## Consequences
+
+- The deploy command carries a flag that looks redundant and is not. `-c wrangler.toml` is load
+  bearing, and removing it fails only inside a workspace — which is to say, only here. The reason is
+  recorded in `wrangler.toml` itself, next to the thing it protects, because a comment in an ADR
+  would not be read by whoever simplifies that command.
+- The site URL is now configuration rather than something the platform supplies. That is more to
+  set up once and one less thing that can be silently absent — the previous arrangement failed by
+  producing plausible wrong output, which is the worse failure.
+- Preview deployments change shape: non-production branches use `wrangler versions upload`, which
+  produces a version preview URL rather than the per-branch `*.pages.dev` subdomain ADR-0005
+  described.
+- Assets are served by the Workers runtime, so adding real server behavior later — redirects,
+  auth-gated pages, an API route — becomes a matter of adding a `main` entry point rather than
+  migrating platforms. Pages would have required moving to Functions.
+- CI still cannot verify any of this. `.github/workflows/site-ci.yml` proves the build and the
+  links; whether Cloudflare is configured correctly is only observable on the deployed URL, which
+  is why `docs/DEVELOPMENT.md` carries a post-deploy checklist.
+
+## References
+
+- [Cloudflare Workers: static assets](https://developers.cloudflare.com/workers/static-assets/)
+- [Cloudflare Workers Builds](https://developers.cloudflare.com/workers/ci-cd/builds/)
+- [ADR-0005](/adr/decisions/0005-cloudflare-pages-deployment/), superseded by this decision, which
+  still holds for the part that matters most: the site is served from a domain root and has no
+  `base` path.
+- [ADR-0002](/adr/decisions/0002-pnpm-monorepo-layout/), the workspace layout that makes the `-c`
+  flag necessary.

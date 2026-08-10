@@ -3,26 +3,38 @@ title: "ADR-0005: Deploy via Cloudflare Pages git integration instead of GitHub 
 sidebar:
   label: "0005 · Cloudflare Pages"
 description: Why the site deploys through Cloudflare Pages' own git integration rather than a GitHub Actions workflow pushing to GitHub Pages, and what that changes about the site's base path.
-version: 1.0.0
-lastUpdated: 2026-08-05
+version: 1.1.0
+lastUpdated: 2026-08-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Accepted.
     author: vinod
+  - version: 1.1.0
+    date: 2026-08-10
+    change: Superseded by ADR-0007 after Cloudflare moved new git-connected projects to Workers Builds.
+    author: vinod
 category: adr
 adrNumber: 5
-adrStatus: accepted
+adrStatus: superseded
+supersededBy: 7
 ---
 
 import { ADRSummary } from "@handbook/components";
 
-<ADRSummary adrNumber={5} status="accepted" date={new Date("2026-08-05")} />
+<ADRSummary adrNumber={5} status="superseded" date={new Date("2026-08-05")} />
 
 ## Status
 
-Accepted. Implemented by removing `.github/workflows/deploy.yml`, removing `base` from
-`apps/handbook/astro.config.mjs`, and adding `wrangler.toml`.
+Superseded by [ADR-0007](/adr/decisions/0007-workers-static-assets-deployment/). Cloudflare now
+routes new git-connected projects through Workers Builds rather than the Pages flow this decision
+was written against, so the build settings below no longer describe how the site deploys.
+
+What survives unchanged is the part that shaped the content: the site is served from a domain root,
+has no `base` path, and every internal link is root-relative. Only the mechanism moved.
+
+Originally accepted, and implemented by removing `.github/workflows/deploy.yml`, removing `base`
+from `apps/handbook/astro.config.mjs`, and adding `wrangler.toml`.
 
 ## Context
 

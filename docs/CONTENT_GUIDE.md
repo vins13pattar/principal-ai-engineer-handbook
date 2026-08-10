@@ -202,7 +202,7 @@ before committing.
 
 ## Internal links
 
-The site has no base path — it deploys to a domain root on Cloudflare Pages (see
+The site has no base path — it is served from a domain root by Cloudflare (see
 [ADR-0005](https://principal-ai-engineer-handbook.pages.dev/adr/decisions/0005-cloudflare-pages-deployment/)).
 Write internal links root-relative, with no prefix:
 

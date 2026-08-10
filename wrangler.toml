@@ -1,9 +1,21 @@
-## Cloudflare Pages configuration.
+## Cloudflare Workers configuration for the static site.
 ##
-## The Cloudflare dashboard's git integration (Workers & Pages -> Create -> Pages -> Connect to
-## Git) is the actual deployment mechanism for this project — see docs/DEVELOPMENT.md and
-## ADR-0005. This file exists so `pages_build_output_dir` is explicit and version-controlled, and
-## so `wrangler pages dev` can serve a local build the same way Cloudflare does in production.
-name = "principal-ai-engineer-handbook"
-pages_build_output_dir = "apps/handbook/dist"
+## This deploys as a Worker with static assets and no server code — there is no `main` entry
+## point, so Cloudflare serves `apps/handbook/dist` directly from its edge. Cloudflare routes new
+## git-connected projects through Workers Builds rather than Pages, which is why this is a Worker
+## and not `pages_build_output_dir`. See ADR-0007.
+##
+## IMPORTANT: the deploy command must pass `-c wrangler.toml` explicitly. Bare `wrangler deploy`
+## fails at the root of a pnpm workspace with "The Cloudflare application detection logic has been
+## run in the root of a workspace instead of targeting a specific project" — wrangler tries to
+## auto-detect which workspace package to deploy and refuses to guess. Naming the config skips
+## detection entirely. Paths below resolve relative to this file, so the repository root is the
+## correct working directory.
+name = "principal-ai-engineer-interview-handbook"
 compatibility_date = "2026-08-05"
+
+[assets]
+directory = "apps/handbook/dist"
+# Astro emits a styled 404.html at the output root; without this, an unknown path returns a bare
+# Cloudflare 404 instead of the site's own.
+not_found_handling = "404-page"

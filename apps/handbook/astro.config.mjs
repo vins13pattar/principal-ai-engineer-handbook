@@ -6,12 +6,16 @@ import starlightLinksValidator from "starlight-links-validator";
 
 const REPO = "https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook";
 
-// Cloudflare Pages serves every deployment (production and preview) from a domain root, so this
-// site has no `base` path. `CF_PAGES_URL` is set automatically by Cloudflare's build environment
-// to the exact URL of the current deployment (production or a per-branch preview); the fallback
-// below only matters for local builds. Update it once a production domain (a custom domain or the
-// final *.pages.dev project name) is chosen. See ADR-0005.
-const site = process.env.CF_PAGES_URL ?? "https://principal-ai-engineer-handbook.pages.dev";
+// Cloudflare serves every deployment from a domain root, so this site has no `base` path.
+//
+// `SITE_URL` is set explicitly in the Cloudflare build settings and is the only one of these that
+// works on Workers Builds — `CF_PAGES_URL` is a Cloudflare *Pages* variable and is simply absent
+// there, which would silently stamp the fallback onto every canonical URL and the whole sitemap.
+// It is kept as the second choice so a Pages deployment still works unchanged. See ADR-0007.
+const site =
+  process.env.SITE_URL ??
+  process.env.CF_PAGES_URL ??
+  "https://principal-ai-engineer-interview-handbook.pages.dev";
 
 export default defineConfig({
   site,
