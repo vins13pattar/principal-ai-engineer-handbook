@@ -1,0 +1,71 @@
+---
+title: "Cheat Sheet: Incident Response"
+sidebar:
+  label: "Incident Response"
+description: One page for the first thirty minutes of an AI platform incident — the order to work in, the signals that separate causes, and the moves that make an incident worse.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the incident response cheat sheet.
+    author: vinod
+category: cheatsheet
+printable: true
+---
+
+## Use This When
+
+You have just been paged, or you are about to run an incident for the first time. Print it and keep
+it next to the runbook — the value is in doing these in order while adrenaline is arguing for
+something else.
+
+Depth lives in [Module 12](/learn/modules/12-observability/),
+[AI Reliability Platform](/architecture/systems/ai-reliability-platform/), and
+[`slo-driven-ai-operations`](/build/labs/slo-driven-ai-operations/).
+
+## The Sequence
+
+1. **Stop the bleeding before understanding it.** Roll back, shed load, or fail over. Diagnosis is
+   cheaper once the graph stops falling. Resist the urge to find the cause first.
+2. **Declare, and name one person as incident lead.** The lead coordinates and does not debug.
+   Unstated leadership is how two people apply conflicting mitigations.
+3. **Establish the timeline.** What changed — deploy, config, model version, index rebuild, traffic
+   shape, upstream provider? Most incidents are a change, and the change is usually recent.
+4. **Separate saturation from failure.** Queue wait rising with flat execution time is saturation;
+   error rate rising with flat latency is a dependency. They need opposite fixes.
+5. **Communicate on a fixed cadence,** even with nothing new. Silence is read as absence.
+6. **Only then, root cause.** Under pressure, the first plausible story is usually incomplete.
+7. **Write the review while it is fresh,** and make the output a mechanism, not a culprit.
+
+## Quick Reference
+
+**Signal → likely cause**
+
+| What you see | Look at first |
+| --- | --- |
+| p99 up, p50 flat | Tail: a slow dependency, GC, or a hot shard — not overall capacity |
+| Latency up, CPU flat | I/O-bound saturation. Check queue wait and concurrency limits, not CPU |
+| Errors up right after a deploy | The deploy. Roll back first, understand after |
+| Latency fine, quality complaints | Model or index change. Latency monitoring cannot see this |
+| Cost spike, traffic flat | Retries, context growth, or a cache that stopped hitting |
+| Everything up at once | An upstream dependency or a shared resource — not your service |
+| Restarts in a loop | A liveness probe checking a dependency, amplifying its outage |
+
+**Burn rate** — budget consumption ÷ time elapsed. Fast **and** slow windows must both fire before
+paging, or a blip pages someone. A 1-hour window alone is noise; a 24-hour window alone is late.
+
+**AI-specific** — quality degrades without erroring, so check the eval signal explicitly · cold
+start is minutes, so scaling now does not help now · a provider degrading is indistinguishable from
+your own latency without per-provider metrics.
+
+## Red Flags
+
+- Debugging before mitigating, while users are still affected.
+- No named lead, so two mitigations land at once and neither can be attributed.
+- Changing more than one thing at a time — you lose the ability to tell what worked.
+- Trusting a dashboard you have never validated. Confirm the signal is real before acting on it.
+- "It recovered on its own" logged as resolution. It will return, and now with less information.
+- A review that produces a person rather than a mechanism — the reliable way to ensure the next one
+  is reported later.
+- Silent recovery with no comms, leaving everyone assuming it is still burning.

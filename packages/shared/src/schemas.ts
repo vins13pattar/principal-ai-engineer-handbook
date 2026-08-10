@@ -132,6 +132,23 @@ export const REQUIRED_REFERENCE_SECTIONS = [
   "Where to Go Deeper",
 ] as const;
 
+/**
+ * Sections every Cheat Sheet must contain.
+ *
+ * Cheat sheets are scoped to an *activity* under time pressure — a design
+ * round, an incident — not to a technology. A per-technology summary would
+ * duplicate a Reference lookup at lower fidelity, which is worth nothing to a
+ * reader and doubles the maintenance surface. The contract enforces that shape:
+ * when to reach for it, the order to work in, the values worth not deriving
+ * under pressure, and what going wrong looks like.
+ */
+export const REQUIRED_CHEATSHEET_SECTIONS = [
+  "Use This When",
+  "The Sequence",
+  "Quick Reference",
+  "Red Flags",
+] as const;
+
 /** Sections every ADR must contain. */
 export const REQUIRED_ADR_SECTIONS = [
   "Status",

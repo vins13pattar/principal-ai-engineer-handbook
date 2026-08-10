@@ -15,6 +15,7 @@ import {
   parseFreshnessDeclaration,
   REQUIRED_ADR_SECTIONS,
   REQUIRED_ARCHITECTURE_SECTIONS,
+  REQUIRED_CHEATSHEET_SECTIONS,
   REQUIRED_MODULE_SECTIONS,
   REQUIRED_REFERENCE_SECTIONS,
 } from "@handbook/shared";
@@ -55,6 +56,7 @@ const CHECKED_SECTIONS: CheckedSection[] = [
   { directory: "architecture/systems", required: REQUIRED_ARCHITECTURE_SECTIONS },
   { directory: "adr/decisions", required: REQUIRED_ADR_SECTIONS },
   { directory: "reference/lookups", required: REQUIRED_REFERENCE_SECTIONS },
+  { directory: "cheatsheets/sheets", required: REQUIRED_CHEATSHEET_SECTIONS },
 ];
 
 async function findMdxFiles(directory: string): Promise<string[]> {

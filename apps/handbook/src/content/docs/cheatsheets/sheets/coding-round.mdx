@@ -1,0 +1,78 @@
+---
+title: "Cheat Sheet: Coding Round"
+sidebar:
+  label: "Coding Round"
+description: One page for the applied coding round — the order to work in, the async rules that decide correctness, and the mistakes that fail otherwise-working code.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: Published the coding round cheat sheet.
+    author: vinod
+category: cheatsheet
+printable: true
+---
+
+## Use This When
+
+You are about to be asked to build a limiter, a retry path, a batcher, or a worker pool in 45–60
+minutes. Also usable for a debug-and-extend round — the second sequence below.
+
+Depth lives in [Track: AI Systems Coding](/interview/tracks/ai-systems-coding/),
+[Module 1](/learn/modules/01-production-python/), and [asyncio](/reference/lookups/asyncio/).
+
+## The Sequence
+
+**Applied build**
+
+1. **State the invariant first.** "No more than N in flight, and a rejected request consumes no
+   capacity." Everything after is judged against this sentence.
+2. **Signature and data model.** Types on the public boundary; nothing ceremonial inside.
+3. **Happy path,** smallest thing that holds the invariant.
+4. **Timeout, cancellation, shutdown.** Unprompted. This is the separator.
+5. **One test that fails if the invariant breaks** — concurrent calls that would race, not a
+   sequential call.
+6. **Name what you left out.** Bounded not unbounded, in-process not distributed, and what would
+   force the other choice.
+
+**Debug and extend**
+
+Reproduce before reading → find the invariant and where it stops holding → change the smallest
+thing → add the test that would have caught it → say what you deliberately did not change.
+
+## Quick Reference
+
+**Non-negotiables**
+
+| Rule | Why |
+| --- | --- |
+| `async with` the semaphore, or release in `finally` | The slot must free on success, failure, *and* cancellation |
+| Re-raise `CancelledError` | Swallowing it makes the task uncancellable — shutdown hangs, deadlines stop working |
+| Jitter the backoff | `random.uniform(0, backoff)`; fixed backoff synchronizes retries into a storm |
+| Bound the fan-out | The concurrency bound goes *inside* the loop when input size is caller-controlled |
+| Flush on size **or** deadline | A batcher without a deadline starves a lone request |
+| Claim before execute, atomically | Otherwise two concurrent submissions both run |
+
+**Concurrency model** — async for I/O with async-native libraries · threads only for blocking
+libraries with no async equivalent (no CPU gain, GIL) · processes for CPU-bound work.
+
+**Numbers** — 1 thread runs Python bytecode per interpreter · default executor
+`min(32, cpu_count + 4)` · `Queue(maxsize=0)` is unbounded · `CancelledError` inherits
+`BaseException` since 3.8 · `TaskGroup` and `asyncio.timeout()` need 3.11+.
+
+**Finished versions to compare against** — `rate_limit.py`, `gateway.py`, `resilience.py`,
+`draining.py` in [`async-ai-gateway`](/build/labs/async-ai-gateway/); `store.py`, `worker.py` in
+[`durable-agent-task-engine`](/build/labs/durable-agent-task-engine/); `batcher.py` in
+[`dynamic-batching-inference`](/build/labs/dynamic-batching-inference/).
+
+## Red Flags
+
+- `time.sleep()`, `requests`, or a CPU loop inside `async def` — freezes every coroutine, not one.
+- `acquire()` outside `try`, so an early exception leaks the slot forever.
+- `except Exception` wrapped around an `await`, swallowing cancellation.
+- `asyncio.gather()` over caller-sized input — unbounded fan-out.
+- A "concurrency test" that calls the function sequentially and proves nothing.
+- `create_task()` with no reference kept, letting the task be collected mid-flight.
+- In-process state described as if it were correct across replicas.
+- Ten minutes of silence. The round scores reasoning you make audible.

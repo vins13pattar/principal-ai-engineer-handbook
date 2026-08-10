@@ -1,24 +1,43 @@
 ---
 title: Cheat Sheets
 description: Printable, one-page summaries designed to be read on paper as readily as on screen.
-version: 1.0.0
-lastUpdated: 2026-08-04
+version: 1.1.0
+lastUpdated: 2026-08-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
     change: Published the Cheat Sheets section overview as part of the platform rebuild.
     author: vinod
+  - version: 1.1.0
+    date: 2026-08-10
+    change: Scoped sheets to activities rather than technologies, added the enforced page contract, and published the first three.
+    author: vinod
 category: section-overview
 printable: true
 ---
 
-Cheat sheets are the one-page version of a [Reference](/reference/) lookup or [Learn](/learn/)
-module — dense enough to tape next to a monitor, plain enough to print in black and white. This
-site's print stylesheet hides navigation chrome automatically, so `Cmd/Ctrl+P` on any cheat sheet
-produces a clean page.
+A cheat sheet is scoped to an **activity under time pressure** — a round you are about to walk
+into, an incident you have just been paged for — not to a technology. Per-technology summaries
+belong in [Reference](/reference/), and duplicating them here at lower fidelity would help nobody
+and double the maintenance surface.
 
-## Planned sheets
+Each sheet answers four questions, enforced in CI: when to reach for it, the order to work in, the
+values worth not deriving under pressure, and what going wrong looks like. The print stylesheet
+hides navigation chrome, so `Cmd/Ctrl+P` produces a clean page.
 
-No cheat sheets are published yet — see the [Roadmap](/roadmap/) for the authoring schedule. They
-will track the same topics as [Reference](/reference/) once those lookups exist, condensed to a
-single printable page each.
+## Published
+
+| Sheet | Use it when |
+| --- | --- |
+| [Design Round](/cheatsheets/sheets/design-round/) | You have 45 minutes and a system design prompt |
+| [Coding Round](/cheatsheets/sheets/coding-round/) | You are about to build a limiter, retry path, batcher, or worker pool |
+| [Incident Response](/cheatsheets/sheets/incident-response/) | You have just been paged |
+
+## Planned
+
+| Sheet | Use it when |
+| --- | --- |
+| Design Review | You are reviewing someone else's design and want the questions that find real problems |
+| Leadership Round | You are about to be asked about decisions you made |
+
+See the [Roadmap](/roadmap/) for the authoring schedule.

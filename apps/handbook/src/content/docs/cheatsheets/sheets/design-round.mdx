@@ -1,0 +1,68 @@
+---
+title: "Cheat Sheet: Design Round"
+sidebar:
+  label: "Design Round"
+description: One page for the 45-minute AI system design round — the order to work in, the numbers worth not deriving under pressure, and what going wrong looks like.
+version: 1.0.0
+lastUpdated: 2026-08-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-10
+    change: First cheat sheet, establishing the activity-scoped sheet contract.
+    author: vinod
+category: cheatsheet
+printable: true
+---
+
+## Use This When
+
+You have 45 minutes and a prompt. Read it in the ten minutes before the round, not during — the
+value is in the order, and the order only helps if it is already loaded.
+
+Depth lives in [Track: AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/)
+and [Module 13](/learn/modules/13-system-design/).
+
+## The Sequence
+
+| Min | Do | Say out loud |
+| --- | --- | --- |
+| 0–8 | **Constraints.** Volume, p99, correctness, data boundary, cost per call, failure budget | "Before components — who calls this, how often, how fast, how wrong may it be, whose data?" |
+| 8–10 | **Name the hard part.** One decision dominates every one of these systems | "The hard part here is X, so that's where I'll spend our time" |
+| 10–20 | **One request path,** end to end, at a defensible depth. Not a component inventory | "Let me trace one request, then go deep where the risk is" |
+| 20–33 | **Go deep on the hard part.** This is where the round is won | — |
+| 33–40 | **Failure modes and measurement.** Volunteer these | "Here's how this breaks, and what I'd watch" |
+| 40–45 | **Scale, cost, what you cut** | "At 10× the first thing to break is X. I'd leave Y out of v1 because Z" |
+
+Let interruptions happen. They are the actual exam.
+
+## Quick Reference
+
+**Little's Law** — `concurrency = arrival_rate × average_latency`. 200 rps × 2 s = 400 in flight.
+That number sets pool sizes, semaphore bounds, and replica count. Size for peak plus ~30% headroom.
+
+**The one hard part, per system**
+
+| System | The decision that dominates |
+| --- | --- |
+| AI gateway | Where quota state lives — per-replica buckets multiply a tenant's limit by replica count |
+| Durable execution | At-least-once is the ceiling; exactly-once *effect* only from idempotent handlers |
+| Tool execution | Scope, validation, quota, approval — four questions in a fixed order |
+| Enterprise RAG | Permission filtering inside the index query, never after retrieval |
+| Model serving | Cold start is minutes, so any trailing scaling signal is too late by construction |
+| Enterprise MCP | The credential must live where the SDK's own internal calls carry it |
+| Reliability | Alerting, scaling, and incident response read one severity computation |
+
+**Trade-offs, both directions** — gateway vs direct calls · shared vs per-tenant · fail open vs
+closed · database queue vs broker. Each is argued out on the matching
+[Architecture](/architecture/) page under `#trade-offs`.
+
+## Red Flags
+
+- Naming technologies before establishing a single constraint.
+- Capacity in adjectives — "high throughput", "scalable" — with no arithmetic.
+- Treating the model as a function returning a string: no cost, no latency tail, no degradation.
+- **No evaluation story.** The most common gap in otherwise strong answers, and asked about directly.
+- Security discussed only as authentication, ignoring retrieved documents, tool descriptions, and
+  model output feeding an action.
+- Twenty minutes of boxes, then failure modes with five minutes left.
+- A design with no stated cost — it reads as one whose costs were never understood.
