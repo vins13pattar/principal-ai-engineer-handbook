@@ -41,9 +41,9 @@ from `apps/handbook/astro.config.mjs`, and adding `wrangler.toml`.
 The platform originally deployed to GitHub Pages: a GitHub Actions workflow
 (`.github/workflows/deploy.yml`) built the site and pushed it to Pages. Because GitHub Pages serves
 a project repository (one not named `<user>.github.io`) from a subpath —
-`https://vins13pattar.github.io/Principal-AI-Engineer-Interview-Handbook/` — the site had to set
-`base: "/Principal-AI-Engineer-Interview-Handbook"` in `astro.config.mjs`, and every hand-written
-internal link in MDX content had to repeat that prefix (`[Learn](/Principal-AI-Engineer-Interview-Handbook/learn/)`),
+`https://vins13pattar.github.io/principal-ai-engineer-handbook/` — the site had to set
+`base: "/principal-ai-engineer-handbook"` in `astro.config.mjs`, and every hand-written
+internal link in MDX content had to repeat that prefix (`[Learn](/principal-ai-engineer-handbook/learn/)`),
 since Astro only applies `base` automatically to framework-generated URLs (sidebar, pagination,
 asset paths), not to literal hrefs authors write in content — see the trade-off called out in
 [ADR-0001](/adr/decisions/0001-astro-starlight-platform/).
@@ -76,7 +76,7 @@ GitHub-Pages-shaped `base` would 404 on every internal link once deployed there.
 
 Deploy exclusively through Cloudflare Pages' git integration. Remove `base` from
 `astro.config.mjs` (Astro defaults to `/`), remove `.github/workflows/deploy.yml`, and strip the
-`/Principal-AI-Engineer-Interview-Handbook` prefix from every internal link across the content
+`/principal-ai-engineer-handbook` prefix from every internal link across the content
 tree. `site` is now `process.env.CF_PAGES_URL` when present — the exact URL Cloudflare's build
 environment provides for the deployment being built, production or preview — falling back to a
 placeholder domain for local builds.

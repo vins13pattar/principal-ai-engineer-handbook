@@ -30,7 +30,7 @@ another's capabilities. This lab implements that on the official SDK, speaking t
 protocol over Streamable HTTP, with every test driven through the SDK's own client rather than an
 in-process shortcut.
 
-Source: [`labs/multi-tenant-mcp-server`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/multi-tenant-mcp-server)
+Source: [`labs/multi-tenant-mcp-server`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/multi-tenant-mcp-server)
 
 <Aside type="tip" title="This one is actually MCP">
   Built on `mcp` 2.0.0, which reports `2026-07-28` as its only modern protocol version. Not a
@@ -42,7 +42,7 @@ Source: [`labs/multi-tenant-mcp-server`](https://github.com/vins13pattar/Princip
   The protocol, transport, and isolation are real. The tenant registry is in-memory and the bearer
   tokens are static — a production server verifies tokens minted by an authorization server, with
   RFC 9207 issuer validation and CIMD in place of Dynamic Client Registration. The
-  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/multi-tenant-mcp-server#what-would-make-this-production-ready)
+  [README](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/multi-tenant-mcp-server#what-would-make-this-production-ready)
   has the full table.
 </Aside>
 

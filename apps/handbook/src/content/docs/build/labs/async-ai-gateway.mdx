@@ -31,7 +31,7 @@ An async API gateway that sits in front of one or more LLM providers and protect
 those providers under load. It runs with deterministic fake providers out of the box — no API keys
 required — while the adapters underneath stay vendor-neutral.
 
-Source: [`labs/async-ai-gateway`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/async-ai-gateway)
+Source: [`labs/async-ai-gateway`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/async-ai-gateway)
 
 ## Entry points
 
@@ -102,12 +102,12 @@ mypy src
 
 GitHub Actions runs this same check, plus a Redis-integration job, on every change under
 `labs/async-ai-gateway/` — see
-[`.github/workflows/async-ai-gateway-ci.yml`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/.github/workflows/async-ai-gateway-ci.yml).
+[`.github/workflows/async-ai-gateway-ci.yml`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/.github/workflows/async-ai-gateway-ci.yml).
 
 ## Production readiness
 
 The lab tracks its own gap list against a real production bar in
-[`PRODUCTION_READINESS.md`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/PRODUCTION_READINESS.md) —
+[`PRODUCTION_READINESS.md`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/labs/async-ai-gateway/PRODUCTION_READINESS.md) —
 covering correctness contracts, reliability, observability, tenancy and security, capacity, and
 delivery. Treat an unchecked item as a known gap, not an oversight.
 

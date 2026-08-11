@@ -1,7 +1,7 @@
 # Principal AI Engineer Handbook
 
-[![Site CI](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/site-ci.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/site-ci.yml)
-[![Async AI Gateway CI](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml/badge.svg)](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/actions/workflows/lab-async-ai-gateway-ci.yml)
+[![Site CI](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/site-ci.yml/badge.svg)](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/site-ci.yml)
+[![Async AI Gateway CI](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/lab-async-ai-gateway-ci.yml/badge.svg)](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/lab-async-ai-gateway-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A reference for engineers working on production AI systems — reference architectures, labs you can

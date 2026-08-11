@@ -27,14 +27,14 @@ second task. This lab implements the delivery guarantees that make that true: le
 visibility timeouts, fencing tokens, idempotent submission, checkpointed resumption, and
 dead-lettering.
 
-Source: [`labs/durable-agent-task-engine`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/durable-agent-task-engine)
+Source: [`labs/durable-agent-task-engine`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/durable-agent-task-engine)
 
 <Aside type="caution" title="production-shaped, not production-ready">
   The state machine, lease fencing, retry accounting, and dead-lettering are complete and tested
   against every failure mode they claim to handle. What is simulated is the *durability*: the store
   is in-memory, single-process, and lost on exit. That is deliberate — it is written as a
   specification for what a durable backend must guarantee atomically. See the
-  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/durable-agent-task-engine#what-would-make-this-production-ready)
+  [README](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/durable-agent-task-engine#what-would-make-this-production-ready)
   for the exact gap.
 </Aside>
 

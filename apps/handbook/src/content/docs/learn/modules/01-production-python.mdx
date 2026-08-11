@@ -77,7 +77,7 @@ handler is one of this module's central failure modes.
 ## Architecture
 
 Here's the actual admission-and-execution path a request takes through
-[`AsyncAIGateway.generate()`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/gateway.py) —
+[`AsyncAIGateway.generate()`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/gateway.py) —
 every box below is a real control-flow branch in that method, not a simplification:
 
 <Mermaid
@@ -216,7 +216,7 @@ recovering provider at once.
 
 Graceful shutdown is where a lot of "it works in dev" Python services fall apart in production —
 a rolling deploy sends SIGTERM, and if in-flight requests aren't drained, they get killed mid-response.
-Here's the real pattern from [`draining.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/draining.py):
+Here's the real pattern from [`draining.py`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/draining.py):
 
 ```python
 @asynccontextmanager
@@ -298,7 +298,7 @@ lost.
 ## Trade-offs
 
 <TradeOff title="In-process vs. distributed rate limiting">
-  [`rate_limit.py`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/rate_limit.py)'s
+  [`rate_limit.py`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/labs/async-ai-gateway/src/ai_gateway/rate_limit.py)'s
   `TenantRateLimiter` is an in-process token bucket — correct and fast for a single-process lab, but
   wrong for a multi-replica deployment: each replica enforces the quota independently, so a tenant
   effectively gets `replica_count ×` their real limit. The lab's own distributed limiter
@@ -327,7 +327,7 @@ lost.
 - **Dependency supply chain.** Lockfiles (`uv.lock`, `poetry.lock`, or pinned `requirements.txt`)
   and a CI step that actually checks them, not just a `pip install` with no version pins.
 - **Secrets never in code or config committed to the repo.** Environment variables or a secrets
-  manager, injected at runtime — see the lab's own [`SECURITY_AND_RUNTIME.md`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/labs/async-ai-gateway/SECURITY_AND_RUNTIME.md)
+  manager, injected at runtime — see the lab's own [`SECURITY_AND_RUNTIME.md`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/labs/async-ai-gateway/SECURITY_AND_RUNTIME.md)
   for the concrete JWT-secret handling this applies to.
 - **Input validation at every boundary.** Pydantic models on request bodies, not manual dict
   parsing — reject malformed input before it reaches business logic, not after.

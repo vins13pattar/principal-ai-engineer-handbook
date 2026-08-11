@@ -25,7 +25,7 @@
     "lint:content": "node --experimental-strip-types scripts/lint-content-structure.ts",
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment.ts",
     "check:links": "pnpm --filter @handbook/site check:links",
-    "preview:cf": "wrangler pages dev apps/handbook/dist",
+    "preview:cf": "wrangler dev -c wrangler.toml",
     "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm test && pnpm build"
   },
   "devDependencies": {

@@ -6,6 +6,10 @@ node_modules/
 dist/
 .astro/
 
+# Wrangler local state — caches the Cloudflare account ID and build metadata.
+# Never belongs in the repo, least of all a public one.
+.wrangler/
+
 # Pagefind search index (generated at build time)
 **/public/pagefind/
 

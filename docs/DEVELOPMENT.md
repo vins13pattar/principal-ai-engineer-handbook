@@ -31,7 +31,7 @@ Requires Node 22.12+ and pnpm 9+ (see `.nvmrc` and the `engines` / `packageManag
 The site deploys to Cloudflare as a **Worker with static assets** — no server code, no `main` entry
 point, just `apps/handbook/dist` served from Cloudflare's edge. Cloudflare builds directly from this
 repository; there is no deploy step in `.github/workflows/`. See
-[ADR-0007](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/blob/main/apps/handbook/src/content/docs/adr/decisions/0007-workers-static-assets-deployment.mdx)
+[ADR-0007](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/apps/handbook/src/content/docs/adr/decisions/0007-workers-static-assets-deployment.mdx)
 for why this is a Worker and not a Pages project.
 
 Connect the repository in the Cloudflare dashboard (**Workers & Pages → Create → Import a

@@ -26,7 +26,7 @@ that turns one into the other: capability scoping, argument validation, per-tool
 human approval for high-risk actions, and an audit log that records every attempt — including the
 ones that were denied.
 
-Source: [`labs/policy-gated-tool-runtime`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/policy-gated-tool-runtime)
+Source: [`labs/policy-gated-tool-runtime`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/policy-gated-tool-runtime)
 
 <Aside type="caution" title="production-shaped, not production-ready">
   The enforcement pipeline is complete and tested at every stage. What is simulated is the storage
@@ -34,7 +34,7 @@ Source: [`labs/policy-gated-tool-runtime`](https://github.com/vins13pattar/Princ
   single-replica — and caller identity, which is currently a spoofable `x-agent-id` header. Identity
   is the gap to close first: every other control is scoped by caller, so a forgeable caller
   undermines all of them at once. The
-  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/policy-gated-tool-runtime#what-would-make-this-production-ready)
+  [README](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/policy-gated-tool-runtime#what-would-make-this-production-ready)
   has the full table.
 </Aside>
 

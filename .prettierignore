@@ -1,5 +1,6 @@
 dist/
 .astro/
+.wrangler/
 node_modules/
 coverage/
 playwright-report/

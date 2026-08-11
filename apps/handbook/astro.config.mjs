@@ -4,7 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
-const REPO = "https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook";
+const REPO = "https://github.com/vins13pattar/principal-ai-engineer-handbook";
 
 // Cloudflare serves every deployment from a domain root, so this site has no `base` path.
 //

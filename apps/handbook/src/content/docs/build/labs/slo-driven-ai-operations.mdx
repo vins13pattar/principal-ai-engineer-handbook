@@ -27,12 +27,12 @@ differently to a fast burn than to ordinary load, and runbook execution that esc
 retrying. All three read severity from the same `SLOTracker.report()` call, so they cannot disagree
 about how bad things currently are.
 
-Source: [`labs/slo-driven-ai-operations`](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/slo-driven-ai-operations)
+Source: [`labs/slo-driven-ai-operations`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/slo-driven-ai-operations)
 
 <Aside type="caution" title="production-shaped, not production-ready">
   The control logic, tests, and failure handling are real. The metrics source, the scaling target,
   and the paging integration are in-process stand-ins. The lab's
-  [README](https://github.com/vins13pattar/Principal-AI-Engineer-Interview-Handbook/tree/main/labs/slo-driven-ai-operations#what-would-make-this-production-ready)
+  [README](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/slo-driven-ai-operations#what-would-make-this-production-ready)
   lists each gap and what would close it. Passing tests is not the bar for `production-ready` in
   this repository — [`async-ai-gateway`](/build/labs/async-ai-gateway/) is.
 </Aside>
