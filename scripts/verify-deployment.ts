@@ -84,6 +84,18 @@ const CHECKS: Check[] = [
     },
   },
   {
+    name: "Social preview image resolves",
+    because:
+      "og:image is an absolute URL to a file in public/. A 404 there means every shared link — LinkedIn, X, Slack — renders with no card, and nothing about the site looks broken",
+    run: async (origin) => {
+      const { body } = await get(`${origin}/`);
+      const match = body.match(/<meta property="og:image" content="([^"]+)"/);
+      if (!match) return "no og:image meta tag found";
+      const { status } = await get(match[1]);
+      return status === 200 ? null : `og:image is ${match[1]}, which returned ${status}`;
+    },
+  },
+  {
     name: "Sitemap is served and uses this origin",
     because: "Same failure as canonical, and the one search engines actually read",
     run: async (origin) => {

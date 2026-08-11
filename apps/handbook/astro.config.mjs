@@ -14,6 +14,9 @@ const REPO = "https://github.com/vins13pattar/principal-ai-engineer-handbook";
 // It is kept as the second choice so a Pages deployment still works unchanged. See ADR-0007.
 const site = process.env.SITE_URL ?? process.env.CF_PAGES_URL ?? "https://handbook.vinodspattar.in";
 
+// Served from apps/handbook/public/. 1200x630 is the size LinkedIn and X crop to.
+const OG_IMAGE = "/og-image.png";
+
 export default defineConfig({
   site,
   vite: {
@@ -30,6 +33,29 @@ export default defineConfig({
       },
       lastUpdated: true,
       pagination: true,
+      // Starlight emits og:title, og:description, and og:url per page, but no
+      // image — so a shared link renders as a bare URL with no card. These add
+      // the image half. Absolute URLs are required: every crawler resolves them
+      // without a document base, so a root-relative path silently yields no
+      // preview. `scripts/verify-deployment.ts` checks the file actually
+      // resolves on the deployed origin, because a broken og:image looks
+      // identical to a missing one until someone shares the link.
+      head: [
+        { tag: "meta", attrs: { property: "og:type", content: "website" } },
+        { tag: "meta", attrs: { property: "og:image", content: `${site}${OG_IMAGE}` } },
+        { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
+        { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
+        {
+          tag: "meta",
+          attrs: {
+            property: "og:image:alt",
+            content:
+              "Four translucent panels showing the same system as a concept graph, a design flow, code, and a metrics dashboard.",
+          },
+        },
+        { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
+        { tag: "meta", attrs: { name: "twitter:image", content: `${site}${OG_IMAGE}` } },
+      ],
       customCss: ["./src/styles/global.css"],
       plugins: [starlightLinksValidator()],
       // Navigation rules, so this stays legible as sections grow:
