@@ -23,6 +23,7 @@
     "test:watch": "vitest",
     "test:e2e": "pnpm --filter @handbook/site test:e2e",
     "lint:content": "node --experimental-strip-types scripts/lint-content-structure.ts",
+    "verify:deployment": "node --experimental-strip-types scripts/verify-deployment.ts",
     "check:links": "pnpm --filter @handbook/site check:links",
     "preview:cf": "wrangler pages dev apps/handbook/dist",
     "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm test && pnpm build"

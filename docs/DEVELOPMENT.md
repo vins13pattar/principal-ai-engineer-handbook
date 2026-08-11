@@ -75,10 +75,20 @@ pnpm exec wrangler deploy --dry-run -c wrangler.toml   # validates without deplo
 pnpm exec wrangler dev -c wrangler.toml                # serves it locally
 ```
 
-### After the first deploy
+### After a deploy
 
 `.github/workflows/site-ci.yml` verifies the build but has no visibility into Cloudflare, so a
-misconfigured project fails silently from GitHub's side. Check these once on the live URL:
+misconfigured project fails silently from GitHub's side. One command checks what CI cannot:
+
+```bash
+pnpm verify:deployment https://handbook.vinodspattar.in
+```
+
+It exits non-zero on failure and prints why each check matters, so it works as a post-deploy gate
+as well as something to run by hand. It is deliberately _not_ part of `pnpm verify` — that runs in
+CI, which cannot reach a deployment and should not go red because a site is briefly down.
+
+What it covers, plus the one check it cannot automate:
 
 | Check                                                              | Why it can break                                                                |
 | ------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
@@ -86,7 +96,7 @@ misconfigured project fails silently from GitHub's side. Check these once on the
 | A deep link works on a hard refresh, e.g. `/learn/modules/06-mcp/` | Confirms directory-style routing is being served, not just client-side          |
 | An unknown path shows the site's own 404, not Cloudflare's         | `not_found_handling` in `wrangler.toml`                                         |
 | Search opens and returns a result                                  | Pagefind's index lives in `dist/pagefind/`; a partial upload breaks it silently |
-| A Mermaid diagram renders                                          | Diagrams render client-side, so the build cannot catch a broken one             |
+| A Mermaid diagram renders **(manual)**                             | Client-side rendering — neither the build nor a fetch can catch a broken one    |
 | `view-source:` shows a canonical URL on the real domain            | Confirms `SITE_URL` reached the build                                           |
 
 Once the production URL is final, update the fallback in `apps/handbook/astro.config.mjs` — it is
