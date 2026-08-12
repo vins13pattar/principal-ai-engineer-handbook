@@ -5,6 +5,7 @@ import { defineConfig } from "astro/config";
 import starlightLinksValidator from "starlight-links-validator";
 
 const REPO = "https://github.com/vins13pattar/principal-ai-engineer-handbook";
+const AUTHOR = "Vinod Pattar";
 
 // Cloudflare serves every deployment from a domain root, so this site has no `base` path.
 //
@@ -38,14 +39,16 @@ export default defineConfig({
       },
       lastUpdated: true,
       pagination: true,
-      // Starlight emits og:title, og:description, and og:url per page, but no
-      // image — so a shared link renders as a bare URL with no card. These add
-      // the image half. Absolute URLs are required: every crawler resolves them
+      // Starlight emits og:title, og:description, og:site_name, and og:url per
+      // page, but no author and no image — so a shared link renders as a bare
+      // URL with no card and nothing attributing it. These add both halves.
+      // Absolute URLs are required for the image: every crawler resolves them
       // without a document base, so a root-relative path silently yields no
       // preview. `scripts/verify-deployment.ts` checks the file actually
       // resolves on the deployed origin, because a broken og:image looks
       // identical to a missing one until someone shares the link.
       head: [
+        { tag: "meta", attrs: { name: "author", content: AUTHOR } },
         { tag: "meta", attrs: { property: "og:type", content: "website" } },
         { tag: "meta", attrs: { property: "og:image", content: OG_IMAGE } },
         { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
