@@ -15,7 +15,12 @@ const REPO = "https://github.com/vins13pattar/principal-ai-engineer-handbook";
 const site = process.env.SITE_URL ?? process.env.CF_PAGES_URL ?? "https://handbook.vinodspattar.in";
 
 // Served from apps/handbook/public/. 1200x630 is the size LinkedIn and X crop to.
-const OG_IMAGE = "/og-image.png";
+//
+// Resolved with `new URL` rather than string concatenation: `SITE_URL` may or may not carry a
+// trailing slash depending on how it was typed into the Cloudflare dashboard, and
+// `${site}${OG_IMAGE}` silently produces `https://host//og-image.png` when it does — a 404, and
+// therefore no preview card, from a build that looks entirely healthy.
+const OG_IMAGE = new URL("/og-image.png", site).href;
 
 export default defineConfig({
   site,
@@ -42,7 +47,7 @@ export default defineConfig({
       // identical to a missing one until someone shares the link.
       head: [
         { tag: "meta", attrs: { property: "og:type", content: "website" } },
-        { tag: "meta", attrs: { property: "og:image", content: `${site}${OG_IMAGE}` } },
+        { tag: "meta", attrs: { property: "og:image", content: OG_IMAGE } },
         { tag: "meta", attrs: { property: "og:image:width", content: "1200" } },
         { tag: "meta", attrs: { property: "og:image:height", content: "630" } },
         {
@@ -54,7 +59,7 @@ export default defineConfig({
           },
         },
         { tag: "meta", attrs: { name: "twitter:card", content: "summary_large_image" } },
-        { tag: "meta", attrs: { name: "twitter:image", content: `${site}${OG_IMAGE}` } },
+        { tag: "meta", attrs: { name: "twitter:image", content: OG_IMAGE } },
       ],
       customCss: ["./src/styles/global.css"],
       plugins: [starlightLinksValidator()],

@@ -1,4 +1,5 @@
 # Principal AI Engineer Handbook
+
 ![Concepts, design reviews, running code, and interview rounds — the same system seen four ways](apps/handbook/public/og-image.png)
 
 [![Site CI](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/site-ci.yml/badge.svg)](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/site-ci.yml)
