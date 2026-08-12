@@ -35,6 +35,7 @@ const FAST_MOVING_TOPICS = [
   "agent",
   "model-serving",
   "rag",
+  "vector",
   "evaluation",
 ] as const;
 

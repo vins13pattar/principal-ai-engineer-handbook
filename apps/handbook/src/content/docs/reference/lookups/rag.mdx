@@ -1,0 +1,116 @@
+---
+title: RAG
+description: Retrieval-augmented generation as four stages rather than a pipeline of five calls — ingestion, retrieval, generation, evaluation — and the three architectures (2-step, agentic, hybrid) that decide how much control you keep.
+version: 1.0.0
+lastUpdated: 2026-08-12
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-12
+    change: Published the RAG lookup, using LangChain 1.3.15 as the implementation baseline for a pattern that has no version of its own.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "LangChain 1.3.15 — retrieval APIs and architecture guidance. RAG itself is a pattern, not a versioned artifact"
+  verifiedOn: 2026-08-12
+category: Retrieval architecture
+---
+
+## At a Glance
+
+Ground a model's answer in retrieved context instead of in whatever it memorized. The value is not
+the retrieval — it is that a wrong answer becomes traceable to a document, and a missing answer
+becomes a retrieval bug rather than a mystery.
+
+**RAG has no version.** It is an architectural pattern, so "RAG 2.0" names nothing. This page uses
+**LangChain `1.3.15`** as a concrete implementation baseline where an API surface is needed, and
+keeps the conceptual material framework-neutral — every stage below is swappable and most teams end
+up swapping several.
+
+The pipeline everyone learns first:
+
+```text
+Sources → Loaders → Splitters → Embeddings → Vector store → Retriever → Context → LLM → Answer
+```
+
+The system you actually operate:
+
+```text
+Ingestion    parsing → chunking → metadata → embeddings → indexing
+Retrieval    query transformation → semantic / lexical / hybrid search → filtering
+             → candidate retrieval → reranking
+Generation   context assembly → prompt → LLM → citations
+Evaluation   retrieval quality → answer correctness → relevance → groundedness
+```
+
+The gap between those two is where most production RAG work lives.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Loader | Gets bytes out of a source and into documents. Where PDFs and tables quietly break everything downstream |
+| Splitter | Cuts documents into retrievable units. Structure-aware beats fixed-size on anything with headings |
+| Embedding model | Maps text to a dense vector. Both pipelines — ingestion and query — must use the same one |
+| Vector store | Holds vectors plus metadata and serves approximate nearest-neighbor search |
+| Retriever | The interface over search: takes a query, returns candidates. Swappable independently of the store |
+| Query transformation | Rewriting, expansion, or decomposition before search. The cheapest large recall win available |
+| Lexical / BM25 search | Keyword matching. Still the better retriever for identifiers, error codes, and exact names |
+| Hybrid search | Semantic and lexical candidates fused into one list — usually by reciprocal rank fusion |
+| Metadata filtering | Restricting candidates by tenant, ACL, recency, or source. Enforced *at retrieval*, not after |
+| Reranking | A stronger, slower model re-scoring a shortlist. Where precision is actually bought |
+| Context assembly | Choosing what fits in the window, in what order, with what attribution |
+| Citation | The pointer from a claim back to its chunk. What makes the answer auditable |
+| 2-step RAG | `Query → Retrieve → Generate`. Deterministic retrieval, predictable latency, one shot |
+| Agentic RAG | The agent decides *whether* and *what* to retrieve, possibly across several sources, possibly repeatedly |
+| Hybrid RAG | Deterministic retrieval plus agentic or validation steps — control where you need it, flexibility where you do not |
+| Groundedness | Whether the answer is supported by the retrieved context. Distinct from whether it is correct |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| RAG's version | None | It is a pattern. Any "RAG *n*.0" in a document is that document telling on itself |
+| Implementation baseline here | LangChain `1.3.15` | Released 2026-08-11; the framework-neutral material does not depend on it |
+| Embedding dimension | Must match the index exactly | Changing embedding models is a full reindex, not a config change |
+| Pipelines that must agree | 2 | Ingestion and query embed with the same model, or retrieval silently degrades to noise |
+| Reranker input | A shortlist, not the corpus | Retrieve wide, rerank narrow. Reranking the top 5 cannot rescue a retriever that missed at 5 |
+| Chunk size and overlap | No correct default | A tuning parameter against your own eval set. Anyone quoting a universal number has not measured |
+| Evaluation dimensions | 4 | Retrieval quality, answer correctness, relevance, groundedness — measured separately, because they fail separately |
+| Retrieval latency | Inside the time-to-first-token budget | Not a separate budget. See [Module 3](/learn/modules/03-networking/) |
+| Agentic RAG round trips | Unbounded unless you bound them | Each retrieval decision is another model call and another chance to loop |
+
+## Common Gotchas
+
+- **Retrieval quality and answer quality are different failures with different fixes.** A wrong
+  answer over correct context is a generation problem; a confident answer over irrelevant context is
+  a retrieval problem. Measuring only end-to-end correctness tells you which is happening: nothing.
+- **Access control applied after retrieval has already leaked.** Filtering the model's output does
+  not undo putting another tenant's document in the prompt. Filter in the query.
+- **The two pipelines drift.** Change the embedding model, the splitter, or the normalization on one
+  side only, and retrieval degrades gradually rather than breaking — the worst failure shape there
+  is.
+- **Semantic search is bad at exact identifiers.** Error codes, SKUs, function names, and version
+  strings are lexical matches. This is the case hybrid retrieval exists for, not a tuning problem.
+- **Top-k is a recall ceiling, not a quality knob.** If the answer is not in the k candidates, no
+  amount of reranking or prompting recovers it.
+- **Citations that are not checked are decoration.** A model will happily attribute a claim to a
+  chunk that does not support it. Groundedness has to be measured, not assumed from the presence of
+  a footnote.
+- **Agentic RAG trades predictability for coverage.** It can consult several sources and skip
+  retrieval entirely when it should — and its latency and cost distributions get much wider. Choose
+  2-step when the latency budget is tight and the query shape is known.
+- **Chunking decisions are made once and paid for indefinitely.** Re-chunking means re-embedding and
+  re-indexing the whole corpus; it is the most expensive thing on this page to get wrong.
+- **An evaluation set built from questions you already answer well measures nothing.** Build it from
+  real failures, and grow it every time retrieval surprises you.
+
+## Where to Go Deeper
+
+- [Module 8: RAG](/learn/modules/08-rag/) — chunking, hybrid retrieval, and re-ranking in full,
+  including why access control belongs at retrieval time.
+- [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/) — the same system with
+  tenancy, freshness, and access control as first-class requirements.
+- [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) — BM25, dense retrieval, reciprocal rank
+  fusion, reranking, and a groundedness checker as running, tested code.
+- [Vector DB](/reference/lookups/vector-db/) — the storage layer underneath, and what it does and
+  does not do for you.

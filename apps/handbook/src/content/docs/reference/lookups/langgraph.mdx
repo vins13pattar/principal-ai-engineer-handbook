@@ -1,0 +1,107 @@
+---
+title: LangGraph
+description: A durable orchestration runtime for agent workflows — state and reducers, checkpointers, interrupts, and the 1.2-generation additions for delta state, per-node timeouts, error recovery, and typed event streaming.
+version: 1.0.0
+lastUpdated: 2026-08-12
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-12
+    change: Published the LangGraph lookup against langgraph 1.2.11.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "langgraph==1.2.11"
+  verifiedOn: 2026-08-12
+category: Agent orchestration
+---
+
+## At a Glance
+
+A runtime for **stateful, durable, resumable** workflows expressed as a graph. Nodes are functions
+over a shared state object; edges — including conditional ones — decide what runs next; a
+checkpointer persists state after every step.
+
+The framing that matters: LangGraph is not a graph wrapper around LangChain. It is an execution
+engine whose defining feature is that a run can stop and resume — after a crash, after a deploy,
+after waiting a day for a human to approve something. Crash recovery and human-in-the-loop are the
+same mechanism, which is the single most useful thing to understand about it.
+
+The whole shape, in order:
+
+```text
+StateGraph → nodes → edges → state → reducers / channels → checkpointer
+  → interrupts / HITL → retries → timeout & error recovery → streaming → observability
+```
+
+Target the `1.x` APIs. `1.0` is the LTS line; the `0.4` line is in maintenance, and `0.x` examples
+are the most common source of code that does not run.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| `StateGraph` | The graph definition: a state type, nodes, and edges between them |
+| Node | A function from state to a state update. The unit of retry, timeout, and checkpoint |
+| Conditional edge | Routing decided at runtime from state — the mechanism behind loops and branching |
+| State | The typed object every node reads and updates. Not a message list unless you make it one |
+| Reducer | How a node's update merges into existing state. Without one, an update overwrites |
+| Channel | The storage behind a state key. Determines what gets persisted and how |
+| `DeltaChannel` | Persists incremental changes rather than re-serializing the whole accumulated value each step. The fix for large-state runs that get slower as they progress |
+| Checkpointer | Persists state per step, keyed by thread. Without it there is no resume, no interrupt, no HITL |
+| Thread | One run's identity across steps and restarts |
+| Interrupt | Suspends the run at a known point and returns control. Resumption reads the checkpoint |
+| Retry policy | Per-node retry on failure. Available in both Python and TypeScript |
+| Node timeout policy | Per-node execution deadline, so one hung call cannot pin the run |
+| Node error handler | Runs on node failure to recover or compensate, rather than failing the run |
+| Graceful draining | In-flight graphs finish or checkpoint on shutdown, and resume afterwards |
+| Event streaming v3 | Typed projections over the run: messages, lifecycle, subgraphs, reasoning, tool calls, usage |
+| `trace_policy` | Per-node tracing configuration, exposed through `add_node` as of `1.2.11` |
+| Subgraph | A graph used as a node, with its own state and its own stream projection |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Current Python release | `1.2.11` | Released 2026-08-11 |
+| Architectural baseline | The `1.2` generation | DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 |
+| LTS line | `1.0` | What to pin to if you want a long support window |
+| Maintenance line | `0.4` | Still patched, not where new work goes |
+| Checkpoint frequency | Every step | The resume granularity, and the cost you pay for durability |
+| Retry unit | The whole node | A partially-completed node re-runs from the top — make nodes idempotent |
+| Parity caveat | Retries: both languages. Some timeout and error-handler capabilities: Python only | Do not assume a Python example ports to TypeScript unchanged |
+| Streaming projections | Typed, as of `1.2.10` | `stream_events` returns typed results with native projections rather than untyped events |
+
+## Common Gotchas
+
+- **State without a reducer overwrites.** Two nodes returning updates for the same key, and the
+  later one wins silently. Accumulating anything — messages, tool results, citations — requires an
+  explicit reducer.
+- **No checkpointer means no interrupts, no resume, and no HITL.** These are not three features to
+  add later; they are one mechanism, and it is off until state is persisted somewhere.
+- **A retry re-runs the entire node.** Any side effect before the failure point happens twice. If a
+  node charges a card, writes a row, or sends a message, that work has to be idempotent — see
+  [Module 2](/learn/modules/02-distributed-systems/).
+- **Large accumulated state gets slower every step** when the whole value is re-serialized per
+  checkpoint. That is the problem `DeltaChannel` exists for; reaching for it late means rewriting
+  the state model.
+- **`0.x` examples are everywhere and do not run.** The API surface changed across the `1.0`
+  boundary, and search results have not caught up.
+- **A per-node timeout is not a run timeout.** Ten nodes at thirty seconds each is a five-minute
+  worst case. Budget the run, not just the step.
+- **An error handler that swallows the error turns a failed run into a wrong one.** Recovery means
+  compensating or routing to a failure path, not returning empty state and continuing.
+- **In-memory checkpointers are for tests.** A run durable only until the process exits is not
+  durable; graceful draining does not help if the checkpoint died with the process.
+- **The graph is not the agent's reasoning.** Conditional edges encode *your* control flow. Letting
+  the model pick the next node on every hop rebuilds an unbounded loop with extra steps.
+
+## Where to Go Deeper
+
+- [Module 7: LangGraph](/learn/modules/07-langgraph/) — state and reducers, conditional edges, and
+  the argument that checkpointing makes recovery and human-in-the-loop one mechanism.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — when a graph is the right
+  shape for an agent loop and when it is over-structure.
+- [Durable Agent Execution](/architecture/systems/durable-agent-execution/) — the same durability
+  requirements at architecture scale, without a framework assumption.
+- [`durable-agent-task-engine`](/build/labs/durable-agent-task-engine/) — leases, fencing, retries,
+  and dead-lettering as running code, so the framework's guarantees are legible.

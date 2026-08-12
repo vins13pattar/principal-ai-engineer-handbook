@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.4.0
-lastUpdated: 2026-08-10
+version: 2.5.0
+lastUpdated: 2026-08-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -64,10 +64,16 @@ revisionHistory:
     date: 2026-08-10
     change: Cheat Sheets complete; v0.9 now scopes to the four fast-moving Reference lookups alone.
     author: vinod
+  - version: 2.5.0
+    date: 2026-08-12
+    change: >-
+      Marked v0.9 shipped — the four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB)
+      are published, each declaring what it was verified against. Reference is complete.
+    author: vinod
 category: section-overview
 ---
 
-## Current version: v0.8.0 — the Learn track is complete
+## Current version: v0.9.0 — Reference is complete
 
 The documentation platform (v0.1.0) and all fifteen Learn modules are complete:
 [Module 0](/learn/modules/00-principal-engineer-mindset/) · [Module 1](/learn/modules/01-production-python/) ·
@@ -85,9 +91,11 @@ systems, each with a running implementation behind it. [Build](/build/) document
 from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
-[Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) covers nine of its
-thirteen topics against a five-section page contract that CI enforces; the four that remain are all
-fast-moving and will carry `freshness` declarations naming what they were verified against.
+[Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) is
+complete: thirteen lookups against a five-section page contract that CI enforces, with the four
+fast-moving ones — [MCP](/reference/lookups/mcp/), [LangGraph](/reference/lookups/langgraph/),
+[RAG](/reference/lookups/rag/), and [Vector DB](/reference/lookups/vector-db/) — each declaring the
+release it was verified against, on a 90-day review window CI fails once a page exceeds.
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
@@ -102,7 +110,7 @@ contract CI enforces — three for interview rounds, two for the work itself.
 | ~~`v0.6`~~ | ~~Learn Modules 10–11 (Kubernetes, Cloud)~~ — shipped 2026-08-07                                             |
 | ~~`v0.7`~~ | ~~Learn Module 12 (Observability)~~ — shipped 2026-08-07                                                     |
 | ~~`v0.8`~~ | ~~Learn Module 14 (Leadership)~~ — shipped 2026-08-10                                                        |
-| `v0.9`     | The four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB), each with a `freshness` block        |
+| ~~`v0.9`~~ | ~~The four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB), each with a `freshness` block~~ — shipped 2026-08-12 |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
 
 Every module below also has a companion lab planned in [Build](/build/), tracked separately since a
@@ -162,6 +170,14 @@ or not started. `scripts/lint-content-structure.ts` enforces that a merged modul
 required section, so the roadmap can't silently drift from what's actually on the site. Labs follow
 their own schedule in the table above rather than gating a module's version bump — a module ships
 once its content is complete, whether or not its companion lab exists yet.
+
+Fast-moving pages carry a standing obligation the roadmap does not otherwise track. Each declares
+`verifiedAgainst` and `verifiedOn`, and CI fails the build once the page passes its 90-day review
+window — so the next re-verification pass is scheduled by the linter rather than by anyone
+remembering. The pages published in v0.9 come due in **November 2026**. Two of them —
+[RAG](/reference/lookups/rag/) and [Vector DB](/reference/lookups/vector-db/) — cover subject matter
+with no version of its own, so each names a real implementation baseline (LangChain and Pinecone's
+dated API) instead. A fabricated version number would satisfy the linter and mean nothing.
 
 Track progress against this roadmap through the repository's
 [releases](https://github.com/vins13pattar/principal-ai-engineer-handbook/releases) and

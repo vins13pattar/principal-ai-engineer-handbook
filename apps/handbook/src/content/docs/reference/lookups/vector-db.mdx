@@ -1,0 +1,110 @@
+---
+title: Vector DB
+description: What a vector database actually is once you look past "a database that stores embeddings" — ANN indexes, metadata filtering, namespaces, and the lexical and hybrid capabilities the category has grown.
+version: 1.0.0
+lastUpdated: 2026-08-12
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-12
+    change: Published the Vector DB lookup, using the Pinecone 2026-04 API as the versioned baseline for a vendor-neutral category.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "Pinecone API 2026-04 — used as the versioned anchor for a vendor-neutral category; Vector DB is not a single product"
+  verifiedOn: 2026-08-12
+category: Data store
+---
+
+## At a Glance
+
+A search system for high-dimensional vectors: given a query vector, return the nearest ones, fast,
+approximately. "A database that stores embeddings" undersells it — storage is the least interesting
+part, and it has not been the differentiator for some time.
+
+**There is no "Vector DB version"** — it is a category, not a product, and index implementations
+differ enough between vendors that portable claims are narrower than they look. This page stays
+vendor-neutral and uses **Pinecone's `2026-04` API** as the versioned anchor wherever a concrete
+version is needed.
+
+The two retrieval paths, and where they meet:
+
+```text
+Embedding → dense vector → vector index → ANN search ─┐
+                                                       ├→ hybrid fusion → reranking → context
+Text → lexical / full-text index → keyword search ────┘
+```
+
+Modern platforms increasingly serve both sides of that diagram. Pinecone's full-text search preview
+gained fuzzy matching and n-gram substring search in July 2026, which is the category direction in
+one data point: the vector store is becoming the retrieval layer, not just the vector layer.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Dense vector | An embedding. Similarity is geometric, so meaning-adjacent text scores highly |
+| Sparse / lexical index | Term-based matching. Exact identifiers, codes, and rare words live here |
+| Hybrid search | Both paths, fused into one candidate list |
+| ANN index | Approximate nearest-neighbor structure. Trades exact recall for query speed — implementation and tuning knobs vary by vendor |
+| Similarity metric | Cosine, dot product, or Euclidean. Fixed at index creation and must match how the embedding model was trained |
+| Embedding dimension | Fixed per index. Changing the model means a new index |
+| Top-k | How many candidates come back. A recall ceiling for everything downstream |
+| Metadata filtering | Restricting candidates by tenant, ACL, source, or recency — evaluated as part of the search, not after it |
+| Namespace | Partition within an index. The usual unit of tenant isolation |
+| Reranking | A stronger model re-scoring the shortlist, often served by the platform itself |
+| Index update / upsert | Writing new or changed vectors. Visibility is not necessarily immediate |
+| Deletion | Removing vectors. The step people forget when a source document is deleted or a tenant leaves |
+| Backup and restore | Point-in-time recovery of an index — including, increasingly, across regions |
+| RBAC / SSO | Role-based access, with SAML/SCIM-driven provisioning on managed platforms |
+| Data residency | Which region the vectors physically live in. A contractual constraint, not a preference |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| The category's version | None | "Vector DB" is a category. Pin a vendor's API version instead |
+| Pinecone's current stable API | `2026-04` | Date-based versioning; send `X-Pinecone-Api-Version: 2026-04` explicitly |
+| Pinecone stable API support | At least twelve months | Long enough to plan a migration, short enough to need one |
+| Unversioned API calls | Fall back to the *oldest* supported stable version | Not the newest. Omitting the header pins you to the past |
+| Embedding dimension | Fixed at index creation | A model change is a reindex of the entire corpus |
+| Similarity metric | Fixed at index creation | Mismatched with the embedding model, results are wrong but not obviously wrong |
+| Index type | Vendor-specific | "All vector databases use HNSW" is false; do not port tuning advice between vendors |
+| Isolation unit | Namespace, usually | Per-tenant indexes cost more and isolate harder — pick deliberately |
+| Latency contributors | ANN search + filtering + rerank + network | The rerank stage is frequently the largest and the least budgeted |
+
+## Common Gotchas
+
+- **Filtering after retrieval is a leak, not a filter.** If the filter is not part of the query, the
+  system has already read another tenant's documents and is deciding what to do about it afterwards.
+- **Changing the embedding model invalidates the whole index.** Old and new vectors are not
+  comparable. This is a migration with a backfill, not a config change.
+- **Deletes are the forgotten half of ingestion.** A document removed at the source but not from the
+  index keeps being retrieved and cited — the most convincing kind of wrong answer.
+- **Metadata filters can quietly wreck recall.** A restrictive filter over an approximate index can
+  return far fewer than k results, or worse ones, because the filter and the ANN traversal interact.
+  Measure recall *with* your real filters applied.
+- **Approximate means approximate.** ANN search misses true nearest neighbors by design. If a use
+  case needs exactness, that is a requirement to state, not a knob to turn up.
+- **Vendor tuning advice is not portable.** Index structures, parameters, and their failure
+  behaviors differ. Advice about one vendor's knobs may be actively wrong for another's.
+- **Omitting the API version does not mean "latest".** Pinecone resolves an unversioned call to the
+  oldest supported stable API, so the safe-looking option is the stale one.
+- **Upserts are not immediately visible everywhere.** Write-then-read-your-own-write is not a
+  guarantee to assume. Test it before building a workflow that depends on it.
+- **Semantic search will not find an error code.** This is not a tuning failure; it is the wrong
+  index. Use the lexical path, or hybrid.
+- **Cost tracks vectors, dimensions, and replicas, not documents.** A chunking change that triples
+  chunk count triples the bill without any new content.
+
+## Where to Go Deeper
+
+- [RAG](/reference/lookups/rag/) — the pipeline this sits inside, and why retrieval quality is
+  measured separately from answer quality.
+- [Module 8: RAG](/learn/modules/08-rag/) — chunking, hybrid retrieval, re-ranking, and
+  retrieval-time access control in full.
+- [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/) — tenancy, freshness,
+  and access control as architecture requirements rather than store features.
+- [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) — dense and BM25 retrieval fused by reciprocal
+  rank fusion, with reranking and a groundedness check, as running code.
+- [Redis](/reference/lookups/redis/) — the other data store in most of these systems, doing caching,
+  rate limiting, and leases.

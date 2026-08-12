@@ -1,0 +1,100 @@
+---
+title: MCP
+description: The Model Context Protocol after its 2026-07-28 revision — a stateless core, header-routable Streamable HTTP, multi-round-trip requests, and an extensions model that moved Tasks out of the spec proper.
+version: 1.0.0
+lastUpdated: 2026-08-12
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-12
+    change: Published the MCP lookup against the 2026-07-28 specification.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP Specification 2026-07-28"
+  verifiedOn: 2026-08-12
+category: Agent protocol
+---
+
+## At a Glance
+
+A JSON-RPC protocol for exposing **tools**, **resources**, and **prompts** to a model host over a
+standard transport, so an integration written once works against any compliant client. The value is
+not the wire format — it is that the tool surface stops being bespoke per host.
+
+The `2026-07-28` revision is a protocol rewrite, not a documentation refresh. **The core is now
+stateless.** The `initialize`/`initialized` handshake and the `Mcp-Session-Id` transport session are
+gone; capability discovery moved to an optional `server/discover` call. If your mental model of MCP
+starts with a handshake that establishes a session, that model is a revision out of date.
+
+The practical consequence is that a server can be an ordinary horizontally-scaled HTTP service. No
+sticky routing, no session affinity, no shared session store — the properties that made earlier MCP
+deployments awkward behind a load balancer.
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| Host / client / server | The host runs the model, the client speaks the protocol, the server owns the capability. Three parties, and the invocation decision belongs to a different one for each primitive |
+| Tool | Model-invoked. The server declares a schema; the model chooses when to call it |
+| Resource | Application-controlled context, addressed by URI. The host decides what to attach, not the model |
+| Prompt | User-invoked template the server publishes |
+| Stateless core | No `initialize`, no session establishment, no `Mcp-Session-Id`. Every request stands alone |
+| `server/discover` | Optional capability discovery, replacing the handshake's implicit capability exchange |
+| `MCP-Protocol-Version` | Sent explicitly per request. `2026-07-28` is the current value |
+| `Mcp-Method` / `Mcp-Name` | Streamable HTTP headers naming the method and target, so gateways, WAFs, and rate limiters route and authorize without parsing the JSON body |
+| MRTR | Multi-Round-Trip Requests: approval, elicitation, and sampling flows that no longer need a continuously open bidirectional connection |
+| `ttlMs` / `cacheScope` | Optional cache directives on `tools/list`, `prompts/list`, `resources/list`, and `resources/read` responses, enabling client-side caching of the tool surface |
+| Extensions | Capabilities versioned outside the spec core, namespaced — `io.modelcontextprotocol/tasks` is the first one that matters |
+| Tasks | Long-running work: `tasks/get`, `tasks/update`, subscription notifications. Now an extension, previously experimental core |
+| Issuer-bound credentials | Authorization hardened with RFC 9207 issuer validation; a token is bound to the issuer that minted it |
+| CIMD | Client ID Metadata Documents, the direction of travel away from Dynamic Client Registration |
+
+## Numbers That Matter
+
+| Quantity | Value | Why it matters |
+| --- | --- | --- |
+| Current protocol revision | `2026-07-28` | Send it explicitly; do not rely on a server's default |
+| Previous revision's session model | Removed | `Mcp-Session-Id` is not a thing to design around any more |
+| Deprecation compatibility window | Minimum twelve months | Roots, Sampling, Logging, and HTTP+SSE still work — but they have a clock on them |
+| Tier-1 SDKs on `2026-07-28` | TypeScript, Python, Go, C# | Rust is beta |
+| Tasks namespace | `io.modelcontextprotocol/tasks` | An extension identifier, not a core method prefix |
+| Headers a gateway can route on | `Mcp-Method`, `Mcp-Name` | Body inspection is no longer required to authorize a call |
+| Cache directives | `ttlMs`, `cacheScope` | The tool list is now cacheable, which changes how often a client must round-trip |
+
+## Common Gotchas
+
+- **Teaching `Mcp-Session-Id` as the default design is teaching the previous revision.** Examples
+  built on session establishment do not describe a `2026-07-28` server, and they push readers toward
+  sticky routing they no longer need.
+- **A stateless protocol does not mean a stateless application.** Conversation state, task state,
+  and tenant state still live somewhere — the change is that the *protocol* stopped carrying them.
+  Long-running work belongs in the tasks extension, not in a session you keep open.
+- **Not sending `MCP-Protocol-Version` leaves you on whatever the server decides.** Version
+  negotiation without an explicit version is version negotiation you are not participating in.
+- **Tasks moved out of the core, so "is this server spec-compliant" no longer answers "does it
+  support tasks".** Extensions are discovered and negotiated separately; a compliant server may
+  implement none of them.
+- **Deprecated does not mean absent, and present does not mean safe to build on.** Roots, Sampling,
+  Logging, and HTTP+SSE have at least twelve months left. New work should not start on them.
+- **Per-request metadata is not an authorization channel.** A credential carried in `_meta` fails
+  the moment the SDK issues a protocol call of its own with no `_meta` attached — and exempting
+  those calls to compensate reopens the hole. Authorization belongs on the transport, where every
+  request carries it. This is a mistake the handbook made and recorded; see
+  [Module 6 → Security](/learn/modules/06-mcp/#security).
+- **Client-side caching without honoring `cacheScope` leaks across tenants.** A tool list cached
+  under the wrong scope is one tenant seeing another's capabilities.
+- **Dynamic Client Registration still works, and is still the direction being moved away from.**
+  New authorization work should be planned against Client ID Metadata Documents.
+- **`Mcp-Method` and `Mcp-Name` are attacker-controlled input to your gateway.** They make routing
+  cheap; they do not make it trustworthy. The server still authorizes the actual call.
+
+## Where to Go Deeper
+
+- [Module 6: MCP](/learn/modules/06-mcp/) — the architecture in full: the three primitives, who owns
+  each invocation decision, and the transport-level security argument.
+- [Enterprise MCP Platform](/architecture/systems/enterprise-mcp-platform/) — multi-tenant hosting,
+  isolation, and what a gateway in front of many servers has to enforce.
+- [`multi-tenant-mcp-server`](/build/labs/multi-tenant-mcp-server/) — a real server on the official
+  SDK, tested through the SDK's own client over Streamable HTTP.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — what the model does with a
+  tool surface once it has one.

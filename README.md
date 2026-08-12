@@ -33,12 +33,12 @@ code, or from the code back to the reasoning.
 
 ## Status
 
-**Fifteen Learn modules, seven labs, seven architecture pages, three interview tracks.** Every lab
-has a matching architecture page and a matching module, all cross-linked; every lab passes `ruff`,
-`mypy --strict`, and its own test suite in CI. Reference has opened with its first lookups; the
-remaining lookups and the cheat sheets are still being written — the
-[Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept
-honest by a linter that fails the build when a page is missing a required section.
+**Fifteen Learn modules, seven labs, seven architecture pages, three interview tracks, thirteen
+reference lookups, five cheat sheets.** Every lab has a matching architecture page and a matching
+module, all cross-linked; every lab passes `ruff`, `mypy --strict`, and its own test suite in CI.
+The [Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept
+honest by a linter that fails the build when a page is missing a required section — or when a page
+on a fast-moving topic goes unverified past its review window.
 
 ## Repository structure
 
