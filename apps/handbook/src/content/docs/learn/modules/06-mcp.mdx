@@ -3,12 +3,22 @@ title: "Module 6: MCP"
 sidebar:
   label: "6 · MCP"
 description: The Model Context Protocol's host/client/server architecture — three primitives with three different owners of the invocation decision, over a protocol that went stateless in its 2026-07-28 revision.
-version: 2.1.0
-lastUpdated: 2026-08-08
+version: 2.2.0
+lastUpdated: 2026-08-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
+    author: vinod
+  - version: 2.2.0
+    date: 2026-08-12
+    change: >-
+      Re-verified against the published specification text rather than secondhand notes. Fixed a
+      cacheScope value in the tools/list example ("shared" is not a scope; the values are "public"
+      and "private"), split the deprecation timeline (HTTP+SSE does not get the twelve-month
+      window), and corrected the _meta security note: the SDK's internal tools/list does carry the
+      protocol _meta stamp, just not the caller's application _meta, which is what actually breaks
+      credential-in-_meta authorization.
     author: vinod
   - version: 2.1.0
     date: 2026-08-08
@@ -28,8 +38,8 @@ revisionHistory:
     author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
-  verifiedOn: 2026-08-08
+  verifiedAgainst: "MCP 2026-07-28 (spec text, changelog, deprecation registry), official Python SDK mcp 2.0.0"
+  verifiedOn: 2026-08-12
 category: learn-module
 moduleNumber: 6
 difficulty: intermediate
@@ -179,9 +189,12 @@ then invoke — `tools/list` then `tools/call`, `resources/list` then `resources
 stays fresh and whether it is safe to share that cached response across users.
 
 **Deprecations.** The older HTTP+SSE transport is deprecated (SEP-2596), as are the Roots,
-Sampling, and Logging primitives (SEP-2577). The specification's lifecycle policy guarantees at
-least twelve months between deprecation and earliest possible removal, so these still work — but
-new work should not build on them.
+Sampling, and Logging primitives and Dynamic Client Registration (SEP-2577, PR #2858). The
+lifecycle policy sets a minimum twelve-month window between deprecation and earliest removal,
+measured from the revision that deprecates — which puts Roots, Sampling, Logging, and DCR at the
+first revision released on or after 2027-07-28. **HTTP+SSE is the exception**: reclassified under
+the transition provisions, it becomes eligible three months after SEP-2596 reaches Final. All of
+them still work; none should carry new work, and the transport will go first.
 
 <ResearchNote source="Model Context Protocol specification 2026-07-28, modelcontextprotocol.io">
   The canonical source for exact JSON-RPC message shapes, `_meta` field definitions, header rules,
@@ -226,7 +239,7 @@ async def handle_tools_list() -> dict[str, Any]:
         # Modeled on HTTP Cache-Control: how long this list stays fresh, and
         # whether it is safe to reuse across users (SEP-2549).
         "ttlMs": 300_000,
-        "cacheScope": "shared",
+        "cacheScope": "public",
     }
 
 
@@ -371,13 +384,16 @@ properties needed either session affinity or shared session storage.
 - **Put credentials in the transport, not in `_meta`.** "Every request is self-describing" makes
   per-request application credentials look natural, and `_meta` looks like the obvious place for
   them. It is the wrong place: an SDK makes protocol calls of its own that application code never
-  issues, and those carry no application metadata. Concretely, the Python SDK's `call_tool()`
-  invokes `validate_tool_result()`, which issues an *internal* `tools/list` to check the output
-  schema — with no `_meta`. A server authorizing on a token in `_meta` therefore rejects its own
-  client's internal call, and a server that quietly allows unauthenticated `tools/list` to
-  compensate has opened exactly the hole it was trying to close. Authorization belongs on the
-  Authorization header, where every request the transport sends — application-issued or not —
-  carries it.
+  issues, and those carry no *application* metadata. Concretely, one `call_tool()` on the Python
+  SDK produces two server-visible requests — the `tools/call` itself, and an internal `tools/list`
+  issued by `validate_tool_result()` to check the output schema. Both carry the protocol `_meta`
+  stamp (`protocolVersion`, `clientInfo`, `clientCapabilities`), because the SDK adds that to every
+  outgoing request. Neither carries yours on the second one: `call_tool()` accepts a `meta=`
+  argument, `list_tools()` has no such parameter, so an application credential cannot reach the
+  internal call. A server authorizing on a token in `_meta` therefore rejects its own client, and a
+  server that quietly allows unauthenticated `tools/list` to compensate has opened exactly the hole
+  it was trying to close. Authorization belongs on the Authorization header, where every request the
+  transport sends — application-issued or not — carries it.
 - **Follow the hardened authorization model.** `2026-07-28` requires RFC 9207 issuer validation and
   binds credentials to the issuing authorization server. Dynamic Client Registration is deprecated
   in favour of Client ID Metadata Documents (CIMD) — new integrations should use CIMD.

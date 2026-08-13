@@ -1,16 +1,25 @@
 ---
 title: MCP
-description: The Model Context Protocol after its 2026-07-28 revision — a stateless core, header-routable Streamable HTTP, multi-round-trip requests, and an extensions model that moved Tasks out of the spec proper.
-version: 1.0.0
+description: The Model Context Protocol after its 2026-07-28 revision — a stateless core, required routing headers, multi-round-trip requests, mandatory cache hints, and an extensions model that moved Tasks out of the spec proper.
+version: 1.1.0
 lastUpdated: 2026-08-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
     change: Published the MCP lookup against the 2026-07-28 specification.
     author: vinod
+  - version: 1.1.0
+    date: 2026-08-12
+    change: >-
+      Corrected against the published spec text and the official Python SDK. server/discover is
+      mandatory for servers, not optional; ttlMs and cacheScope are required, not optional; Rust is
+      a Tier 2 SDK, not beta; HTTP+SSE does not get the twelve-month window; Dynamic Client
+      Registration is formally Deprecated. Added subscriptions/listen, resultType, and the removal
+      of SSE stream resumability.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP Specification 2026-07-28"
+  verifiedAgainst: "MCP Specification 2026-07-28 (spec text, changelog, and deprecation registry) plus the official Python SDK mcp 2.0.0"
   verifiedOn: 2026-08-12
 category: Agent protocol
 ---
@@ -22,13 +31,15 @@ standard transport, so an integration written once works against any compliant c
 not the wire format — it is that the tool surface stops being bespoke per host.
 
 The `2026-07-28` revision is a protocol rewrite, not a documentation refresh. **The core is now
-stateless.** The `initialize`/`initialized` handshake and the `Mcp-Session-Id` transport session are
-gone; capability discovery moved to an optional `server/discover` call. If your mental model of MCP
-starts with a handshake that establishes a session, that model is a revision out of date.
+stateless.** The `initialize`/`notifications/initialized` handshake and the `Mcp-Session-Id` header
+are gone; every request instead carries its own protocol version, client info, and capabilities in
+`_meta`. If your mental model of MCP starts with a handshake that establishes a session, that model
+is a revision out of date.
 
 The practical consequence is that a server can be an ordinary horizontally-scaled HTTP service. No
-sticky routing, no session affinity, no shared session store — the properties that made earlier MCP
-deployments awkward behind a load balancer.
+sticky routing, no session affinity, no shared session store. Servers that genuinely need
+cross-call state now mint explicit handles and pass them as ordinary tool arguments, which makes
+that state visible in the tool schema instead of hidden in the transport.
 
 ## Key Concepts
 
@@ -38,53 +49,67 @@ deployments awkward behind a load balancer.
 | Tool | Model-invoked. The server declares a schema; the model chooses when to call it |
 | Resource | Application-controlled context, addressed by URI. The host decides what to attach, not the model |
 | Prompt | User-invoked template the server publishes |
-| Stateless core | No `initialize`, no session establishment, no `Mcp-Session-Id`. Every request stands alone |
-| `server/discover` | Optional capability discovery, replacing the handshake's implicit capability exchange |
-| `MCP-Protocol-Version` | Sent explicitly per request. `2026-07-28` is the current value |
-| `Mcp-Method` / `Mcp-Name` | Streamable HTTP headers naming the method and target, so gateways, WAFs, and rate limiters route and authorize without parsing the JSON body |
-| MRTR | Multi-Round-Trip Requests: approval, elicitation, and sampling flows that no longer need a continuously open bidirectional connection |
-| `ttlMs` / `cacheScope` | Optional cache directives on `tools/list`, `prompts/list`, `resources/list`, and `resources/read` responses, enabling client-side caching of the tool surface |
-| Extensions | Capabilities versioned outside the spec core, namespaced — `io.modelcontextprotocol/tasks` is the first one that matters |
-| Tasks | Long-running work: `tasks/get`, `tasks/update`, subscription notifications. Now an extension, previously experimental core |
-| Issuer-bound credentials | Authorization hardened with RFC 9207 issuer validation; a token is bound to the issuer that minted it |
-| CIMD | Client ID Metadata Documents, the direction of travel away from Dynamic Client Registration |
+| Stateless core | No `initialize`, no `Mcp-Session-Id`. Protocol version, client info, and capabilities ride in `_meta` on every request |
+| `server/discover` | Returns supported versions, capabilities, and identity. **Servers MUST implement it**; clients MAY skip it and handle `UnsupportedProtocolVersionError` inline |
+| `MCP-Protocol-Version` | Required header on every POST, and it **MUST** match the `_meta` value or the server returns `400` with `HeaderMismatch` |
+| `Mcp-Method` / `Mcp-Name` | Required Streamable HTTP headers, so gateways, WAFs, and rate limiters route and authorize without parsing the JSON body |
+| `x-mcp-header` | Tool-schema annotation mirroring a parameter into a request header. Clients MUST drop tools whose annotations are invalid |
+| MRTR | Multi Round-Trip Requests. Servers return `resultType: "input_required"` with `inputRequests`; the client retries the original request carrying `inputResponses` |
+| `resultType` | Required on all results: `"complete"` or `"input_required"`. Results from older servers that omit it are treated as `"complete"` |
+| `subscriptions/listen` | One long-lived POST-response stream for opted-in change notifications, replacing the HTTP GET endpoint and `resources/subscribe` |
+| `ttlMs` / `cacheScope` | Cache hints servers **MUST** include on complete results from `server/discover`, the three `list` methods, `resources/templates/list`, and `resources/read` |
+| Extensions | Capabilities versioned outside the spec core, namespaced. `io.modelcontextprotocol/tasks` is the first that matters |
+| Tasks | Long-running work: `tasks/get` polling, `tasks/update` for client input. Now an extension, previously experimental core |
+| Issuer-bound credentials | Clients MUST key persisted credentials by issuer, MUST NOT reuse them against another authorization server, and MUST re-register when it changes |
 
 ## Numbers That Matter
 
 | Quantity | Value | Why it matters |
 | --- | --- | --- |
-| Current protocol revision | `2026-07-28` | Send it explicitly; do not rely on a server's default |
-| Previous revision's session model | Removed | `Mcp-Session-Id` is not a thing to design around any more |
-| Deprecation compatibility window | Minimum twelve months | Roots, Sampling, Logging, and HTTP+SSE still work — but they have a clock on them |
-| Tier-1 SDKs on `2026-07-28` | TypeScript, Python, Go, C# | Rust is beta |
-| Tasks namespace | `io.modelcontextprotocol/tasks` | An extension identifier, not a core method prefix |
-| Headers a gateway can route on | `Mcp-Method`, `Mcp-Name` | Body inspection is no longer required to authorize a call |
-| Cache directives | `ttlMs`, `cacheScope` | The tool list is now cacheable, which changes how often a client must round-trip |
+| Current protocol revision | `2026-07-28` | Previous revision was `2025-11-25` |
+| Requests a compliant POST must carry | 3 headers + 3 `_meta` keys | `MCP-Protocol-Version`, `Mcp-Method`, `Mcp-Name` (where applicable); `protocolVersion`, `clientInfo`, `clientCapabilities` |
+| Header/body version mismatch | `400` + `HeaderMismatch` (`-32020`) | The header and the `_meta` field are two places to get one value right |
+| Minimum deprecation window | Twelve months from the revision that deprecates | Roots, Sampling, Logging, and Dynamic Client Registration are eligible for removal in the first revision released on or after **2027-07-28** |
+| HTTP+SSE transport | **Three months** after SEP-2596 reaches Final | The one deprecation that does *not* get twelve months |
+| Tier 1 SDKs | TypeScript, Python, C#, Go | Tier 2: Java, Rust, Ruby. Tier 3: Swift, PHP, Kotlin |
+| SSE stream resumability | Removed | No `Last-Event-ID`, no event IDs. A broken stream loses the in-flight request |
+| Cache scope values | `"public"` or `"private"` | `private` keeps shared intermediaries from caching the response |
+| `ttlMs` absent | Treat as `0` — immediately stale | Also the correct reading of a negative value |
+| Error code range reserved for MCP | `-32020` to `-32099` | `-32000`–`-32019` stays implementation-defined |
 
 ## Common Gotchas
 
 - **Teaching `Mcp-Session-Id` as the default design is teaching the previous revision.** Examples
   built on session establishment do not describe a `2026-07-28` server, and they push readers toward
   sticky routing they no longer need.
-- **A stateless protocol does not mean a stateless application.** Conversation state, task state,
-  and tenant state still live somewhere — the change is that the *protocol* stopped carrying them.
-  Long-running work belongs in the tasks extension, not in a session you keep open.
-- **Not sending `MCP-Protocol-Version` leaves you on whatever the server decides.** Version
-  negotiation without an explicit version is version negotiation you are not participating in.
-- **Tasks moved out of the core, so "is this server spec-compliant" no longer answers "does it
-  support tasks".** Extensions are discovered and negotiated separately; a compliant server may
-  implement none of them.
-- **Deprecated does not mean absent, and present does not mean safe to build on.** Roots, Sampling,
-  Logging, and HTTP+SSE have at least twelve months left. New work should not start on them.
-- **Per-request metadata is not an authorization channel.** A credential carried in `_meta` fails
-  the moment the SDK issues a protocol call of its own with no `_meta` attached — and exempting
-  those calls to compensate reopens the hole. Authorization belongs on the transport, where every
-  request carries it. This is a mistake the handbook made and recorded; see
+- **A stateless protocol does not mean a stateless application.** Conversation, task, and tenant
+  state still live somewhere — the change is that the *protocol* stopped carrying them. Servers
+  needing cross-call state mint explicit handles passed as tool arguments.
+- **`server/discover` is mandatory for servers and optional for clients** — the opposite way round
+  from how "optional discovery" usually reads. A server that skips it is non-compliant even though
+  most clients will never call it.
+- **The protocol version appears twice and must agree.** The `MCP-Protocol-Version` header and the
+  `io.modelcontextprotocol/protocolVersion` field in `_meta` are validated against each other; a
+  mismatch is a `400`, not a warning.
+- **`ttlMs` and `cacheScope` are required, not advisory extras.** A server omitting them on
+  cacheable results is out of spec, and a client that ignores them re-fetches `tools/list` forever.
+  Caching a `private` response in a shared intermediary is how one tenant sees another's tool list.
+- **A broken response stream loses the request.** SSE resumability and message redelivery were
+  removed, so there is no `Last-Event-ID` to resume from — the client must re-issue the work as a
+  new request with a new ID. Anything non-idempotent behind that call needs its own protection.
+- **Tasks moved out of the core, so "spec-compliant" no longer implies "supports tasks".**
+  Extensions are negotiated separately, and a fully compliant server may implement none.
+- **Deprecated features do not all expire together.** Roots, Sampling, Logging, and Dynamic Client
+  Registration have until at least 2027-07-28. HTTP+SSE has three months from SEP-2596 reaching
+  Final — plan for it to disappear first.
+- **Per-request metadata is not an authorization channel.** One `call_tool()` on the official Python
+  SDK produces *two* server-visible requests: the `tools/call`, and an internal `tools/list` issued
+  by `validate_tool_result()` to check the output schema. The internal call carries the protocol
+  `_meta` stamp but **not** the caller's application `_meta` — `call_tool()` takes a `meta=`
+  argument and `list_tools()` has no such parameter. A server authorizing on a credential in `_meta`
+  therefore rejects its own client's internal call, and exempting `tools/list` to compensate reopens
+  the hole. Authorization belongs on the transport, where every request carries it. See
   [Module 6 → Security](/learn/modules/06-mcp/#security).
-- **Client-side caching without honoring `cacheScope` leaks across tenants.** A tool list cached
-  under the wrong scope is one tenant seeing another's capabilities.
-- **Dynamic Client Registration still works, and is still the direction being moved away from.**
-  New authorization work should be planned against Client ID Metadata Documents.
 - **`Mcp-Method` and `Mcp-Name` are attacker-controlled input to your gateway.** They make routing
   cheap; they do not make it trustworthy. The server still authorizes the actual call.
 

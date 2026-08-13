@@ -1,16 +1,23 @@
 ---
 title: LangGraph
 description: A durable orchestration runtime for agent workflows — state and reducers, checkpointers, interrupts, and the 1.2-generation additions for delta state, per-node timeouts, error recovery, and typed event streaming.
-version: 1.0.0
+version: 1.1.0
 lastUpdated: 2026-08-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
     change: Published the LangGraph lookup against langgraph 1.2.11.
     author: vinod
+  - version: 1.1.0
+    date: 2026-08-12
+    change: >-
+      Corrected against an installed langgraph 1.2.11. Event streaming v3 is opt-in — `version`
+      defaults to "v2" — and add_node also exposes cache_policy. Replaced the unverified
+      Python/TypeScript parity claim with the surface actually inspected.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "langgraph==1.2.11"
+  verifiedAgainst: "langgraph==1.2.11, API surface inspected on an installed build"
   verifiedOn: 2026-08-12
 category: Agent orchestration
 ---
@@ -50,11 +57,12 @@ are the most common source of code that does not run.
 | Checkpointer | Persists state per step, keyed by thread. Without it there is no resume, no interrupt, no HITL |
 | Thread | One run's identity across steps and restarts |
 | Interrupt | Suspends the run at a known point and returns control. Resumption reads the checkpoint |
-| Retry policy | Per-node retry on failure. Available in both Python and TypeScript |
+| Retry policy | Per-node retry on failure, via `add_node(retry_policy=...)` |
+| Cache policy | Per-node result caching, via `add_node(cache_policy=...)` |
 | Node timeout policy | Per-node execution deadline, so one hung call cannot pin the run |
 | Node error handler | Runs on node failure to recover or compensate, rather than failing the run |
 | Graceful draining | In-flight graphs finish or checkpoint on shutdown, and resume afterwards |
-| Event streaming v3 | Typed projections over the run: messages, lifecycle, subgraphs, reasoning, tool calls, usage |
+| Event streaming v3 | Typed projections over the run: messages, lifecycle, subgraphs, reasoning, tool calls, usage. Opt in with `version="v3"` — the default is still `"v2"` |
 | `trace_policy` | Per-node tracing configuration, exposed through `add_node` as of `1.2.11` |
 | Subgraph | A graph used as a node, with its own state and its own stream projection |
 
@@ -68,8 +76,9 @@ are the most common source of code that does not run.
 | Maintenance line | `0.4` | Still patched, not where new work goes |
 | Checkpoint frequency | Every step | The resume granularity, and the cost you pay for durability |
 | Retry unit | The whole node | A partially-completed node re-runs from the top — make nodes idempotent |
-| Parity caveat | Retries: both languages. Some timeout and error-handler capabilities: Python only | Do not assume a Python example ports to TypeScript unchanged |
-| Streaming projections | Typed, as of `1.2.10` | `stream_events` returns typed results with native projections rather than untyped events |
+| `add_node` policy arguments | 5 | `retry_policy`, `cache_policy`, `error_handler`, `timeout`, `trace_policy` — verified on an installed `1.2.11` |
+| `stream_events` default version | `"v2"` | v3 exists but is opt-in; asking for it on a Runnable that does not implement the v3 protocol raises `NotImplementedError` |
+| Cross-language parity | Check it, do not assume it | The surface above is the Python one. Confirm each capability in the language you are shipping |
 
 ## Common Gotchas
 
@@ -88,6 +97,9 @@ are the most common source of code that does not run.
   boundary, and search results have not caught up.
 - **A per-node timeout is not a run timeout.** Ten nodes at thirty seconds each is a five-minute
   worst case. Budget the run, not just the step.
+- **You are probably not using streaming v3.** `stream_events` still defaults to `version="v2"`, so
+  the typed projections are opt-in — code that never passes `version="v3"` gets the old events and
+  no error saying so.
 - **An error handler that swallows the error turns a failed run into a wrong one.** Recovery means
   compensating or routing to a failure path, not returning empty state and continuing.
 - **In-memory checkpointers are for tests.** A run durable only until the process exits is not

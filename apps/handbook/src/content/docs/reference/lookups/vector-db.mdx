@@ -64,7 +64,7 @@ one data point: the vector store is becoming the retrieval layer, not just the v
 | --- | --- | --- |
 | The category's version | None | "Vector DB" is a category. Pin a vendor's API version instead |
 | Pinecone's current stable API | `2026-04` | Date-based versioning; send `X-Pinecone-Api-Version: 2026-04` explicitly |
-| Pinecone stable API support | At least twelve months | Long enough to plan a migration, short enough to need one |
+| Pinecone stable API support | At least twelve months | New stable version quarterly, so you get ~9 months to migrate off the one you are on |
 | Unversioned API calls | Fall back to the *oldest* supported stable version | Not the newest. Omitting the header pins you to the past |
 | Embedding dimension | Fixed at index creation | A model change is a reindex of the entire corpus |
 | Similarity metric | Fixed at index creation | Mismatched with the embedding model, results are wrong but not obviously wrong |
