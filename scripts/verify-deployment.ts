@@ -24,6 +24,27 @@ interface Check {
 
 const TIMEOUT_MS = 20_000;
 
+/**
+ * Refuses to run when a proxy is configured but Node's `fetch` will ignore it.
+ *
+ * Node 22's `fetch` does not read `HTTPS_PROXY`; it needs `NODE_USE_ENV_PROXY=1`.
+ * In a proxied sandbox without it, every request is refused at the egress layer
+ * and this script reports all seven checks as failures against a site that is
+ * perfectly healthy — observed against the live handbook, which returned 200 to
+ * `curl` while this reported 7/7 down. A checker that cries wolf gets ignored,
+ * which is worse than one that declines to answer, so this exits instead of
+ * printing a page of false failures.
+ */
+function refuseIfProxyIsInvisible(): string | null {
+  const proxy = process.env.HTTPS_PROXY ?? process.env.https_proxy;
+  if (!proxy || process.env.NODE_USE_ENV_PROXY) return null;
+  return (
+    `A proxy is configured (${proxy}) but Node's fetch will not use it, so every check\n` +
+    `would fail against a site that may be fine. Re-run as:\n\n` +
+    `  NODE_USE_ENV_PROXY=1 pnpm verify:deployment <origin>`
+  );
+}
+
 async function get(url: string): Promise<{ status: number; body: string }> {
   const response = await fetch(url, {
     redirect: "follow",
@@ -118,6 +139,13 @@ async function main(): Promise<void> {
     return;
   }
 
+  const proxyProblem = refuseIfProxyIsInvisible();
+  if (proxyProblem) {
+    console.error(proxyProblem);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(`Checking ${origin}\n`);
   let failed = 0;
 
@@ -140,8 +168,10 @@ async function main(): Promise<void> {
   }
 
   console.log(
-    "\n  MANUAL  A Mermaid diagram renders — diagrams are drawn client-side, so no fetch can\n" +
-      "          confirm it. Open any Architecture page and look.",
+    "\n  NOTE  Diagrams are not checked here — they render client-side, so no fetch can see\n" +
+      "        them. They are covered by tests/e2e/diagrams.spec.ts, which asserts\n" +
+      "        `data-mermaid-rendered` on every page importing a .mmd and therefore\n" +
+      "        distinguishes a real diagram from Mermaid's error graphic (also an <svg>).",
   );
 
   if (failed > 0) {
