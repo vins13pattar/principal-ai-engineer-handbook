@@ -1,0 +1,135 @@
+---
+title: Semantic Cache
+description: Semantic caching for LLM responses, and a threshold sweep showing that on this corpus no setting serves a genuine paraphrase before it serves a wrong answer.
+version: 1.0.0
+lastUpdated: 2026-08-14
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-14
+    change: Initial lab documentation, including an explicit account of how much of the headline result is an artefact of the simulated embedding model.
+    author: vinod
+category: lab
+repoPath: labs/semantic-cache
+stack:
+  - Python 3.12+
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import thresholdTradeoff from "./semantic-cache.threshold-tradeoff.mmd?raw";
+
+[Module 4](/learn/modules/04-ai-infrastructure/) names caching as a real lever on both cost and
+latency. This lab measures the other side of that lever: what the similarity threshold costs in
+wrong answers.
+
+Source: [`labs/semantic-cache`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/semantic-cache)
+
+<Aside type="caution" title="production-shaped, and the simulation matters more here than usual">
+  The embedding model is a deterministic **lexical** stand-in, not a learned one. That choice
+  shapes the headline result, and the size of its effect is discussed below rather than buried in a
+  footnote. No LLM is called, storage is an in-memory linear scan with no ANN index, and eviction is
+  TTL-only. Do not port the specific thresholds anywhere.
+</Aside>
+
+## The lookup path
+
+<Mermaid code={thresholdTradeoff} title="Exact tier first, scope filtered before similarity, and the two ways a semantic hit can turn out" />
+
+## The finding
+
+Sweeping the threshold produces two curves. Hit rate is the one that gets reported. **False-hit
+rate** — a wrong cached answer, served fast, downstream indistinguishable from a right one — is the
+one that decides whether the cache is a saving or a correctness bug.
+
+```text
+thresh  hit rate  false-hit  precision  true  false  miss
+  0.99     0.00%      0.00%    100.00%     0      0     9
+  0.95     0.00%      0.00%    100.00%     0      0     9
+  0.90    22.22%     22.22%      0.00%     0      2     7
+  0.85    44.44%     44.44%      0.00%     0      4     5
+  0.80    55.56%     44.44%     20.00%     1      4     4
+  0.60    88.89%     55.56%     37.50%     3      5     1
+```
+
+At **every** threshold that serves anything at all, precision is below 100%. Tightening until the
+wrong answers disappear removes every right one too. There is no safe operating point on this
+corpus.
+
+The two distributions are not merely overlapping — they are **inverted**:
+
+| | Similarity range |
+| --- | --- |
+| Genuine paraphrases, which *should* hit | 0.45 – 0.83 |
+| Near-duplicates with different answers, which *must not* | 0.60 – 0.91 |
+
+"What is the refund policy for **EU** customers?" scores **0.875** against the **US** version. "How
+**do** I reset my password?" scores 0.833 against "How **can** I...". The pair that must never be
+conflated is the more similar one.
+
+## How much of that is the simulation
+
+This is the part worth being careful about, because the result is dramatic and the embedding is
+fake.
+
+**The mechanism is real.** The token carrying the semantic difference — `EU`/`US`, `2025`/`2026`,
+`free`/`paid` — is short, low-weight, and swamped by the long shared framing around it. Paraphrases
+differ in function words, which are a larger fraction of a short question. Entity swaps are a known
+hard case for dense embeddings too.
+
+**The inversion is probably not.** A real dense model would separate these groups better than a
+lexical proxy, and the inversion would most likely soften into an overlap. The tests document this
+explicitly — `test_the_distributions_are_inverted_not_merely_overlapping` exists so a reader
+reproducing this with a real model knows which assertion is expected to weaken.
+
+What survives the change of model is the engineering conclusion:
+
+> **A tighter threshold is not the fix.** The fix is detecting that two questions differ on an
+> entity that changes the answer. Threshold tuning trades one error for the other; it cannot
+> eliminate both, and on some corpora there is no usable point at all.
+
+And the process point: **a threshold cannot be inherited.** It is a joint property of your corpus
+and your embedding model, and the only way to know yours is to build a labelled set of
+near-duplicates and measure both curves.
+
+## The other half: the scope key
+
+A cached answer is an answer *from a particular model, under a particular prompt version, for a
+particular tenant*. Tests pin that changing any of the three misses. Prompt version is the one
+people forget, because prompts get edited far more often than models change — and an edit that
+alters the answer keeps serving the old shape until the TTL runs out.
+
+Scope is filtered **before** the similarity search. Filtering afterwards means the nearest neighbour
+was already read out of another tenant's data, which is the
+[Vector DB](/reference/lookups/vector-db/) lookup's first gotcha in cache form.
+
+## Run it
+
+```bash
+cd labs/semantic-cache
+uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+./.venv/bin/python -m ruff check . && ./.venv/bin/python -m mypy src && ./.venv/bin/python -m pytest -q
+```
+
+15 tests, `ruff` clean, `mypy --strict` clean.
+
+## Principal-level discussion points
+
+- **What does a wrong answer cost here?** Until that is a number, the threshold is being chosen by
+  whoever last looked at the hit-rate dashboard.
+- **Who notices a false hit?** Nothing downstream can distinguish one from a correct answer. The
+  only detection is sampling cached responses against fresh ones, and almost nobody does it.
+- **Cache invalidation on prompt edits.** Prompts change weekly. If the prompt version is not in the
+  key, every edit silently keeps serving the previous behaviour.
+- **A cache changes your evaluation.** An eval suite that runs through the cache is measuring the
+  cache, not the model — and will keep reporting yesterday's scores after a model change.
+
+## Related
+
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — caching as a cost lever, and
+  the cost-latency-quality triangle.
+- [Model Router](/build/labs/model-router/) — the other lever on the same cost problem, with its own
+  uncomfortable measurement.
+- [Vector DB](/reference/lookups/vector-db/) — similarity search, metadata filtering, and why the
+  filter belongs in the query.

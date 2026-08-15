@@ -1,0 +1,16 @@
+flowchart TD
+    Q["Incoming question"] --> Scope{"Exact key hit?<br/>tenant + model + prompt_version + text"}
+    Scope -->|Yes, unexpired| Exact["EXACT hit<br/>always correct"]
+    Scope -->|No| Filter["Filter candidates by scope<br/>BEFORE similarity, never after"]
+
+    Filter --> Near["Nearest neighbour<br/>cosine similarity"]
+    Near --> Cut{"score >= threshold?"}
+
+    Cut -->|No| Miss["MISS<br/>call the model<br/>similarity still reported, so<br/>the threshold can be tuned"]
+    Cut -->|Yes| Risk{"Is it the same question?"}
+
+    Risk -->|"Genuine paraphrase<br/>0.45 - 0.83 here"| True["TRUE hit<br/>cost saved"]
+    Risk -->|"Entity swap<br/>EU/US · 2025/2026 · free/paid<br/>0.60 - 0.91 here"| False["FALSE hit<br/>wrong answer, served fast<br/>indistinguishable downstream"]
+
+    True --> Note["The ranges overlap.<br/>Tightening to exclude the right column<br/>also excludes the left one."]
+    False --> Note

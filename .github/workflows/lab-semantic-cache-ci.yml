@@ -1,0 +1,37 @@
+name: Semantic Cache CI
+
+on:
+  push:
+    paths:
+      - "labs/semantic-cache/**"
+      - ".github/workflows/lab-semantic-cache-ci.yml"
+  pull_request:
+    paths:
+      - "labs/semantic-cache/**"
+      - ".github/workflows/lab-semantic-cache-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/semantic-cache
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: labs/semantic-cache/pyproject.toml
+      # The extras list must cover every import reachable from src/ and tests/.
+      # Getting this wrong is not a loud failure: collection aborts before any test
+      # runs and the job can still look like it did something. See the async-ai-gateway
+      # incident recorded in that lab's history.
+      - name: Install dependencies
+        run: pip install -e '.[dev]'
+      - name: Ruff
+        run: ruff check .
+      - name: MyPy
+        run: mypy src
+      - name: Tests
+        run: pytest --maxfail=1 -q

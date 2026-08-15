@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.9.0
+version: 2.10.0
 lastUpdated: 2026-08-14
 revisionHistory:
   - version: 1.0.0
@@ -100,6 +100,13 @@ revisionHistory:
       Built the Model Router lab. Its escalation measurement contradicted the assumption the tests
       were first written around; the result is recorded rather than smoothed over. Nine labs.
     author: vinod
+  - version: 2.10.0
+    date: 2026-08-14
+    change: >-
+      Built the Semantic Cache lab. Its threshold sweep found no setting that serves a genuine
+      paraphrase before a wrong one, with an explicit account of how much of that is the simulated
+      embedding. Ten labs.
+    author: vinod
 category: section-overview
 ---
 
@@ -160,7 +167,7 @@ bump the way a module does:
 | [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) | Module 6 | Production-shaped |
 | [Agent Identity Broker](/build/labs/agent-identity-broker/)       | Module 15, 6     | Production-shaped |
 | [Model Router](/build/labs/model-router/)                         | Module 4         | Production-shaped |
-| Semantic Cache                                                    | Module 4         | Planned           |
+| [Semantic Cache](/build/labs/semantic-cache/)                     | Module 4         | Production-shaped |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
 
 ### Module 15 — Agent Identity and Access: shipped
@@ -198,7 +205,7 @@ and fails the build if the suite stays green.
 
 ### Lab migration: complete
 
-A parallel branch built nine labs against the retired static-HTML prototype before this platform
+A parallel branch built ten labs against the retired static-HTML prototype before this platform
 existed. All seven now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
 than moved wholesale. That branch has been deleted; nothing on it is unique.
 
