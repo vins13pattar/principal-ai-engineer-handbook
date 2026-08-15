@@ -1,0 +1,19 @@
+flowchart TD
+    Task["Task<br/>task_class · estimated_tokens"] --> Cap{"Which models declare<br/>support for this task class?"}
+    Cap -->|None| Err["NoCapableModel<br/>raised, not guessed"]
+    Cap -->|"Capable set, cheapest first"| Pol{"Policy"}
+
+    Pol -->|CheapestCapable| P1["First in the capable set"]
+    Pol -->|QualityFloor| P2["Cheapest clearing the floor<br/>or best available, reason recorded"]
+    Pol -->|BudgetCapped| P3{"Above the ceiling?"}
+    P3 -->|Yes| Budget["BudgetExceeded<br/>raised, never a silent downgrade"]
+    P3 -->|No| P1
+
+    P1 --> Run["Run on the chosen model"]
+    P2 --> Run
+
+    Run --> Conf{"Confidence below threshold?"}
+    Conf -->|No| Done["Answer · one call billed"]
+    Conf -->|"Yes, and a better model exists"| Esc["Run best model too<br/>BOTH calls billed"]
+    Conf -->|"Yes, already on the best"| Done
+    Esc --> Marginal["Answer · two calls billed<br/>the rescued answer has a price"]

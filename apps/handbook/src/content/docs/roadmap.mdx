@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.8.0
+version: 2.9.0
 lastUpdated: 2026-08-14
 revisionHistory:
   - version: 1.0.0
@@ -94,6 +94,12 @@ revisionHistory:
       Built the Agent Identity Broker lab, so Module 15's blast-radius claim is measured rather than
       asserted. Eight labs.
     author: vinod
+  - version: 2.9.0
+    date: 2026-08-14
+    change: >-
+      Built the Model Router lab. Its escalation measurement contradicted the assumption the tests
+      were first written around; the result is recorded rather than smoothed over. Nine labs.
+    author: vinod
 category: section-overview
 ---
 
@@ -153,7 +159,7 @@ bump the way a module does:
 | [Dynamic Batching Inference](/build/labs/dynamic-batching-inference/) | Module 9 | Production-shaped |
 | [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) | Module 6 | Production-shaped |
 | [Agent Identity Broker](/build/labs/agent-identity-broker/)       | Module 15, 6     | Production-shaped |
-| Model Router                                                      | Module 4         | Planned           |
+| [Model Router](/build/labs/model-router/)                         | Module 4         | Production-shaped |
 | Semantic Cache                                                    | Module 4         | Planned           |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
 
@@ -192,7 +198,7 @@ and fails the build if the suite stays green.
 
 ### Lab migration: complete
 
-A parallel branch built eight labs against the retired static-HTML prototype before this platform
+A parallel branch built nine labs against the retired static-HTML prototype before this platform
 existed. All seven now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
 than moved wholesale. That branch has been deleted; nothing on it is unique.
 

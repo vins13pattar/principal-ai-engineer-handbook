@@ -1,0 +1,131 @@
+---
+title: Model Router
+description: Task-based model routing — capability filtering before cost, and a measurement showing that escalating to a stronger model makes cost per correct answer worse at every price ratio tested.
+version: 1.0.0
+lastUpdated: 2026-08-14
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-14
+    change: Initial lab documentation. The escalation measurement contradicted the assumption the suite was first written around; the result is recorded rather than smoothed over.
+    author: vinod
+category: lab
+repoPath: labs/model-router
+stack:
+  - Python 3.12+
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import routingPath from "./model-router.routing-path.mmd?raw";
+
+[Module 4](/learn/modules/04-ai-infrastructure/) argues that model choice is a routing decision and
+that the cost-latency-quality triangle should be measured rather than assumed. This lab does the
+measuring, and the answer was not what the lab was originally written to show.
+
+Source: [`labs/model-router`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/model-router)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  No model is ever called. Correctness comes from a seeded hash so results are reproducible; costs
+  and quality figures are lab fixtures chosen for their relative ordering, not any vendor's pricing
+  and not benchmark results. Latency is not modelled at all — the triangle has three corners and
+  this lab measures two. Health, retries, and outages are
+  [`async-ai-gateway`](/build/labs/async-ai-gateway/)'s job.
+</Aside>
+
+## Not the same routing as the gateway
+
+[`async-ai-gateway`](/build/labs/async-ai-gateway/) routes between *replicas of equivalent
+providers* by observed success rate — a health problem. This lab routes between *models of
+different capability and price* by what the task needs. Both are called routing; they share almost
+no logic, and the labs are kept apart so each stays about one thing.
+
+## The path a task takes
+
+<Mermaid code={routingPath} title="Capability filtering first, policy second, and an escalation branch that bills for both calls" />
+
+## The finding
+
+Escalation — try the cheap model, fall back to the expensive one when it looks unsure — is standard
+advice, and the intuition is that it saves money while holding quality. **The first version of this
+lab's test suite asserted exactly that, and it failed.**
+
+Over a fixed 200-task workload, with a *perfect* confidence signal — low exactly when the answer is
+wrong, the best case any escalation policy could hope for:
+
+| | Cheap only | Escalating |
+| --- | --- | --- |
+| Correct | 166 / 200 | 197 / 200 |
+| Total cost | 0.040 | 0.550 |
+| Cost per correct answer | 0.00024 | **0.00279** |
+
+Accuracy up 19%. Cost per correct answer **11× worse**. And it is not an artefact of the 75× price
+gap between those tiers — the relationship holds at 10×, 5×, and 2×.
+
+The cause is arithmetic rather than modelling. A cheap model already right 83% of the time
+contributes a large number of cheap correct answers; escalation adds a smaller number of expensive
+ones, so the average can only move upward. **Cost per correct answer is a trap metric here, and it
+is the one everybody reaches for.**
+
+## The number that actually decides
+
+What escalation buys is *marginal* correct answers, so the honest question is what each rescued
+answer cost:
+
+```text
+marginal cost per rescued answer
+  = (escalated_cost − baseline_cost) / (escalated_correct − baseline_correct)
+```
+
+About 0.00044 per rescued answer at a 2× price ratio; about 0.016 at 75×. Whether either is worth
+paying depends on what a wrong answer costs you — a product question, and one the router should not
+pretend to answer. `test_marginal_cost_per_rescued_answer_scales_with_the_cost_ratio` pins the
+relationship so the conclusion cannot quietly invert.
+
+## What else the tests pin
+
+**Capability filtering happens before cost.** `small` is the cheapest model in the fleet and cannot
+write code. A router sorting by price first picks it and is cheap, fast, and wrong.
+
+**A quality floor nothing clears falls back visibly.** The router still returns a decision — you
+cannot serve nothing — but records in the reason string that the floor was not met, so a bar nobody
+is hitting is auditable rather than invisible.
+
+**A budget cap raises instead of downgrading.** Silently choosing a worse model to stay under budget
+is a quality regression with no alert attached.
+
+**Ties break on name, not registration order.** A router whose choice depends on dict iteration
+produces cost reports nobody can reconcile between runs.
+
+**The confidence signal's usefulness is invisible in the API.** Swapping an informative signal for a
+meaningless one changes nothing a type checker or a code review would catch — escalation still
+fires, still bills twice, and returns far less. That is why it has to be measured.
+
+## Run it
+
+```bash
+cd labs/model-router
+uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+./.venv/bin/python -m ruff check . && ./.venv/bin/python -m mypy src && ./.venv/bin/python -m pytest -q
+```
+
+16 tests, `ruff` clean, `mypy --strict` clean.
+
+## Principal-level discussion points
+
+- **What is a wrong answer worth?** Until that number exists, no escalation policy can be justified
+  or rejected — and most teams adopt one without ever asking.
+- **Who owns `ModelSpec.quality`?** It is a static claim here. In production it decays, and a router
+  optimising against stale quality numbers degrades silently.
+- **Capability declarations are trust.** A model that claims it can `reason` and cannot will be
+  routed work it fails at, cheaply and confidently.
+- **The triangle's third corner.** Escalation spends latency as well as money. A task that escalates
+  takes two round trips and may miss a deadline the single expensive call would have met.
+
+## Related
+
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the cost-latency-quality
+  triangle, and why model choice is a routing decision.
+- [Async AI Gateway](/build/labs/async-ai-gateway/) — health-aware routing between equivalent
+  providers, which is a different problem.
