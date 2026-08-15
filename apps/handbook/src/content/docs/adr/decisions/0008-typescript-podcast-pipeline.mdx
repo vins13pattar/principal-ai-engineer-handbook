@@ -1,0 +1,184 @@
+---
+title: "ADR-0008: TypeScript and a plain pipeline for the podcast engine"
+sidebar:
+  label: "0008 · TypeScript podcast engine"
+description: Why the podcast generation engine is TypeScript rather than Python, and why it orchestrates with ordinary async code rather than a graph framework.
+version: 1.0.0
+lastUpdated: 2026-08-15
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-15
+    change: Accepted. Records the language choice, the rejection of a graph framework for a linear workflow, and the conditions that would reverse it.
+    author: vinod
+category: adr
+adrNumber: 8
+adrStatus: accepted
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import { ADRSummary } from "@handbook/components";
+
+<ADRSummary adrNumber={8} status="accepted" date={new Date("2026-08-15")} />
+
+## Status
+
+Accepted. Implemented by `packages/handbook-content`, which loads the real content tree and builds
+source packs, and by extending `pnpm check` to typecheck every workspace package rather than the
+site alone.
+
+## Context
+
+The podcast engine generates episodes from handbook pages: load the source material, plan an
+episode, write dialogue between two voices, review it for groundedness, direct the voices,
+synthesise audio. The design document specified Python packages under `packages/` and a LangGraph
+workflow.
+
+Both were assumptions carried in from outside rather than decisions made against this repository,
+which already had constraints that bear on them.
+
+**Every Python project here is a lab.** There are eleven, each in `labs/<name>/` with its own
+`pyproject.toml`, virtualenv, and CI workflow. Nothing shares a Python environment with anything
+else. That isolation is deliberate — one lab's dependency mistake cannot take the others down — but
+it means there is no shared Python foundation for a product to build on.
+
+**Everything else is TypeScript, and the content tooling already exists.** `packages/shared` holds
+Zod schemas for every page type, frontmatter extraction, and the freshness classification with its
+review windows. `scripts/lint-content-structure.ts` walks the content tree to enforce each page's
+required-section contract.
+
+**The content is MDX, not Markdown.** Page bodies carry `import` statements and JSX components, and
+the frontmatter is the source of the metadata the generator needs.
+
+## Problem
+
+Two questions, usually answered by habit rather than by evidence:
+
+1. **Which language?** AI tooling defaults to Python, and the design assumed it. But the largest
+   component of Phase 1 is a content loader, and the content, its schemas, and its structural
+   linter are all TypeScript.
+2. **Which orchestration framework?** The design specified LangGraph. The handbook teaches
+   LangGraph, which makes adopting it feel obvious and is precisely why it needs an argument rather
+   than an assumption.
+
+Getting either wrong is expensive later: the language decides what can be reused versus
+reimplemented, and the framework decides the shape of every future change to the pipeline.
+
+## Options
+
+**Python engine in `labs/podcast-engine/`.** Consistent with where Python lives, legible to an
+audience that mostly writes Python. But the content loader would reimplement MDX parsing and restate
+every content schema in a second language, with no mechanism to detect divergence when one side
+changes.
+
+**TypeScript with LangGraph JS.** Keeps schema reuse and adds the graph. But it is the less mature
+of the two LangGraph implementations, and it still has to justify the graph.
+
+**TypeScript with a heavier agent framework** (workflow primitives, agent abstractions, built-in
+persistence). Real capability, aimed at a problem this pipeline does not have yet, and harder to
+leave than to enter.
+
+**TypeScript with plain async orchestration.** Reuses the schemas and freshness logic directly.
+Checkpointing between stages has to be written by hand.
+
+## Decision
+
+The podcast engine is **TypeScript**, in `packages/` alongside the rest of the platform's shared
+code, and it **orchestrates with ordinary async functions** rather than a graph framework.
+
+Model access goes through a provider-abstraction layer whose schema validation is the same Zod the
+handbook already uses for frontmatter, so a typed `EpisodePlan` is validated at the model boundary
+by the same library that validates a page.
+
+### Why TypeScript
+
+The content loader settles it. In TypeScript it imports `extractFrontmatter` and the content schemas
+from `packages/shared`, sharing the definition of a valid page with the linter and the site. In
+Python it would restate all of that, and the two would drift invisibly, because nothing would
+compare them.
+
+Source freshness makes the same point. The design's freshness tracking is not a new mechanism to
+build; it is `packages/shared/src/freshness.ts` applied to a different artifact. In TypeScript that
+is an import.
+
+**The cost is real and worth naming.** This handbook's readers are AI engineers, and AI engineering
+is overwhelmingly Python. A Python engine would be more legible to them. That cost is acceptable
+because the podcast engine is product infrastructure, not a lab — the eleven labs remain Python, and
+they are where readers go to read code.
+
+### Why not LangGraph
+
+The workflow is linear: source pack → plan → dialogue → review → bounded revision loop → voice
+script → audio. One cycle, capped iteration count. That is a `for` loop.
+
+The properties that justify a graph framework — branching across many paths, dynamic node selection,
+concurrent fan-out, interrupt-and-resume against durable state — are mostly absent. Human approval
+is the one candidate, and it is a file-and-CLI approval between runs, not a suspended graph.
+
+The strongest argument for LangGraph is that per-stage artifacts (`plan.json`,
+`draft-dialogue.json`, `review.json`) are checkpointing under another name, and a graph framework
+supplies that plus per-node retries for free. That is worth roughly forty lines here, against a
+dependency that would own the shape of every future change.
+
+<Aside type="note" title="Choosing against something the handbook teaches">
+  [Module 7](/learn/modules/07-langgraph/) covers LangGraph and there is a
+  [fast-moving lookup](/reference/lookups/langgraph/) for it. Using it in production would let the
+  handbook say "we run this."
+
+  Not using it is the more useful published decision. The failure mode this guards against is
+  adopting a framework because it happens to be the module topic — which is the reasoning the
+  handbook argues against everywhere else. A graph framework on a linear pipeline is a dependency
+  bought with no property gained.
+</Aside>
+
+## Consequences
+
+`packages/handbook-content` reads the real content tree — every page across all seven collections —
+and builds source packs with per-excerpt attribution and a source hash for freshness comparison. Its
+tests run against the live corpus rather than fixtures, which is how two of its own bugs surfaced.
+
+**Two collections initially loaded as empty and the tests passed anyway.** Architecture pages live
+under `architecture/systems/` and cheat sheets under `cheatsheets/sheets/`; the first version of the
+loader pointed at the parent directories. `readdir` on a directory of subdirectories returns no
+`.mdx` files, so the collections came back empty rather than erroring, and a test asserting "more
+than forty documents total" passed with a quarter of the handbook missing. The fix is a per
+collection floor, asserted individually — a total is exactly the assertion that cannot see this.
+
+**A type error in `packages/shared` did not fail `pnpm verify`.** `pnpm check` ran only
+`astro check` on the site. `@handbook/shared` had a `check` script that nothing invoked, confirmed
+by introducing a deliberate error and watching the build stay green. It had gone unnoticed because
+the script was already failing for unrelated reasons — `@types/node` referenced by its tsconfig but
+never declared, and a `rootDir` conflicting with an included `vitest.config.ts`. **A gate that is
+never run does not report that it is broken.** `pnpm check` now covers every workspace package, and
+both config bugs are fixed.
+
+That is the same failure the
+[Async AI Gateway](/build/labs/async-ai-gateway/#the-integration-job-that-was-testing-nothing)
+found in its Redis job on the same day: a check reporting success without checking.
+
+**Parameter properties are unavailable.** This repo runs TypeScript directly under
+`node --experimental-strip-types`, which erases types without transforming syntax and rejects
+parameter properties outright. Vitest transpiles and would not have caught it. Constructor
+assignment is written out longhand.
+
+### What would reverse this
+
+Concrete conditions, so a reversal is a measurement rather than a mood:
+
+- **Interactive Q&A needs interrupt-and-resume.** A voice session that pauses on a tool call and
+  resumes against durable state is the shape graph frameworks exist for. That is a different
+  workload from batch generation and can adopt one without dragging the generator along.
+- **The revision loop stops being a loop.** If review outcomes route to different repair paths
+  rather than back to one composer, the branching is real.
+- **Stage-level retry and resume becomes load-bearing.** If a failed synthesis at minute thirty
+  should resume rather than restart, and hand-rolled checkpointing is accumulating edge cases, buy
+  the framework.
+
+## References
+
+- [ADR-0002](/adr/decisions/0002-pnpm-monorepo-layout/) — the workspace layout this extends.
+- [ADR-0004](/adr/decisions/0004-single-docs-collection-schema/) — the content schema the loader
+  reads through.
+- [Module 7: LangGraph](/learn/modules/07-langgraph/) — what the framework is for, including the
+  cases where it earns its place.
+- [Async AI Gateway](/build/labs/async-ai-gateway/) — the Redis job with the same failure shape as
+  the typecheck gap above.

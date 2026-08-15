@@ -1,5 +1,5 @@
 {
-  "name": "@handbook/shared",
+  "name": "@handbook/content",
   "private": true,
   "version": "0.1.0",
   "type": "module",
@@ -13,7 +13,8 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "zod": "4.4.3"
+    "@handbook/shared": "workspace:*",
+    "yaml": "2.9.0"
   },
   "devDependencies": {
     "@types/node": "22.20.1",
