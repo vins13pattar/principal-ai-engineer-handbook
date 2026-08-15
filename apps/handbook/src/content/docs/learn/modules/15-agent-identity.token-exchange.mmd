@@ -1,0 +1,17 @@
+flowchart TD
+    User([User authenticates via OIDC]) --> UserTok["User token: sub=user, aud=host"]
+    UserTok --> Host["Agent host holds the user token"]
+
+    Host --> Choice{How does the agent call the MCP server?}
+
+    Choice -->|"Passthrough (forbidden)"| Pass["Forward the user token unchanged"]
+    Pass --> Deputy["Server sees aud=host, not itself<br/>MUST reject — confused deputy"]
+
+    Choice -->|Token exchange| Exchange["POST /token (RFC 8693)<br/>subject_token = user token<br/>resource = canonical MCP server URI (RFC 8707)<br/>scope = only what this task needs"]
+    Exchange --> AS[Authorization server]
+    AS --> AgentTok["Agent token<br/>aud = that MCP server<br/>scope = narrowed<br/>act = agent identity<br/>exp = minutes"]
+
+    AgentTok --> Call["Call MCP server<br/>Authorization: Bearer"]
+    Call --> Validate{"Server validates:<br/>signature, issuer, exp,<br/>aud names this server,<br/>scope covers this tool"}
+    Validate -->|Any check fails| Deny["401 / 403 — no tool runs"]
+    Validate -->|All pass| Tool["Execute tool<br/>audit logs agent + user"]

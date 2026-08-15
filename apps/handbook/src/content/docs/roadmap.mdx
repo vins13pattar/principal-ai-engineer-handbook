@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.6.1
+version: 2.7.0
 lastUpdated: 2026-08-14
 revisionHistory:
   - version: 1.0.0
@@ -81,13 +81,19 @@ revisionHistory:
     date: 2026-08-14
     change: Credited Shantanu Lodh, who raised the Module 15 suggestion, by name.
     author: vinod
+  - version: 2.7.0
+    date: 2026-08-14
+    change: >-
+      Marked v0.10 shipped — Module 15 (Agent Identity and Access) is published, written against the
+      MCP 2026-07-28 authorization spec and the OAuth RFCs beneath it. The Learn track is sixteen
+      modules. Its companion lab remains planned.
+    author: vinod
 category: section-overview
 ---
 
-## Current version: v0.9.0 — Reference is complete
+## Current version: v0.10.0 — Agent Identity and Access
 
-The documentation platform (v0.1.0) and all fifteen published Learn modules are complete
-(a sixteenth, [Module 15](#whats-next), is now scoped):
+The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 0](/learn/modules/00-principal-engineer-mindset/) · [Module 1](/learn/modules/01-production-python/) ·
 [Module 2](/learn/modules/02-distributed-systems/) · [Module 3](/learn/modules/03-networking/) ·
 [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) ·
@@ -97,7 +103,8 @@ The documentation platform (v0.1.0) and all fifteen published Learn modules are 
 [Module 10: Kubernetes](/learn/modules/10-kubernetes/) · [Module 11: Cloud](/learn/modules/11-cloud/) ·
 [Module 12: Observability](/learn/modules/12-observability/) ·
 [Module 13: System Design](/learn/modules/13-system-design/) ·
-[Module 14: Leadership](/learn/modules/14-leadership/).
+[Module 14: Leadership](/learn/modules/14-leadership/) ·
+[Module 15: Agent Identity](/learn/modules/15-agent-identity/).
 The [Architecture](/architecture/) section now has a design-review page for every lab: seven
 systems, each with a running implementation behind it. [Build](/build/) documents the same systems
 from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
@@ -123,7 +130,7 @@ contract CI enforces — three for interview rounds, two for the work itself.
 | ~~`v0.7`~~ | ~~Learn Module 12 (Observability)~~ — shipped 2026-08-07                                                     |
 | ~~`v0.8`~~ | ~~Learn Module 14 (Leadership)~~ — shipped 2026-08-10                                                        |
 | ~~`v0.9`~~ | ~~The four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB), each with a `freshness` block~~ — shipped 2026-08-12 |
-| `v0.10`    | Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization         |
+| ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
 
 Every module below also has a companion lab planned in [Build](/build/), tracked separately since a
@@ -144,7 +151,7 @@ bump the way a module does:
 | Semantic Cache                                                    | Module 4         | Planned           |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
 
-### v0.10 scope: Module 15 — Agent Identity and Access
+### Module 15 — Agent Identity and Access: shipped
 
 Suggested by [Shantanu Lodh](https://www.linkedin.com/in/shanlodh/), and the gap is real: the
 handbook covers what an agent is allowed to *do* without covering who it *is*. [Module 5](/learn/modules/05-agent-engineering/) and the
@@ -167,10 +174,15 @@ The module is scoped around two questions:
   [Module 6](/learn/modules/06-mcp/#security) makes about the transport, taken one layer down into
   what the token actually asserts.
 
-The companion lab, **Agent Identity Broker**, is where the claims get tested: minting scoped
-short-lived tokens, validating audience and scope on the server, and demonstrating the blast-radius
-difference against a delegation-only baseline. As with every lab, it ships labelled for what it
-actually is rather than what it resembles.
+[Module 15](/learn/modules/15-agent-identity/) is published, written against the MCP `2026-07-28`
+authorization specification and the OAuth RFCs beneath it — token exchange (RFC 8693), resource
+indicators (RFC 8707), and the audience validation the specification requires of every MCP server.
+
+The companion lab, **Agent Identity Broker**, is **not yet built**. It is where the claims get
+tested: minting scoped short-lived tokens, validating audience and scope on the server, and
+demonstrating the blast-radius difference against a delegation-only baseline. Until it exists the
+module's claims rest on the specification rather than on running code, which is the honest state to
+publish it in.
 
 ### Lab migration: complete
 

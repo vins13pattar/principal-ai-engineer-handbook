@@ -22,7 +22,7 @@ code, or from the code back to the reasoning.
 
 | Section                                                        | What it is                                                          |
 | -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| [Learn](https://handbook.vinodspattar.in/learn/)               | Fifteen modules, Principal Engineer mindset through leadership      |
+| [Learn](https://handbook.vinodspattar.in/learn/)               | Sixteen modules, Principal Engineer mindset through agent identity  |
 | [Build](https://handbook.vinodspattar.in/build/)               | Production-quality labs in [`labs/`](labs/)                         |
 | [Architecture](https://handbook.vinodspattar.in/architecture/) | Reference architectures for recurring AI infrastructure problems    |
 | [Interview](https://handbook.vinodspattar.in/interview/)       | Interview questions embedded next to the material that answers them |
@@ -33,7 +33,7 @@ code, or from the code back to the reasoning.
 
 ## Status
 
-**Fifteen Learn modules, seven labs, seven architecture pages, three interview tracks, thirteen
+**Sixteen Learn modules, seven labs, seven architecture pages, three interview tracks, thirteen
 reference lookups, five cheat sheets.** Every lab has a matching architecture page and a matching
 module, all cross-linked; every lab passes `ruff`, `mypy --strict`, and its own test suite in CI.
 The [Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept

@@ -1,0 +1,445 @@
+---
+title: "Module 15: Agent Identity and Access"
+sidebar:
+  label: "15 · Agent Identity"
+description: Who an agent is, as distinct from what it may do — short-lived agent-scoped tokens instead of blanket on-behalf-of delegation, and why a remote MCP server must validate audience and scope itself rather than trusting its caller.
+version: 1.0.0
+lastUpdated: 2026-08-14
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-14
+    change: >-
+      Initial publication. Written against the MCP 2026-07-28 authorization specification and the
+      OAuth RFCs it builds on, after a reader pointed out that the handbook covered agent
+      authorization without covering agent identity.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP 2026-07-28 authorization spec; RFC 8693 (Token Exchange), RFC 8707 (Resource Indicators), RFC 9068 (JWT access tokens), RFC 9728 (Protected Resource Metadata); CIMD is draft-ietf-oauth-client-id-metadata-document-00"
+  verifiedOn: 2026-08-14
+category: learn-module
+moduleNumber: 15
+difficulty: advanced
+estimatedMinutes: 50
+prerequisites:
+  - 05-agent-engineering
+  - 06-mcp
+relatedLabs: ["policy-gated-tool-runtime"]
+---
+
+import {
+  Checklist,
+  EngineeringNote,
+  Exercise,
+  FailureMode,
+  InterviewQuestion,
+  PrincipalPerspective,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import tokenExchange from "./15-agent-identity.token-exchange.mmd?raw";
+
+## Executive Summary
+
+[Module 5](/learn/modules/05-agent-engineering/) covers what an agent is permitted to do, and the
+[Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/) enforces it. Neither answers a
+prior question: **on whose authority, and as whom?** The default answer is that the agent carries
+the user's token and acts as the user everywhere — which is the easiest thing to build and makes the
+agent's blast radius identical to the user's entire permission set.
+
+This module replaces that default with per-action, per-server credentials: short-lived tokens
+minted for a specific agent, narrowed to a specific audience and scope, that name both the user and
+the agent acting for them. The second half is the enforcement side — a remote MCP server deciding
+whether a caller may invoke a tool, where the answer can never be "because the caller said so."
+
+## Mental Model
+
+Authentication asks *who is calling*. Authorization asks *what may they do*. Agent systems add a
+third question that neither covers: **who is acting, on whose behalf, and for how long?**
+
+A useful frame: a token is a claim about a subject, addressed to an audience, valid for a scope,
+until an expiry. Blanket delegation collapses three of those four — the audience becomes "anything
+downstream", the scope becomes "everything the user has", and the expiry becomes "the user's
+session". What is left is a bearer credential of enormous blast radius travelling through a system
+whose control flow is decided by a model.
+
+Narrowing each of those independently is the entire discipline:
+
+| Dimension | Blanket delegation | Agent-scoped credential |
+| --- | --- | --- |
+| Subject | The user | The user, with the agent named as actor |
+| Audience | Whatever accepts it | One named server |
+| Scope | The user's full permission set | The tools this task needs |
+| Lifetime | The session | Minutes |
+
+<EngineeringNote title="Identity is not the same as permission">
+  A capability check answers "is `read_invoice` allowed here?" An identity check answers "who is
+  asking, and is this token even addressed to me?" A system with excellent capability policy and no
+  audience validation will happily enforce that policy against a token minted for somebody else —
+  which is a correctly-implemented gate on the wrong door.
+</EngineeringNote>
+
+## Architecture
+
+<Mermaid
+  code={tokenExchange}
+  title="Token exchange narrows a user token into an agent-scoped, audience-bound credential — and the passthrough path the specification forbids"
+/>
+
+The left branch is what most systems do first and what the MCP specification explicitly prohibits:
+forward the user's token unchanged. The server receives a token whose audience names the host, not
+itself, and **must** reject it. The right branch exchanges that token for one minted for this
+server, this scope, and this agent — after which every check on the server side has something real
+to verify.
+
+## Deep Dive
+
+**On-behalf-of, and why it became the default.** OBO exists for good reasons: it preserves the
+user's identity through a call chain, so downstream systems apply the user's own permissions and
+audit trails attribute actions to a real person. In a request-response application where the chain
+is short and every hop is code you wrote, that is often exactly right. Agents break the assumptions
+underneath it. The chain is no longer short, the hops are chosen by a model at runtime, and some of
+them are third-party servers you do not operate.
+
+**Token exchange (RFC 8693).** The mechanism for narrowing is a distinct grant type,
+`urn:ietf:params:oauth:grant-type:token-exchange`. The client presents a `subject_token` — the
+user's credential — optionally an `actor_token` identifying the agent, and asks for a token scoped
+to a particular resource. What comes back is a new token whose subject is still the user but whose
+audience, scope, and lifetime are all narrower.
+
+**The `act` claim.** RFC 8693 defines `act` (actor) to "express that delegation has occurred and
+identify the acting party to whom authority has been delegated." This is the claim that makes an
+agent's actions attributable *as the agent* while still recording the user underneath. Without it,
+an audit log cannot distinguish a user who clicked a button from an agent that decided to act on
+their behalf at 3am. The companion `may_act` claim states, in the user's own token, which actors are
+permitted to act for them — a constraint checked at exchange time rather than at use time.
+
+**Resource indicators (RFC 8707).** Audience narrowing needs the client to say what the token is
+*for*. MCP clients **MUST** implement RFC 8707: the `resource` parameter is included in both the
+authorization request and the token request, and it identifies the MCP server the token will be used
+with, by that server's canonical URI. This is the input that lets the authorization server stamp a
+correct `aud`.
+
+**Server-side validation is the load-bearing half.** MCP servers, acting as OAuth 2.1 resource
+servers, **MUST** validate that access tokens were issued specifically for them as the intended
+audience, and **MUST NOT** accept or transit any other tokens. The validation is not one check but
+five, and skipping any of them makes the rest decorative:
+
+1. Signature verifies against the issuer's keys.
+2. Issuer is one this server trusts.
+3. Token has not expired.
+4. `aud` names *this* server.
+5. `scope` covers the specific tool being invoked.
+
+**Discovery.** Servers **MUST** implement OAuth 2.0 Protected Resource Metadata (RFC 9728) so
+clients can find the right authorization server rather than guessing or being configured by hand.
+
+**Client registration is moving.** Dynamic Client Registration is deprecated as of `2026-07-28`,
+with Client ID Metadata Documents as the migration path — the client hosts a metadata document at a
+URL which becomes its `client_id`, removing the registration round-trip when client and server have
+no prior relationship. Note the maturity honestly: CIMD is an IETF **draft**
+(`draft-ietf-oauth-client-id-metadata-document-00`), and MCP says clients and authorization servers
+**SHOULD** support it, not MUST. New work should plan for it; nothing is broken today by DCR.
+
+<PrincipalPerspective title="The question to ask in the design review">
+  Not "do we use OAuth?" — everyone says yes. Ask: *if I steal one token from this system, what can
+  I do with it, where, and for how long?* A system using OAuth end to end can still answer "anything
+  the user can do, on any service, until they log out." That answer is the finding, and it is
+  independent of which libraries are on the slide.
+</PrincipalPerspective>
+
+## Implementation
+
+Validation on the resource server, with each check separated so a failure says which invariant
+broke. The order matters: cheap structural checks before signature verification, and audience before
+scope, so a misaddressed token never reaches policy evaluation.
+
+```python
+from dataclasses import dataclass
+
+import jwt  # PyJWT
+
+
+class TokenRejected(Exception):
+    """Carries which invariant failed, for the audit log — never for the client."""
+
+
+@dataclass(frozen=True)
+class AgentPrincipal:
+    """Who is calling, and on whose behalf."""
+
+    subject: str          # the user
+    actor: str | None     # the agent, from the `act` claim
+    scopes: frozenset[str]
+
+
+def validate(token: str, *, this_server: str, trusted_issuer: str, jwks) -> AgentPrincipal:
+    try:
+        claims = jwt.decode(
+            token,
+            key=jwks,
+            algorithms=["RS256"],
+            # PyJWT enforces aud, iss, and exp itself when given them. Doing it
+            # here rather than after decode matters: a hand-rolled `claims["aud"]
+            # == this_server` check after a decode that was told to skip audience
+            # verification is the most common way this ends up unenforced.
+            audience=this_server,
+            issuer=trusted_issuer,
+            options={"require": ["exp", "aud", "iss", "sub"]},
+        )
+    except jwt.InvalidAudienceError as error:
+        # The confused-deputy case: a real, signed, unexpired token — for someone else.
+        raise TokenRejected("audience does not name this server") from error
+    except jwt.PyJWTError as error:
+        raise TokenRejected(f"token invalid: {type(error).__name__}") from error
+
+    actor = claims.get("act", {}).get("sub")
+    return AgentPrincipal(
+        subject=claims["sub"],
+        actor=actor,
+        scopes=frozenset(claims.get("scope", "").split()),
+    )
+
+
+def authorize_tool(principal: AgentPrincipal, tool_name: str, required: str) -> None:
+    """Scope check, separate from identity, so the audit log distinguishes the two."""
+    if required not in principal.scopes:
+        raise TokenRejected(
+            f"scope {required!r} required for {tool_name!r}; token carries {sorted(principal.scopes)}"
+        )
+```
+
+Two details worth defending. `TokenRejected` carries a specific reason **for the log, not for the
+response** — telling a caller *which* check failed is a probing oracle; the wire gets a bare `401`
+or `403`. And the audience check is delegated to the JWT library rather than performed after
+decoding, because a decode configured with `verify_aud=False` followed by a manual comparison is the
+standard way this protection is silently removed during debugging and never restored.
+
+## Production Example
+
+A support agent summarising a customer's recent invoices. The user signs in through the identity
+provider; the host receives a token whose audience is the host. The agent then needs two tools on
+two different MCP servers — `billing.read_invoice` and `crm.read_contact`.
+
+Under blanket delegation, one token goes to both servers, carrying every scope the support engineer
+has, including `billing.issue_refund`. Under agent-scoped credentials, the host performs two
+exchanges: one token with `aud=https://billing.internal/mcp` and `scope=invoice:read`, another with
+`aud=https://crm.internal/mcp` and `scope=contact:read`, both expiring in five minutes, both naming
+the agent in `act`.
+
+The difference shows up the moment something goes wrong. A prompt injection in an invoice PDF that
+convinces the agent to issue a refund produces a `403` from the billing server, because the token in
+hand has no refund scope — the model can be talked into requesting anything, but it cannot be talked
+into holding a credential it was never issued. And the audit entry reads *agent X acting for user Y*
+rather than *user Y*, which is the difference between an incident you can explain and one you cannot.
+
+## Failure Modes
+
+<FailureMode title="Token passthrough — the confused deputy">
+  The host forwards the user's token to an MCP server it does not control. That server now holds a
+  credential usable against every other service that accepts it, and can replay it. The
+  specification forbids this in both directions: servers **MUST NOT** accept tokens not intended for
+  them, and clients **MUST NOT** send tokens other than ones issued by that server's authorization
+  server. Detect it by asserting on `aud` in a test, not by reading code.
+</FailureMode>
+
+<FailureMode title="Audience verification disabled during debugging">
+  Someone hits an audience mismatch in staging, sets `verify_aud=False` to unblock themselves, and
+  the flag survives review because everything passes. There is no runtime symptom — the system is
+  fully functional and completely unprotected. This is why the check belongs in library
+  configuration where its absence is visible, not in a conditional.
+</FailureMode>
+
+<FailureMode title="Scope inflation at exchange time">
+  The exchange requests whatever scopes the subject token carries instead of the minimum the task
+  needs, usually because computing the minimum is work. The narrowing machinery is present, the
+  narrowing is not, and every audit reads as compliant.
+</FailureMode>
+
+<FailureMode title="Long-lived agent tokens">
+  Short lifetimes are the compensating control for a credential travelling through model-directed
+  control flow. A token minted for an hour "to avoid refresh complexity" is a stolen credential with
+  an hour of runway.
+</FailureMode>
+
+<FailureMode title="Revocation that only works for humans">
+  Disabling the user account is treated as the kill switch. It is not: already-issued agent tokens
+  remain valid until expiry, and if the agent has its own client credentials it may still mint new
+  ones. Revocation needs an agent-level identity to act on.
+</FailureMode>
+
+## Trade-offs
+
+<TradeOff title="Agent-scoped tokens vs. on-behalf-of everywhere">
+  Exchanging per server and per task bounds the blast radius, makes actions attributable to the
+  agent, and allows revoking an agent without disabling a person. It costs a round trip to the
+  authorization server on first use of each resource, requires the authorization server to support
+  RFC 8693, and forces you to decide what the minimum scope actually is — which is real design work,
+  not configuration. Forwarding the user's token is free and immediate, and is prohibited outright
+  when the recipient is an MCP server.
+</TradeOff>
+
+<TradeOff title="Short token lifetimes vs. refresh complexity">
+  Lifetimes measured in minutes shrink the window a leaked credential is useful for, and are the
+  main defence when you cannot enumerate everywhere a token has travelled. They also mean
+  long-running agent tasks must handle expiry mid-task — which is a real failure mode to design for
+  ([Module 2](/learn/modules/02-distributed-systems/) on retries applies directly), not a reason to
+  extend the lifetime to hours.
+</TradeOff>
+
+<TradeOff title="An identity per agent vs. one shared service identity">
+  Per-agent identities give precise attribution and per-agent revocation, at the cost of identity
+  lifecycle management that grows with the number of agents. A single shared identity is trivial to
+  operate and makes every audit entry say the same thing, which is worth roughly nothing during an
+  incident.
+</TradeOff>
+
+## Security
+
+- **Validate audience server-side, always.** A token is not evidence of anything until you have
+  confirmed it was addressed to you. MCP servers **MUST** reject tokens that do not include them in
+  the audience claim.
+- **Never accept or transit a token minted for someone else**, even to be helpful. Passing it on
+  makes you the deputy.
+- **Keep tokens out of URLs.** Access tokens **MUST NOT** appear in query strings — they land in
+  access logs, proxy logs, and browser history.
+- **Validate `scope` per tool invocation, not per connection.** Under a stateless protocol
+  ([Module 6](/learn/modules/06-mcp/)) there is no connection to attach a decision to; every request
+  carries its own authorization and deserves its own check.
+- **Treat the model's request as untrusted input.** A tool call is a request to act, produced by a
+  system that can be argued with. Identity and scope checks sit between that request and execution —
+  the same seam [Module 5](/learn/modules/05-agent-engineering/) puts the permission check on.
+- **Return opaque failures.** `401` and `403` without detail; the specific invariant goes to the
+  audit log.
+- **Prefer CIMD over Dynamic Client Registration for new work**, while remembering it is a draft
+  and MCP only says SHOULD.
+
+<Warning title="An identity system is not made secure by the presence of JWTs">
+  Signed tokens prove a token was issued by someone with the signing key. They prove nothing about
+  who it was issued *for* until audience is checked, nothing about what it permits until scope is
+  checked, and nothing about currency until expiry is checked. "We use JWTs" answers none of the
+  three questions.
+</Warning>
+
+## Performance
+
+- **The exchange is a round trip on the critical path** the first time an agent touches a resource.
+  Cache the resulting token for its (short) lifetime, keyed by audience *and* scope set — a cache
+  keyed by user alone will hand back a token for the wrong server.
+- **Validation should be local.** Signature verification against cached JWKS is microseconds;
+  introspecting every token against the authorization server puts a network call in front of every
+  tool invocation and makes the AS a hard dependency of every request.
+- **Refresh ahead of expiry, not on failure.** Discovering expiry via a `401` mid-task costs a
+  failed call plus a retry, and the retry has to be safe to make.
+- **Cache JWKS with a bounded TTL and handle rotation** — a key rotation while your cache is warm
+  looks exactly like a forged token.
+
+## Scaling
+
+- **Identity lifecycle grows with agent count.** Ten agents can be registered by hand; a thousand
+  need provisioning, rotation, and de-provisioning as automated operations, or stale identities
+  accumulate and nobody dares delete them.
+- **Scope definitions are the real scaling limit.** Each new tool needs a scope, and each new agent
+  needs a defensible minimum set. Without a naming convention this becomes an unauditable sprawl of
+  near-duplicate permissions faster than the tool count suggests.
+- **The authorization server becomes a critical dependency.** Exchange is on the path to first use
+  of every resource; its availability budget is now part of your agent's. Local validation keeps it
+  off the path for *every* call, which is what makes the dependency tolerable.
+- **Multi-tenant hosting multiplies the audience space.** One server per tenant, or one server with
+  tenant-scoped tokens, is the same isolation decision the
+  [Enterprise MCP Platform](/architecture/systems/enterprise-mcp-platform/) page argues, applied to
+  identity.
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="An agent needs to call three internal services on a user's behalf. Walk me through the credentials.">
+  Not one credential. The user authenticates once and the host holds a user token, but each service
+  gets its own token obtained by exchange (RFC 8693), with `resource` naming that service's
+  canonical URI so the audience is correct, and scope narrowed to what the task needs rather than
+  what the user is entitled to. Each carries an `act` claim naming the agent, so the audit trail
+  distinguishes the agent from the human. Lifetimes in minutes, refreshed ahead of expiry. The
+  property I am buying: stealing the token used for service A gives you nothing against B or C —
+  with a single forwarded user token it gives you everything the user has, everywhere.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your MCP server receives a valid, correctly-signed, unexpired token. Do you run the tool?">
+  Not yet — that describes a token, not a token for me. I check that `aud` names this server and
+  reject if not; the specification requires it, and the reason is the confused deputy problem. A
+  signed, unexpired token issued for a different resource is exactly what an attacker replaying a
+  stolen credential presents. Then I check `scope` covers the specific tool being invoked, since
+  audience gets you in the door and says nothing about which room. Both checks happen per request,
+  because the 2026-07-28 protocol is stateless and there is no session to have decided this earlier.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="When is on-behalf-of the right answer?">
+  When the call chain is short, entirely inside your trust boundary, and the downstream service's
+  own authorization is the control you are relying on — a request-response app calling its own
+  backend, where preserving user identity is exactly what you want and no model is choosing hops.
+  It stops being right when the chain is chosen at runtime, when it crosses to a party you do not
+  operate, or when the actions are taken by something other than a person. All three are true of
+  agents, which is why the default inverts.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How would you revoke a misbehaving agent at 3am?">
+  It depends on whether the agent has an identity, which is the real answer. If it does, I disable
+  that identity at the authorization server: no new exchanges succeed, and already-issued tokens
+  expire within minutes because they are short-lived — the short lifetime is what makes revocation
+  tractable without a distributed revocation list. If the agent has been acting as the user
+  throughout, my only lever is disabling the user, which takes a person offline to stop a program
+  and still leaves outstanding tokens valid. I would treat that as the finding rather than the
+  incident.
+</InterviewQuestion>
+
+## Hands-on Lab
+
+The companion lab, **Agent Identity Broker**, is on the [Roadmap](/roadmap/) and **not yet built** —
+it will mint scoped short-lived tokens, validate audience and scope server-side, and demonstrate the
+blast-radius difference against a delegation-only baseline. Until it exists, the adjacent running
+code is the [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/), which enforces
+capability scopes and approvals on tool execution — the authorization half of this module, without
+the identity half.
+
+<Exercise title="Prove your server rejects a token minted for someone else" difficulty="advanced">
+  Take any MCP server you run. Mint two structurally valid, correctly-signed, unexpired tokens that
+  differ only in `aud` — one naming your server, one naming a different resource. Assert that the
+  first is accepted and the second is rejected with a `401`, and that the rejection reason reaches
+  your audit log but not the response body. If the second is accepted, you have found a confused
+  deputy. If you cannot easily mint the second, that difficulty is itself worth noting: a protection
+  you cannot test is a protection you are assuming.
+</Exercise>
+
+<Checklist title="Before an agent touches a production system">
+  - Every token the agent presents names one audience, and that audience is checked server-side
+  - Scope is the minimum the task needs, decided deliberately rather than inherited from the user
+  - The agent is identifiable in the token (`act`) and in the audit log, separately from the user
+  - Token lifetimes are minutes, and expiry mid-task is a handled path
+  - The agent can be revoked without disabling a human
+  - Audience verification is enforced by library configuration, not a conditional
+  - Failures return `401`/`403` with the specific reason logged, not returned
+</Checklist>
+
+## References
+
+- [MCP Authorization, 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/) —
+  the normative requirements for resource indicators, audience validation, and token handling.
+- [MCP Authorization Security Considerations](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/security-considerations) —
+  confused deputy, token passthrough, and access token privilege restriction.
+- [RFC 8693: OAuth 2.0 Token Exchange](https://www.rfc-editor.org/rfc/rfc8693.html) — the exchange
+  grant, and the `act` and `may_act` claims.
+- [RFC 8707: Resource Indicators for OAuth 2.0](https://www.rfc-editor.org/rfc/rfc8707.html) — the
+  `resource` parameter that makes audience narrowing possible.
+- [RFC 9068: JWT Profile for OAuth 2.0 Access Tokens](https://www.rfc-editor.org/rfc/rfc9068.html) —
+  what a conforming access token contains and how to validate it.
+- [RFC 9728: OAuth 2.0 Protected Resource Metadata](https://datatracker.ietf.org/doc/html/rfc9728) —
+  how a client discovers which authorization server protects a resource.
+- [Module 6: MCP](/learn/modules/06-mcp/) — the transport this authorization rides on, and why
+  credentials do not belong in per-request `_meta`.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — the permission seam between
+  a model's request to act and the system's decision to act.
+
+## Revision History
+
+| Version | Date       | Change                                                                   |
+| ------- | ---------- | ------------------------------------------------------------------------ |
+| 1.0.0   | 2026-08-14 | Initial publication, written against the MCP 2026-07-28 authorization spec and the OAuth RFCs it builds on. Suggested by [Shantanu Lodh](https://www.linkedin.com/in/shanlodh/). |
