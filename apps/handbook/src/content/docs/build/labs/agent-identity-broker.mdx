@@ -1,0 +1,133 @@
+---
+title: Agent Identity Broker
+description: Token exchange and server-side audience/scope validation as running code — and a measurement of how much a narrowed credential actually bounds an agent's blast radius.
+version: 1.0.0
+lastUpdated: 2026-08-14
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-14
+    change: Initial lab documentation. Built as the companion to Module 15, to make its comparative claim measurable rather than asserted.
+    author: vinod
+category: lab
+repoPath: labs/agent-identity-broker
+stack:
+  - Python 3.12+
+  - PyJWT
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import exchangePath from "./agent-identity-broker.exchange-path.mmd?raw";
+
+[Module 15](/learn/modules/15-agent-identity/) argues that a short-lived, audience-bound,
+scope-narrowed credential bounds an agent's blast radius where a forwarded user token does not.
+That is a comparative claim, and a comparative claim is worth exactly as much as its measurement.
+This lab measures it.
+
+Source: [`labs/agent-identity-broker`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/agent-identity-broker)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  The exchange and validation mechanics are complete and tested. The identity provider is
+  simulated — an in-memory RSA key per process, no JWKS endpoint, no rotation, no OIDC login flow,
+  no revocation beyond short lifetimes, and no HTTP transport. Those omissions are listed
+  individually in the
+  [README](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/agent-identity-broker#what-is-deliberately-simulated)
+  rather than summarised, because "simulated IdP" hides how much is missing.
+</Aside>
+
+## The path a token takes
+
+<Mermaid code={exchangePath} title="Three narrowings at the broker, five checks at the resource server, and one rejection path that tells the client nothing" />
+
+## What it demonstrates
+
+**Narrowing is three things, not one.** The exchange bounds audience, scope, and lifetime together.
+`test_exchange_narrows_audience_scope_and_lifetime_together` asserts all three, because a system
+that narrows only the easiest one still reads as compliant in a design review.
+
+**Audience limits where; only scope limits what.** The most useful test here is the counterfactual:
+a token bound to one server but carrying every scope the user has opens *both* of that server's
+tools, including the refund. Half the discipline gets you half the protection, and the measurement
+says so.
+
+**A narrowing mechanism that can widen is not a control.** Requesting scopes the subject does not
+hold is denied at exchange time.
+
+**The broker refuses to launder tokens.** It verifies the presented subject token was addressed to
+*it* before agreeing to mint anything. Without that check the broker is an escalation service:
+present any stolen token, receive a correctly-signed credential for a target of your choosing.
+
+## The measurement
+
+`blast_radius.measure()` walks one token against every tool on every server in a three-server,
+six-tool fleet and reports what it opens:
+
+| Credential | Tools opened, out of 6 |
+| --- | --- |
+| Agent-scoped: one audience, one scope | **1** |
+| Audience-narrowed, scope not narrowed | **2** — both tools on that server, refund included |
+| The raw user token, forwarded | **0** — no server accepts it |
+
+That last row is the one worth reading carefully, and it is not the flattering result. A forwarded
+user token opens *nothing* in this fleet, because its audience names the identity provider and every
+server rejects it. Passthrough is not dangerous because it over-grants directly; it is dangerous
+because of what it hands to whoever receives it. The lab measures what it can measure and does not
+dress the number up.
+
+## Prove the tests can fail
+
+The exercise the lab is really for. Disable audience verification the way a debugging session
+would — `"verify_aud": False` in the resource server's decode options — and six tests fail across
+all three files. Restore it and they pass.
+
+That matters because audience verification has no runtime symptom when it goes missing. The system
+stays fully functional and completely unprotected, which is why a test that fails when the check
+disappears is the only thing actually holding the protection in place.
+
+CI runs that mutation as its own job: it disables the check, asserts the suite goes red, and fails
+the build if everything still passes. A security test that has never failed is indistinguishable
+from one that cannot.
+
+## Run it
+
+```bash
+cd labs/agent-identity-broker
+uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+./.venv/bin/python -m pytest -q
+```
+
+## Verify it
+
+The three gates every lab here is measured against, plus the mutation:
+
+```bash
+./.venv/bin/python -m ruff check .
+./.venv/bin/python -m mypy src
+./.venv/bin/python -m pytest -q
+```
+
+Twenty-two tests, `ruff` clean, `mypy --strict` clean.
+
+## Principal-level discussion points
+
+- **Where does the exchange belong** — in the agent host, or in a sidecar every agent calls? The
+  host is simpler; the sidecar is the only version that gives you one place to enforce policy and
+  one place to look during an incident.
+- **What is the minimum scope, and who decides?** The lab hard-codes it. In a real system this is
+  the design work that does not go away, and the failure mode is a slow drift back toward "whatever
+  the user has."
+- **Five-minute tokens and long-running tasks.** Expiry mid-task is a handled path or an outage.
+  The lab's fourth exercise makes you pick.
+- **Attribution versus privacy.** The `act` claim makes agent actions attributable. That is a
+  security win and a data question, and the second one usually arrives later than it should.
+
+## Related
+
+- [Module 15: Agent Identity and Access](/learn/modules/15-agent-identity/) — the concepts, the
+  specifications, and the failure modes this lab implements.
+- [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/) — the authorization half:
+  what a caller may do, once you know who they are.
+- [Module 6: MCP](/learn/modules/06-mcp/) — the protocol whose authorization requirements this
+  implements, and why credentials belong on the transport.

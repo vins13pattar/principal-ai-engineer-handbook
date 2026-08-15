@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.7.0
+version: 2.8.0
 lastUpdated: 2026-08-14
 revisionHistory:
   - version: 1.0.0
@@ -88,6 +88,12 @@ revisionHistory:
       MCP 2026-07-28 authorization spec and the OAuth RFCs beneath it. The Learn track is sixteen
       modules. Its companion lab remains planned.
     author: vinod
+  - version: 2.8.0
+    date: 2026-08-14
+    change: >-
+      Built the Agent Identity Broker lab, so Module 15's blast-radius claim is measured rather than
+      asserted. Eight labs.
+    author: vinod
 category: section-overview
 ---
 
@@ -146,7 +152,7 @@ bump the way a module does:
 | [Hybrid Retrieval and Evaluation](/build/labs/hybrid-retrieval/) | Module 8 | Production-shaped |
 | [Dynamic Batching Inference](/build/labs/dynamic-batching-inference/) | Module 9 | Production-shaped |
 | [Multi-Tenant MCP Server](/build/labs/multi-tenant-mcp-server/) | Module 6 | Production-shaped |
-| Agent Identity Broker                                             | Module 15, 6     | Planned           |
+| [Agent Identity Broker](/build/labs/agent-identity-broker/)       | Module 15, 6     | Production-shaped |
 | Model Router                                                      | Module 4         | Planned           |
 | Semantic Cache                                                    | Module 4         | Planned           |
 | Evaluation Platform                                               | Module 4, 12     | Planned           |
@@ -178,15 +184,15 @@ The module is scoped around two questions:
 authorization specification and the OAuth RFCs beneath it — token exchange (RFC 8693), resource
 indicators (RFC 8707), and the audience validation the specification requires of every MCP server.
 
-The companion lab, **Agent Identity Broker**, is **not yet built**. It is where the claims get
-tested: minting scoped short-lived tokens, validating audience and scope on the server, and
-demonstrating the blast-radius difference against a delegation-only baseline. Until it exists the
-module's claims rest on the specification rather than on running code, which is the honest state to
-publish it in.
+The companion lab, [**Agent Identity Broker**](/build/labs/agent-identity-broker/), is built. It
+mints scoped short-lived tokens, validates audience and scope server-side, and measures the
+blast-radius difference across a three-server fleet — one tool opened by a fully narrowed token,
+two when only the audience is narrowed. CI runs a mutation job that disables audience verification
+and fails the build if the suite stays green.
 
 ### Lab migration: complete
 
-A parallel branch built seven labs against the retired static-HTML prototype before this platform
+A parallel branch built eight labs against the retired static-HTML prototype before this platform
 existed. All seven now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
 than moved wholesale. That branch has been deleted; nothing on it is unique.
 

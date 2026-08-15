@@ -1,0 +1,67 @@
+name: Agent Identity Broker CI
+
+on:
+  push:
+    paths:
+      - "labs/agent-identity-broker/**"
+      - ".github/workflows/lab-agent-identity-broker-ci.yml"
+  pull_request:
+    paths:
+      - "labs/agent-identity-broker/**"
+      - ".github/workflows/lab-agent-identity-broker-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/agent-identity-broker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: labs/agent-identity-broker/pyproject.toml
+      # The extras list must cover every import reachable from src/ and tests/.
+      # Getting this wrong is not a loud failure: collection aborts before any test
+      # runs and the job can still look like it did something. See the async-ai-gateway
+      # incident recorded in that lab's history.
+      - name: Install dependencies
+        run: pip install -e '.[dev]'
+      - name: Ruff
+        run: ruff check .
+      - name: MyPy
+        run: mypy src
+      - name: Tests
+        run: pytest --maxfail=1 -q
+
+  # A security test that has never failed is indistinguishable from one that cannot.
+  # This job disables audience verification and asserts the suite goes red, so the
+  # protection stays load-bearing rather than becoming decoration.
+  mutation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: labs/agent-identity-broker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e '.[dev]'
+      - name: Disabling audience verification must fail the suite
+        run: |
+          python - <<'PY'
+          import pathlib
+          p = pathlib.Path("src/agent_identity/resource_server.py")
+          s = p.read_text()
+          old = 'options={"require": ["exp", "aud", "iss", "sub"]},'
+          assert old in s, "mutation target moved; update this job rather than deleting it"
+          p.write_text(s.replace(old, old[:-2] + ', "verify_aud": False},', 1))
+          PY
+          if pytest -q > /dev/null 2>&1; then
+            echo "::error::Audience verification was disabled and every test still passed."
+            exit 1
+          fi
+          echo "Suite correctly went red with audience verification disabled."

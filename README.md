@@ -33,7 +33,7 @@ code, or from the code back to the reasoning.
 
 ## Status
 
-**Sixteen Learn modules, seven labs, seven architecture pages, three interview tracks, thirteen
+**Sixteen Learn modules, eight labs, seven architecture pages, three interview tracks, thirteen
 reference lookups, five cheat sheets.** Every lab has a matching architecture page and a matching
 module, all cross-linked; every lab passes `ruff`, `mypy --strict`, and its own test suite in CI.
 The [Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept

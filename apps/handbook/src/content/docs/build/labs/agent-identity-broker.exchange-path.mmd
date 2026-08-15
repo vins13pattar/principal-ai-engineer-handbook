@@ -1,0 +1,25 @@
+flowchart TD
+    subgraph Broker["TokenBroker — simulated authorization server"]
+        Sub["Subject token<br/>aud = issuer · 5 scopes · 8 hours"]
+        Sub --> Guard{"Presented to the right audience?<br/>Scopes a subset?<br/>Actor listed in may_act?"}
+        Guard -->|No| Denied["ExchangeDenied"]
+        Guard -->|Yes| Mint["Agent token<br/>aud = one server · 1 scope · 5 minutes<br/>act = agent"]
+    end
+
+    Mint --> C1
+
+    subgraph RS["ResourceServer — five checks, every request"]
+        C1["1 · signature"] --> C2["2 · issuer"]
+        C2 --> C3["3 · expiry"]
+        C3 --> C4["4 · audience names this server"]
+        C4 --> C5["5 · scope covers this tool"]
+    end
+
+    C5 --> Run["Tool runs<br/>audit: agent acting for user"]
+
+    C1 -.-> Rej
+    C2 -.-> Rej
+    C3 -.-> Rej
+    C4 -.-> Rej
+    C5 -.-> Rej
+    Rej["TokenRejected<br/>401 / 403 on the wire<br/>reason goes only to the log"]

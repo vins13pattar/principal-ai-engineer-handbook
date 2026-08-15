@@ -3,7 +3,7 @@ title: "Module 15: Agent Identity and Access"
 sidebar:
   label: "15 · Agent Identity"
 description: Who an agent is, as distinct from what it may do — short-lived agent-scoped tokens instead of blanket on-behalf-of delegation, and why a remote MCP server must validate audience and scope itself rather than trusting its caller.
-version: 1.0.0
+version: 1.1.0
 lastUpdated: 2026-08-14
 revisionHistory:
   - version: 1.0.0
@@ -12,6 +12,12 @@ revisionHistory:
       Initial publication. Written against the MCP 2026-07-28 authorization specification and the
       OAuth RFCs it builds on, after a reader pointed out that the handbook covered agent
       authorization without covering agent identity.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-14
+    change: >-
+      The companion lab exists now. Replaced the "not yet built" note with the lab, and with the
+      blast-radius numbers it measures.
     author: vinod
 freshness:
   classification: fast-moving
@@ -24,7 +30,7 @@ estimatedMinutes: 50
 prerequisites:
   - 05-agent-engineering
   - 06-mcp
-relatedLabs: ["policy-gated-tool-runtime"]
+relatedLabs: ["agent-identity-broker", "policy-gated-tool-runtime"]
 ---
 
 import {
@@ -393,12 +399,24 @@ rather than *user Y*, which is the difference between an incident you can explai
 
 ## Hands-on Lab
 
-The companion lab, **Agent Identity Broker**, is on the [Roadmap](/roadmap/) and **not yet built** —
-it will mint scoped short-lived tokens, validate audience and scope server-side, and demonstrate the
-blast-radius difference against a delegation-only baseline. Until it exists, the adjacent running
-code is the [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/), which enforces
-capability scopes and approvals on tool execution — the authorization half of this module, without
-the identity half.
+The companion lab, [**Agent Identity Broker**](/build/labs/agent-identity-broker/), implements
+everything above: RFC 8693 exchange, the five server-side checks, and a harness that walks one token
+against a three-server, six-tool fleet to measure what it actually opens.
+
+| Credential | Tools opened, out of 6 |
+| --- | --- |
+| Agent-scoped: one audience, one scope | **1** |
+| Audience narrowed, scope not narrowed | **2** — both tools on that server, refund included |
+| The raw user token, forwarded | **0** — no server accepts it |
+
+The middle row is the one worth sitting with: narrowing the audience without narrowing the scope
+gets you half the protection and reads as compliant. The bottom row is the unflattering one — a
+forwarded user token opens nothing here, because its audience names the identity provider.
+Passthrough is dangerous for what it hands to whoever receives it, not for what it opens directly.
+
+The lab is `production-shaped`: the mechanics are complete and tested, the identity provider is
+simulated. Its README lists each omission separately rather than as "simulated IdP", because that
+phrase hides how much is missing.
 
 <Exercise title="Prove your server rejects a token minted for someone else" difficulty="advanced">
   Take any MCP server you run. Mint two structurally valid, correctly-signed, unexpired tokens that
