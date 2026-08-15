@@ -1,0 +1,14 @@
+flowchart TD
+    Base["Baseline run<br/>42 / 50 correct"] --> Cmp
+    Cand["Candidate run<br/>44 / 50 correct"] --> Cmp
+
+    Cmp["Comparison<br/>delta = +4.0 points"] --> Usable{"Expected cell counts >= 5?<br/>is the approximation valid here?"}
+
+    Usable -->|No| Unknown["is_significant() -> None<br/>'this set cannot tell'<br/>NOT 'no difference'"]
+    Usable -->|Yes| CI["95% confidence interval<br/>on the delta"]
+
+    CI --> Zero{"Does the interval contain zero?"}
+    Zero -->|"Yes — [-9.6%, +17.6%]"| NotReal["Not established.<br/>Same data is consistent<br/>with a 10-point regression."]
+    Zero -->|No| Real["Established.<br/>Report the interval, not the point."]
+
+    NotReal --> Fix["Compute what the set can see:<br/>n=50 at 85% -> 20 points minimum<br/>to see +3 points, need 2,033 per arm"]

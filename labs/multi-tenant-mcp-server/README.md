@@ -41,9 +41,12 @@ look natural — and `_meta` looks like the obvious place to put them.
 
 It is the wrong place, and the failure is not subtle once you hit it. **An SDK makes protocol calls
 that application code never issues.** Concretely: `call_tool()` internally invokes
-`validate_tool_result()`, which issues its own `tools/list` to check the output schema, carrying no
-`_meta`. A server authorizing on `_meta` therefore rejects its own client's internal call. A server
-that exempts `tools/list` to work around it has reopened exactly the hole it was closing.
+`validate_tool_result()`, which issues its own `tools/list` to check the output schema. Both
+requests carry the SDK's protocol `_meta` stamp, but only the first can carry the application's —
+`call_tool()` accepts a `meta=` argument and `list_tools()` has no such parameter, so a tenant
+credential cannot reach the internal call. A server authorizing on `_meta` therefore rejects its own
+client's internal call. A server that exempts `tools/list` to work around it has reopened exactly
+the hole it was closing.
 
 On the `Authorization` header the problem disappears, because every request the transport
 sends — application-issued or SDK-internal — carries it. That is what

@@ -33,9 +33,9 @@ code, or from the code back to the reasoning.
 
 ## Status
 
-**Sixteen Learn modules, ten labs, seven architecture pages, three interview tracks, thirteen
-reference lookups, five cheat sheets.** Seven of the ten labs have a matching architecture page;
-the three newest have a module and a Build page but no design review yet. Every lab passes `ruff`,
+**Sixteen Learn modules, eleven labs, seven architecture pages, three interview tracks, thirteen
+reference lookups, five cheat sheets.** Seven of the eleven labs have a matching architecture page;
+the four newest have a module and a Build page but no design review yet. Every lab passes `ruff`,
 `mypy --strict`, and its own test suite in CI.
 The [Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept
 honest by a linter that fails the build when a page is missing a required section — or when a page

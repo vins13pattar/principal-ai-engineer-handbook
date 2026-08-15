@@ -1,12 +1,18 @@
 ---
 title: Multi-Tenant MCP Server
 description: A real MCP server on the official SDK speaking the 2026-07-28 protocol — transport-level tenant authentication, per-tenant discovery, refusals that leak nothing, and statelessness proven by test.
-version: 1.0.0
-lastUpdated: 2026-08-08
+version: 1.1.0
+lastUpdated: 2026-08-15
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-08
     change: Initial lab documentation. Rebuilt on the official SDK rather than migrated, because the donor version targeted the 2025-11-25 protocol.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-15
+    change: >-
+      Corrected the account of the SDK's internal tools/list. Both requests carry the SDK's protocol
+      _meta stamp; what the internal one cannot carry is the application's.
     author: vinod
 freshness:
   classification: fast-moving
@@ -60,9 +66,12 @@ looks natural — per-request identity for a per-request protocol.
 
 It does not work, and the failure is instructive. **An SDK makes protocol calls that application
 code never issues.** Concretely, `call_tool()` internally invokes `validate_tool_result()`, which
-issues its own `tools/list` to check the output schema — carrying no `_meta`. A server authorizing
-on `_meta` therefore rejects its own client's internal call. Worse, the obvious workaround — exempt
-`tools/list` from authentication — reopens precisely the hole the design was closing.
+issues its own `tools/list` to check the output schema. Both requests carry the SDK's own protocol
+`_meta` stamp — it adds that to everything it sends — but only the first can carry the
+application's: `call_tool()` accepts a `meta=` argument and `list_tools()` has no such parameter, so
+a tenant credential cannot reach the internal call. A server authorizing on `_meta` therefore
+rejects its own client's internal call. Worse, the obvious workaround — exempt `tools/list` from
+authentication — reopens precisely the hole the design was closing.
 
 The fix is to authenticate on the transport, via the SDK's `TokenVerifier` seam, so the
 `Authorization` header covers every request the transport carries regardless of who issued it. That

@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.10.0
-lastUpdated: 2026-08-14
+version: 2.12.0
+lastUpdated: 2026-08-15
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -107,6 +107,19 @@ revisionHistory:
       paraphrase before a wrong one, with an explicit account of how much of that is the simulated
       embedding. Ten labs.
     author: vinod
+  - version: 2.11.0
+    date: 2026-08-14
+    change: >-
+      Built the Evaluation Platform lab, completing the planned lab schedule. Eleven labs, none
+      planned. Its sample-size tables put a number on how much most evaluation claims cannot see.
+    author: vinod
+  - version: 2.12.0
+    date: 2026-08-15
+    change: >-
+      Corrected three counts that successive bulk updates had left false — architecture coverage,
+      the size of the migrated lab cohort, and the SDK's internal tools/list, which does carry the
+      protocol _meta stamp.
+    author: vinod
 category: section-overview
 ---
 
@@ -124,9 +137,9 @@ The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 13: System Design](/learn/modules/13-system-design/) ·
 [Module 14: Leadership](/learn/modules/14-leadership/) ·
 [Module 15: Agent Identity](/learn/modules/15-agent-identity/).
-The [Architecture](/architecture/) section now has a design-review page for every lab: seven
-systems, each with a running implementation behind it. [Build](/build/) documents the same systems
-from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
+The [Architecture](/architecture/) section has a design-review page for seven of the eleven labs,
+each with a running implementation behind it; the four newest labs have a Build page but no design
+review yet. [Build](/build/) documents every lab from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
 [Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) is
@@ -152,9 +165,9 @@ contract CI enforces — three for interview rounds, two for the work itself.
 | ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
 
-Every module below also has a companion lab planned in [Build](/build/), tracked separately since a
-production-quality lab is a much larger unit of work than a module and shouldn't gate a version
-bump the way a module does:
+Labs are tracked separately from module versions, since a production-quality lab is a much larger
+unit of work than a module and shouldn't gate a version bump the way a module does. As of
+2026-08-14 the planned schedule is complete — every lab below is built:
 
 | Lab                                                               | Companion module | Status            |
 | ----------------------------------------------------------------- | ---------------- | ----------------- |
@@ -168,7 +181,7 @@ bump the way a module does:
 | [Agent Identity Broker](/build/labs/agent-identity-broker/)       | Module 15, 6     | Production-shaped |
 | [Model Router](/build/labs/model-router/)                         | Module 4         | Production-shaped |
 | [Semantic Cache](/build/labs/semantic-cache/)                     | Module 4         | Production-shaped |
-| Evaluation Platform                                               | Module 4, 12     | Planned           |
+| [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
 
 ### Module 15 — Agent Identity and Access: shipped
 
@@ -205,9 +218,12 @@ and fails the build if the suite stays green.
 
 ### Lab migration: complete
 
-A parallel branch built ten labs against the retired static-HTML prototype before this platform
-existed. All seven now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
-than moved wholesale. That branch has been deleted; nothing on it is unique.
+A parallel branch built six labs against the retired static-HTML prototype before this platform
+existed. All six now live in `labs/`, each re-verified and honestly re-labelled on arrival rather
+than moved wholesale. That branch has been deleted; nothing on it is unique. The other five labs —
+the [Async AI Gateway](/build/labs/async-ai-gateway/) and the four built in August 2026 for agent
+identity, model routing, semantic caching, and evaluation — were written on this platform and never
+migrated.
 
 Five were straightforward ports:
 [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/),
@@ -224,9 +240,11 @@ the SDK's own client over Streamable HTTP.
 
 That rebuild took two attempts, and the failed one is recorded because it is the more useful half:
 **a credential carried in per-request `_meta` cannot secure an MCP server.** The SDK issues protocol
-calls of its own — `call_tool()` internally calls `validate_tool_result()`, which issues a
-`tools/list` with no `_meta` — so a server authorizing on `_meta` rejects its own client, and a
-server that exempts `tools/list` to compensate has reopened the hole. Authorization sits on the
+calls of its own — `call_tool()` internally calls `validate_tool_result()`, which issues its own
+`tools/list`. Both requests carry the SDK's protocol `_meta` stamp, but only the first can carry the
+application's: `call_tool()` takes a `meta=` argument and `list_tools()` has none. So a server
+authorizing on `_meta` rejects its own client, and a server that exempts `tools/list` to compensate
+has reopened the hole. Authorization sits on the
 transport, where every request carries it. See
 [Module 6](/learn/modules/06-mcp/#security) and the lab's own write-up.
 

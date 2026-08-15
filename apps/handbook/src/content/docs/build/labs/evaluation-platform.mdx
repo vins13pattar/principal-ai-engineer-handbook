@@ -1,0 +1,142 @@
+---
+title: Evaluation Platform
+description: An evaluation harness that can fail, and the statistics that decide whether a delta is real — including how many examples it actually takes to see a three-point improvement.
+version: 1.0.0
+lastUpdated: 2026-08-14
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-14
+    change: Initial lab documentation. Computes the sample sizes that most evaluation claims require and rarely have.
+    author: vinod
+category: lab
+repoPath: labs/evaluation-platform
+stack:
+  - Python 3.12+
+  - pydantic
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import significance from "./evaluation-platform.significance.mmd?raw";
+
+An evaluation platform's job is not to produce a number. It is to say whether a difference between
+two numbers is real. This lab computes what that costs in examples, and the answer is uncomfortable
+at the sizes teams typically use.
+
+Source: [`labs/evaluation-platform`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/evaluation-platform)
+
+<Aside type="caution" title="production-shaped, not production-ready">
+  No model is called; systems under test are deterministic functions with a configured accuracy, so
+  the tests can assert on the statistics rather than on a model's mood. The statistics are a
+  two-proportion normal approximation implemented directly — not a bootstrap, not exact, and
+  **unpaired**, which makes the sample sizes below conservative. There is no LLM-as-judge grader,
+  deliberately: a judge is the least verifiable grader and needs its own evaluation first.
+</Aside>
+
+## The decision path
+
+<Mermaid code={significance} title="From two runs to a decision — including the case where the honest answer is that this dataset cannot tell" />
+
+## The finding
+
+**Examples needed per arm** to detect an improvement at 95% confidence and 80% power:
+
+| Baseline | +1pt | +2pt | +3pt | +5pt | +10pt |
+| --- | --- | --- | --- | --- | --- |
+| 70% | 32,644 | 8,077 | 3,551 | 1,248 | 291 |
+| 80% | 24,638 | 6,036 | 2,626 | 903 | 197 |
+| 85% | 19,458 | 4,722 | **2,033** | 683 | 138 |
+| 90% | 13,493 | 3,211 | 1,353 | 432 | 71 |
+
+The inverse, which is the number worth putting on a dashboard — **the smallest delta a set can
+see**, at an 85% baseline:
+
+| n | Smallest visible delta |
+| --- | --- |
+| 30 | 25.8% |
+| 50 | 20.0% |
+| 100 | 14.1% |
+| 500 | 6.3% |
+| 1,000 | 4.5% |
+| 5,000 | 2.0% |
+
+A fifty-example eval set cannot resolve anything below roughly twenty percentage points. Every
+smaller movement it reports is noise being read as signal.
+
+The shape of most "we improved it" claims:
+
+```text
+84% -> 88% on 50 examples
+delta +4.0%,  95% CI [-9.6%, +17.6%],  significant: False
+```
+
+The same data is consistent with a **ten-point regression**. The point estimate on its own is not a
+measurement.
+
+Effect size enters squared, so halving the delta you want to see at least quadruples the dataset —
+measured at 4.95× rather than the naive 4×, because as the candidate rate approaches 1.0 its
+variance shrinks and the coarse measurement gets disproportionately cheap.
+
+## `None` is a real answer
+
+`Comparison.is_significant()` returns `True`, `False`, or **`None`**. The third means the
+approximation is not usable — expected cell counts below about five, which is exactly the regime
+small eval sets live in.
+
+Returning `False` there would say *no difference* when the honest answer is *this set cannot tell*,
+and those get acted on very differently: the first stops the investigation, the second should start
+one about the eval set.
+
+## The meta-test
+
+`test_the_harness_catches_a_deliberately_broken_system` scores a system that is always wrong and
+asserts it gets 0%. Everything else in the suite is worthless if that fails — **an eval that cannot
+fail is not an eval.** Its twin asserts a perfect system scores 100%, because a harness that always
+fails is equally useless.
+
+## Three things that are easy to get wrong
+
+**The `contains` grader passes an answer that says both things.** An output containing the right
+answer *and* its opposite scores as correct. That is not hypothetical — it is what verbose model
+output looks like.
+
+**Flaky examples are named, not averaged away.** Averaging across repeats hides instability behind a
+plausible number; naming the unstable examples is what lets someone fix or remove them.
+
+**An unverified dataset is visible as such.** An eval set built from the system's own past output
+measures agreement with a former self, not correctness, and cannot detect a regression that was
+always there. Nothing in the accuracy number reveals this, so `Example` carries the flag.
+
+## Run it
+
+```bash
+cd labs/evaluation-platform
+uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+./.venv/bin/python -m ruff check . && ./.venv/bin/python -m mypy src && ./.venv/bin/python -m pytest -q
+```
+
+17 tests, `ruff` clean, `mypy --strict` clean.
+
+## Principal-level discussion points
+
+- **What is your eval set's smallest detectable delta?** If nobody knows, nobody knows whether last
+  quarter's improvements were real.
+- **Paired tests would need fewer examples.** Both arms run the same examples, so McNemar's test is
+  more powerful than the unpaired numbers here. Worth doing — and worth checking whether it changes
+  any decision, because often it does not change the order of magnitude.
+- **Five prompt variants against one baseline is five chances to get lucky.** Multiple-comparison
+  correction pushes the required sample size up again.
+- **Who verified the golden answers?** An eval set grown from production output drifts toward
+  measuring consistency rather than correctness.
+
+## Related
+
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — where evaluation sits in the
+  cost-latency-quality triangle.
+- [Module 12: Observability](/learn/modules/12-observability/) — measuring a system you cannot see
+  inside.
+- [Semantic Cache](/build/labs/semantic-cache/) — an eval suite running through a cache is measuring
+  the cache, not the model.
+- [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) — retrieval-specific evaluation, where
+  retrieval quality and answer quality are measured separately.
