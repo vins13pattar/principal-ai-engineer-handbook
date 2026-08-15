@@ -53,7 +53,14 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e '.[dev,redis,auth]'
+      # `-k redis` used to select this, which matched only the fake-backed unit
+      # tests in test_distributed_rate_limit.py -- so this job started a Redis
+      # container and never spoke to it. It was green whether or not Redis
+      # existed. Select the integration file by path, and set
+      # REDIS_INTEGRATION_REQUIRED so its fixture fails rather than skips if
+      # Redis is missing or unreachable.
       - name: Redis integration tests
         env:
           REDIS_URL: redis://localhost:6379/0
-        run: pytest -q -k redis
+          REDIS_INTEGRATION_REQUIRED: "1"
+        run: pytest -q tests/test_redis_integration.py

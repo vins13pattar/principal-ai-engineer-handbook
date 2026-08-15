@@ -1,8 +1,8 @@
 ---
 title: Async AI Gateway
 description: An async API gateway in front of multiple LLM providers, with tenant identity, distributed rate limiting, health-aware routing, and graceful draining.
-version: 1.1.0
-lastUpdated: 2026-08-04
+version: 1.2.0
+lastUpdated: 2026-08-15
 revisionHistory:
   - version: 1.0.0
     date: 2026-06-01
@@ -11,6 +11,12 @@ revisionHistory:
   - version: 1.1.0
     date: 2026-08-04
     change: Documented the JWT/Redis/policy-aware secure_app entry point, draining, and stream telemetry added since.
+    author: vinod
+  - version: 1.2.0
+    date: 2026-08-15
+    change: >-
+      Recorded the Redis integration job that was green without ever contacting Redis, and the
+      replacement test that measures the Lua script's atomicity instead of restating it.
     author: vinod
 category: lab
 repoPath: labs/async-ai-gateway
@@ -104,6 +110,25 @@ GitHub Actions runs this same check, plus a Redis-integration job, on every chan
 `labs/async-ai-gateway/` — see
 [`.github/workflows/async-ai-gateway-ci.yml`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/.github/workflows/async-ai-gateway-ci.yml).
 
+### The integration job that was testing nothing
+
+That Redis job started a service container and then selected tests with `pytest -k redis`. The
+only tests matching were the ones backed by a `FakeRedis` stub, which return a canned answer and
+never open a socket. **The container was never touched, and the job was green whether or not Redis
+existed** — including if it had never started.
+
+The replacement, `tests/test_redis_integration.py`, talks to a real server, and its central test is
+the one a fake cannot express: two limiter instances sharing one Redis, `2 × capacity` acquires
+fired concurrently at a single tenant. Exactly `capacity` may succeed. Swapping the Lua script for
+a naive `HGET`-then-`HSET` lets **40 of 40** through where the atomic version allows 20 — so the
+test measures the atomicity claim rather than restating it.
+
+The subtler half of the fix is that the job now sets `REDIS_INTEGRATION_REQUIRED=1`, and under that
+flag a missing or unreachable `REDIS_URL` **fails** rather than skips. Without it the job could
+regress to vacuously green a second time, just more quietly: skipped tests do not turn a build red.
+Keying that off `CI` would not work — GitHub Actions sets `CI` for every job, including the one
+with no Redis attached.
+
 ## Production readiness
 
 The lab tracks its own gap list against a real production bar in
@@ -117,6 +142,8 @@ delivery. Treat an unchecked item as a known gap, not an oversight.
    generally need both, enforced at different points in the request path.
 2. A distributed quota decision needs atomic state mutation — a naive `GET` then `SET` against
    Redis oversubscribes under concurrency, which is why the limiter uses a single Lua script.
+   Measured at a capacity of 20 with two replicas: the script allows 20, the naive version allows
+   all 40.
 3. Health-based routing can create feedback loops: a provider that looks unhealthy under one
    scoring window can starve of the probe traffic it needs to recover. Production systems cap
    scoring adjustments and expire stale observations.

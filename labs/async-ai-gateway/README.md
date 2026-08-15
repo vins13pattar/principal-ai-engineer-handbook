@@ -77,7 +77,30 @@ ruff check .
 mypy src
 ```
 
-GitHub Actions runs these checks for changes under `labs/async-ai-gateway`. A separate job starts Redis and executes Redis-focused integration tests.
+The Redis integration tests skip unless `REDIS_URL` is set:
+
+```bash
+REDIS_URL=redis://localhost:6379/0 pytest tests/test_redis_integration.py
+```
+
+GitHub Actions runs these checks for changes under `labs/async-ai-gateway`. A separate job starts
+Redis and runs that file against it.
+
+### The integration job that was testing nothing
+
+That job used to select tests with `pytest -k redis`. The only matches were the `FakeRedis`-backed
+unit tests, which return a canned answer and never open a socket — so the job started a Redis
+container, never spoke to it, and passed whether or not Redis existed.
+
+`tests/test_redis_integration.py` talks to a real server. Its central test is the one a fake cannot
+express: two limiter instances sharing one Redis, `2 * capacity` acquires fired concurrently at one
+tenant, and exactly `capacity` may succeed. Replacing the Lua script with a naive `HGET`-then-`HSET`
+lets 40 of 40 through where the atomic version allows 20.
+
+The job also sets `REDIS_INTEGRATION_REQUIRED=1`, under which a missing or unreachable `REDIS_URL`
+fails rather than skips — otherwise the job could go vacuously green again, since skipped tests do
+not turn a build red. Keying that off `CI` would not work: GitHub Actions sets `CI` for every job,
+including the one with no Redis attached.
 
 ## Architecture
 
