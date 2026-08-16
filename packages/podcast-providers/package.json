@@ -1,0 +1,28 @@
+{
+  "name": "@handbook/podcast-providers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "4.0.39",
+    "@ai-sdk/elevenlabs": "3.0.28",
+    "@ai-sdk/openai": "4.0.42",
+    "ai": "7.0.66",
+    "workers-ai-provider": "4.0.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

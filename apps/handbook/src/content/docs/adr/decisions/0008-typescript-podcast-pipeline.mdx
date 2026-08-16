@@ -3,12 +3,19 @@ title: "ADR-0008: TypeScript and a plain pipeline for the podcast engine"
 sidebar:
   label: "0008 · TypeScript podcast engine"
 description: Why the podcast generation engine is TypeScript rather than Python, and why it orchestrates with ordinary async code rather than a graph framework.
-version: 1.0.0
+version: 1.1.0
 lastUpdated: 2026-08-15
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-15
     change: Accepted. Records the language choice, the rejection of a graph framework for a linear workflow, and the conditions that would reverse it.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-15
+    change: >-
+      Recorded the provider-layer decision: the Vercel AI SDK behind two hand-written ports, with
+      Cloudflare AI Gateway as a base-URL substitution beneath it. Adds the measured episode cost
+      model, which contradicted the assumption that the revision loop is the dominant term.
     author: vinod
 category: adr
 adrNumber: 8
@@ -159,6 +166,52 @@ found in its Redis job on the same day: a check reporting success without checki
 `node --experimental-strip-types`, which erases types without transforming syntax and rejects
 parameter properties outright. Vitest transpiles and would not have caught it. Constructor
 assignment is written out longhand.
+
+### The provider layer
+
+`packages/podcast-providers` defines two ports — `LlmPort` and `TtsPort` — and the engine imports
+nothing else. One file, `ai-sdk.ts`, imports `ai` and the provider packages. That is what makes the
+SDK a replaceable component rather than a structural commitment.
+
+**The AI SDK rather than LangChain JS, for one decisive reason: it covers speech and text through
+the same provider shape.** `@ai-sdk/openai` and `@ai-sdk/elevenlabs` both expose `.speech()`, so
+changing voice vendor is configuration. `@langchain/core` has no speech abstraction at all — its
+model interfaces are language models and embeddings — so a LangChain pipeline needs a second,
+hand-written abstraction for the voice half regardless. Given that a hand-written abstraction has to
+exist either way, the layer beneath it may as well cover both halves. Both facts were checked
+against the installed packages rather than taken from documentation.
+
+**Cloudflare AI Gateway is not an alternative to either.** It is a reverse proxy that sits
+underneath whichever SDK is chosen: point the SDK at a gateway base URL and the request still speaks
+the provider's own wire format, while gaining caching, retries and fallback, rate limiting, and cost
+logging. It proxies 26 providers, three of them voice — ElevenLabs, Deepgram, Cartesia. The
+integration is a single `baseURL` substitution, and disabling it is deleting two environment
+variables.
+
+Because failover lives in the gateway, it does not live in application code. The one case the
+gateway cannot cover — failing between vendors whose credentials differ — is a small `withFallback`
+wrapper, documented as the exception rather than the pattern.
+
+### The cost model, which contradicted the obvious reading
+
+A test asserting that eight revision rounds cost more than double one round **failed**, at $6.48
+against $9.24. The revision loop is the only unbounded term in the pipeline, so it looks like the
+one to control. At premium voice pricing it is not:
+
+| Revision rounds | LLM | Speech | Total | Speech share |
+| --- | --- | --- | --- | --- |
+| 0 | $0.56 | $3.80 | $4.36 | **87%** |
+| 1 | $0.82 | $3.80 | $4.62 | 82% |
+| 8 | $2.68 | $3.80 | $6.48 | 59% |
+
+Seven extra rounds of rework cost less than one synthesis. So at premium voice pricing the primary
+cost control is **segment-level regeneration**, not the revision cap — the reverse of the intuitive
+answer. Below roughly $49 per million speech characters it flips back, and
+`revisionBreakEvenSpeechPrice` computes that crossover for a given price list rather than baking in
+a conclusion that depends on a number which changes.
+
+Prices are configuration with no defaults, because a stale hardcoded rate produces confident wrong
+numbers — worse than no number, since it stops the question being asked.
 
 ### What would reverse this
 
