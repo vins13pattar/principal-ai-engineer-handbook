@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { FakeLlm } from "@handbook/podcast-providers";
+import type { StructuredRequest } from "@handbook/podcast-providers";
 import type { SourcePack } from "@handbook/content";
-import { planEpisode } from "./plan.ts";
+import { buildPlanRequest, planEpisode } from "./plan.ts";
 import type { PlanBudget } from "./budget.ts";
 
 function pack(sections: Array<[string, number]>): SourcePack {
@@ -50,6 +51,33 @@ const goodDraft = {
   unsupported: [],
 };
 
+describe("buildPlanRequest", () => {
+  it("returns the ids it derived alongside the request", () => {
+    // Returning both is what stops a caller pairing a prompt with ids from a
+    // different array. apportion already guards that invariant; there is no
+    // reason to create a second place it can go wrong.
+    const { request, excerptIds } = buildPlanRequest(
+      pack([
+        ["Alpha", 200],
+        ["Beta", 200],
+      ]),
+      { maxOutputTokens: 4000 },
+    );
+
+    expect(excerptIds).toEqual(["doc#alpha", "doc#beta"]);
+    for (const id of excerptIds) expect(request.prompt).toContain(id);
+  });
+
+  it("carries the system prompt and the token bound", () => {
+    // The estimator prices this exact request. A system prompt missing here is
+    // an estimate priced against text the model never receives.
+    const { request } = buildPlanRequest(pack([["Alpha", 200]]), { maxOutputTokens: 1234 });
+
+    expect(request.system.length).toBeGreaterThan(0);
+    expect(request.maxOutputTokens).toBe(1234);
+  });
+});
+
 describe("planEpisode", () => {
   it("produces a plan and carries the pack's provenance forward", async () => {
     const llm = new FakeLlm([goodDraft]);
@@ -61,6 +89,7 @@ describe("planEpisode", () => {
       ]),
       budget(),
       llm,
+      { maxOutputTokens: 4000 },
     );
 
     expect(plan.title).toBe("Measuring what you cannot see");
@@ -82,6 +111,7 @@ describe("planEpisode", () => {
       ]),
       budget(),
       llm,
+      { maxOutputTokens: 4000 },
     );
 
     expect(llm.calls[0]!.prompt).toContain("doc#alpha");
@@ -97,9 +127,9 @@ describe("planEpisode", () => {
       },
     ]);
 
-    await expect(planEpisode(pack([["Alpha", 200]]), budget(), llm)).rejects.toThrow(
-      /doc#invented/,
-    );
+    await expect(
+      planEpisode(pack([["Alpha", 200]]), budget(), llm, { maxOutputTokens: 4000 }),
+    ).rejects.toThrow(/doc#invented/);
   });
 
   it("rejects invented citations mixed with a valid one, naming all invented ids", async () => {
@@ -128,6 +158,7 @@ describe("planEpisode", () => {
         ]),
         budget(),
         llm,
+        { maxOutputTokens: 4000 },
       ),
     ).rejects.toThrow(/doc#invented-one.*doc#invented-two/);
   });
@@ -135,14 +166,18 @@ describe("planEpisode", () => {
   it("refuses an empty pack without calling the model", async () => {
     const llm = new FakeLlm([goodDraft]);
 
-    await expect(planEpisode(pack([]), budget(), llm)).rejects.toThrow(/no excerpts/);
+    await expect(planEpisode(pack([]), budget(), llm, { maxOutputTokens: 4000 })).rejects.toThrow(
+      /no excerpts/,
+    );
     expect(llm.calls).toHaveLength(0);
   });
 
   it("refuses a pack whose excerpts are all empty without calling the model", async () => {
     const llm = new FakeLlm([goodDraft]);
 
-    await expect(planEpisode(pack([["Alpha", 0]]), budget(), llm)).rejects.toThrow(/no excerpts/);
+    await expect(
+      planEpisode(pack([["Alpha", 0]]), budget(), llm, { maxOutputTokens: 4000 }),
+    ).rejects.toThrow(/no excerpts/);
     expect(llm.calls).toHaveLength(0);
   });
 
@@ -161,9 +196,9 @@ describe("planEpisode", () => {
     async (field, override) => {
       const llm = new FakeLlm([goodDraft]);
 
-      await expect(planEpisode(pack([["Alpha", 200]]), budget(override), llm)).rejects.toThrow(
-        field,
-      );
+      await expect(
+        planEpisode(pack([["Alpha", 200]]), budget(override), llm, { maxOutputTokens: 4000 }),
+      ).rejects.toThrow(field);
       expect(llm.calls).toHaveLength(0);
     },
   );
@@ -182,6 +217,7 @@ describe("planEpisode", () => {
       ]),
       budget(),
       llm,
+      { maxOutputTokens: 4000 },
     );
 
     expect(plan.shortfall).toBeNull();
@@ -198,10 +234,37 @@ describe("planEpisode", () => {
       ]),
       budget(),
       llm,
+      { maxOutputTokens: 4000 },
     );
 
     expect(plan.plannedSeconds).toBeLessThan(plan.requestedSeconds);
     expect(plan.shortfall).not.toBeNull();
     expect(plan.shortfall!.thinBeats.length).toBeGreaterThan(0);
+  });
+
+  it("sends the token bound to the model", async () => {
+    // The bound was advertised in the estimate and never applied. This is the
+    // assertion that makes it real.
+    const llm = new FakeLlm([goodDraft]);
+    const seen: Array<number | undefined> = [];
+    const recording = {
+      name: "recording",
+      generate: async <T>(request: StructuredRequest<T>) => {
+        seen.push(request.maxOutputTokens);
+        return llm.generate(request);
+      },
+    };
+
+    await planEpisode(
+      pack([
+        ["Alpha", 200],
+        ["Beta", 200],
+      ]),
+      budget(),
+      recording,
+      { maxOutputTokens: 4000 },
+    );
+
+    expect(seen).toEqual([4000]);
   });
 });

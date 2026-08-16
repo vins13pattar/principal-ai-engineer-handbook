@@ -57,6 +57,7 @@ describe("against the live content tree", () => {
         synthesisCost: { fixedSeconds: 3.16, marginalRtf: 0.073 },
       },
       llm,
+      { maxOutputTokens: 4000 },
     );
 
     expect(plan.sourceHash).toBe(pack.sourceHash);

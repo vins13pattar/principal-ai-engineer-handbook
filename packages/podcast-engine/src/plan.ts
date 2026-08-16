@@ -10,7 +10,7 @@
  */
 
 import type { SourcePack } from "@handbook/content";
-import type { LlmPort, Usage } from "@handbook/podcast-providers";
+import type { LlmPort, StructuredRequest, Usage } from "@handbook/podcast-providers";
 import { apportion } from "./apportion.ts";
 import { assertPlanBudget, deriveSegmentBudget } from "./budget.ts";
 import type { PlanBudget } from "./budget.ts";
@@ -79,10 +79,42 @@ export function validateCitations(draft: DraftPlan, excerptIds: readonly string[
   }
 }
 
+export interface PlanRequestOptions {
+  maxOutputTokens: number;
+}
+
+/**
+ * The one construction of the plan request, shared by the caller that sends it
+ * and the estimator that prices it.
+ *
+ * It derives the excerpt ids rather than accepting them. Accepting them would
+ * let a caller pair this prompt with ids from a different array, and
+ * `renderPrompt` skips an excerpt with no matching entry rather than failing --
+ * so the symptom would be a model unable to cite what it was never shown, and
+ * an error blaming the model for it.
+ */
+export function buildPlanRequest(
+  pack: SourcePack,
+  options: PlanRequestOptions,
+): { request: StructuredRequest<DraftPlan>; excerptIds: string[] } {
+  const excerptIds = deriveExcerptIds(pack.excerpts);
+
+  return {
+    request: {
+      schema: DraftPlanSchema,
+      system: SYSTEM,
+      prompt: renderPrompt(pack, excerptIds),
+      maxOutputTokens: options.maxOutputTokens,
+    },
+    excerptIds,
+  };
+}
+
 export async function planEpisode(
   pack: SourcePack,
   budget: PlanBudget,
   llm: LlmPort,
+  options: PlanRequestOptions,
 ): Promise<PlanResult> {
   // Both refusals precede the model call. The pack is the only input, and a
   // plan built from nothing is built from the model's memory of the topic --
@@ -92,13 +124,8 @@ export async function planEpisode(
     throw new Error(`source pack for "${pack.topic}" has no excerpts with any text`);
   }
 
-  const excerptIds = deriveExcerptIds(pack.excerpts);
-
-  const result = await llm.generate<DraftPlan>({
-    schema: DraftPlanSchema,
-    system: SYSTEM,
-    prompt: renderPrompt(pack, excerptIds),
-  });
+  const { request, excerptIds } = buildPlanRequest(pack, options);
+  const result = await llm.generate<DraftPlan>(request);
 
   validateCitations(result.value, excerptIds);
 
