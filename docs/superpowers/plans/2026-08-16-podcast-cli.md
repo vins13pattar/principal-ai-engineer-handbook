@@ -108,9 +108,15 @@ describe("ModelResponseError", () => {
     // The whole point of the translation: a run directory is an artifact
     // people share, and a leaked authorization header in one is a credential
     // disclosure. Anything not on this list must not be reachable.
+    //
+    // `name` is on the list because assigning `this.name` in a constructor
+    // creates an own *enumerable* property -- unlike `message`, which V8
+    // defines non-enumerable via `super()`. It is a standard Error field, not
+    // a provider internal, and the assertion stays a whitelist: any newly
+    // leaked field still fails this.
     const error = new ModelResponseError("m", { rawText: "x" });
 
-    expect(Object.keys(error).sort()).toEqual(["finishReason", "rawText", "usage"]);
+    expect(Object.keys(error).sort()).toEqual(["finishReason", "name", "rawText", "usage"]);
   });
 });
 ```
@@ -183,34 +189,52 @@ describe("llmFromModel translation", () => {
     // first contact with a real provider, and the raw text is the only thing
     // that makes it diagnosable.
     const model = {
+      // `specificationVersion` and `provider` are required before
+      // `generateObject` will dispatch: without them it throws
+      // AI_UnsupportedModelVersionError and never reaches `doGenerate`, so the
+      // test would pass while exercising none of the translation.
+      specificationVersion: "v2",
+      provider: "test",
       modelId: "test-model",
       async doGenerate(): Promise<never> {
         throw new NoObjectGeneratedError({
+          // The constructor's type requires `response` and `usage`, whose real
+          // shapes are nested SDK metadata this test does not exercise --
+          // `isInstance` keys off a symbol marker, and the translation only
+          // reads text and finishReason. Filling them in would couple this
+          // test to someone else's metadata types, which drift.
           message: "no object generated",
           text: "Sure! Here is a plan:",
           finishReason: "stop",
-        });
+        } as never);
       },
     };
 
     const port = llmFromModel("test", model as never);
 
-    await expect(
-      port.generate({ schema: z.object({ a: z.string() }), system: "s", prompt: "p" }),
-    ).rejects.toThrow(ModelResponseError);
+    // A single call, not two. `.catch(cb)` returns `Promise<T | TResult>`
+    // regardless of what the callback casts, so property access on its result
+    // cannot typecheck -- and asserting twice about one failure invoked the
+    // model twice for no gain.
+    let caught: unknown;
+    try {
+      await port.generate({ schema: z.object({ a: z.string() }), system: "s", prompt: "p" });
+    } catch (error) {
+      caught = error;
+    }
 
-    const error = await port
-      .generate({ schema: z.object({ a: z.string() }), system: "s", prompt: "p" })
-      .catch((thrown: unknown) => thrown as ModelResponseError);
-
-    expect(error.rawText).toBe("Sure! Here is a plan:");
-    expect(error.finishReason).toBe("stop");
+    expect(caught).toBeInstanceOf(ModelResponseError);
+    const translated = caught as ModelResponseError;
+    expect(translated.rawText).toBe("Sure! Here is a plan:");
+    expect(translated.finishReason).toBe("stop");
   });
 
   it("lets unrelated errors through untouched", async () => {
     // Translating everything would hide transport failures behind a schema
     // error, which points debugging at the wrong layer.
     const model = {
+      specificationVersion: "v2",
+      provider: "test",
       modelId: "test-model",
       async doGenerate(): Promise<never> {
         throw new Error("ECONNREFUSED");
