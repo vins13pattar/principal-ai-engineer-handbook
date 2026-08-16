@@ -69,7 +69,9 @@ export async function reserveRunDirectory(
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code === "EEXIST") {
-      throw new Error(`run directory already exists, refusing to overwrite: ${path}`);
+      throw new Error(`run directory already exists, refusing to overwrite: ${path}`, {
+        cause: error,
+      });
     }
     throw error;
   }

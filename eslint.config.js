@@ -58,7 +58,12 @@ export default [
   },
   {
     // CLI scripts are expected to print to stdout.
-    files: ["scripts/**/*.ts"],
+    //
+    // Scoped to this one file rather than "**/src/cli.ts": the podcast-providers
+    // and handbook-content packages each have their own src/cli.ts, and a
+    // package-wide glob would silently exempt their existing console calls too,
+    // which is not what this task's console usage in podcast-engine needs.
+    files: ["scripts/**/*.ts", "packages/podcast-engine/src/cli.ts"],
     rules: {
       "no-console": "off",
     },

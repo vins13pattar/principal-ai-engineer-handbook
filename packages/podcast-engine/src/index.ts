@@ -11,3 +11,8 @@ export { apportion } from "./apportion.ts";
 export type { ApportionResult } from "./apportion.ts";
 
 export * from "./plan.ts";
+
+export * from "./config.ts";
+export * from "./run.ts";
+export * from "./manifest.ts";
+export * from "./estimate.ts";

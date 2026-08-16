@@ -1,0 +1,26 @@
+{
+  "llm": { "provider": "anthropic", "modelId": "claude-...", "maxOutputTokens": 4000 },
+  "prices": {
+    "inputPerMillionTokens": 3.0,
+    "outputPerMillionTokens": 15.0,
+    "speechPerMillionCharacters": 0
+  },
+  "tts": {
+    "provider": "local",
+    "modelId": "mlx-community/Kokoro-82M-bf16",
+    "voice": "af_heart",
+    "language": "en-US",
+    "measuredOn": "Apple M4, 24 GB",
+    "charsPerSecond": 16.2,
+    "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
+    "runner": {
+      "name": "kokoro-82m",
+      "cwd": "packages/podcast-providers",
+      "command": ".venv/bin/python",
+      "args": ["-u", "runners/kokoro_mlx.py", "--text", "{text}", "--out", "{out}"],
+      "mediaType": "audio/wav",
+      "timeoutSeconds": 600
+    }
+  },
+  "plan": { "expansionFactor": 3, "maxRenderSeconds": 300 }
+}
