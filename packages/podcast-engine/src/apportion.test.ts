@@ -181,12 +181,17 @@ describe("apportion", () => {
 
   it("does not flag a beat as thin on floating-point residue alone", () => {
     // Weights 8/7/2 against requestedSeconds: 100 sum in floating point to
-    // 100.00000000000001, not 100. With abundant characters -- no beat is
-    // actually ceiling-bound -- a raw `supportable < desired` comparison
-    // would flag a beat as thin purely on that ~1e-14 residue, flipping
-    // `shortfall` to non-null and naming a beat that was never clipped. It
-    // would also violate the schema invariant that `thinBeats` is never
-    // empty when `shortfall` is non-null.
+    // 100.00000000000001, not 100. This pins the *structural* shortfall
+    // decision: `shortfall` is null because no beat was clipped, not because
+    // `plannedSeconds === requestedSeconds`. Deciding it by that equality
+    // would emit `shortfall: { seconds: 0, thinBeats: [] }` here, violating
+    // the schema invariant that `thinBeats` is never empty when `shortfall`
+    // is non-null.
+    //
+    // It does NOT discriminate the epsilon in `apportion`: with 1000
+    // characters a beat, `supportable` is ~1000s against a `desired` of ~47s,
+    // so a raw `supportable < desired` passes this test too. The capacity
+    // boundary that does discriminate it has its own test above.
     const excerpts = [
       excerpt("doc", "A", 1000),
       excerpt("doc", "B", 1000),
@@ -205,6 +210,38 @@ describe("apportion", () => {
     );
 
     expect(result.shortfall).toBeNull();
+  });
+
+  it("does not flag a beat sitting exactly at its capacity as thin", () => {
+    // This is the case the epsilon in `apportion` exists for, and the only
+    // one that discriminates it. The test above uses abundant characters, so
+    // `supportable` (~1000s) is nowhere near `desired` (~47s) and a raw
+    // `supportable < desired` passes it just as happily.
+    //
+    // Here `requestedSeconds` is set to exactly the capacity the source
+    // sustains, so `desired` and `supportable` are mathematically equal and
+    // differ only by float residue from two unrelated computation paths.
+    // Beat "Two" lands at desired 89.04 against supportable 89.03999999999999
+    // -- a gap of 1.4e-14 -- and a raw `<` reports it as clipped, flipping
+    // `shortfall` to non-null and naming a beat nothing actually clipped.
+    const characters = 2226;
+    const expansionFactor = 1.4;
+    const charsPerSecond = 17.5;
+    const capacity = (expansionFactor * characters) / charsPerSecond;
+
+    const result = apportion(
+      draft([
+        { title: "One", intent: "i", excerptIds: ["doc#a"], weight: 1 },
+        { title: "Two", intent: "i", excerptIds: ["doc#a"], weight: 3 },
+        { title: "Three", intent: "i", excerptIds: ["doc#a"], weight: 2 },
+      ]),
+      [excerpt("doc", "A", characters)],
+      ["doc#a"],
+      budget({ requestedSeconds: capacity, expansionFactor, charsPerSecond }),
+    );
+
+    expect(result.shortfall).toBeNull();
+    expect(result.plannedSeconds).toBeCloseTo(capacity, 9);
   });
 
   it("clamps plannedSeconds to requestedSeconds despite float overshoot", () => {

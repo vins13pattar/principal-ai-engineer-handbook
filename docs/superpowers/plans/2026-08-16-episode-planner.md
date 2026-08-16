@@ -1861,12 +1861,12 @@ introduce such a heading, not a collision test; the branches themselves are unit
 - [ ] **Step 6: Run the full gate**
 
 Run: `pnpm verify`
-Expected: exit 0, and **189 tests** — the 122 baseline plus 67 added by this plan (13 ids, 8 schema,
-13 budget, 17 apportion, 14 plan, 2 corpus). The count is deterministic, so any other number means a
+Expected: exit 0, and **190 tests** — the 122 baseline plus 68 added by this plan (13 ids, 8 schema,
+13 budget, 18 apportion, 14 plan, 2 corpus). The count is deterministic, so any other number means a
 task was skipped, a test was dropped, or a suite was double-counted. Reconcile it before committing
 rather than accepting a green run at the wrong total.
 
-The total moved twice, both times because a review found the suite passing against a defect it
+The total moved three times, every time because a review found the suite passing against a defect it
 should have caught:
 
 - **184 → 186.** Every one of the 13 apportionment tests passed against a real float-residue defect,
@@ -1877,8 +1877,16 @@ should have caught:
   replaced by plain assignment without failing anything. Three tests were added: multi-excerpt
   accumulation, the parallel-array length guard, and a citation set mixing valid with invented ids.
 
-Both are the same shape — fixtures that never combine the thing under test — which is worth
-remembering when adding to this suite.
+- **189 → 190.** A mutation check during the final human review found that reverting the thin-beat
+  epsilon to a raw `supportable < desired` broke nothing: the test written to cover it used 1,000
+  character excerpts, where `supportable` (~1000s) is nowhere near `desired` (~47s). It pinned the
+  structural shortfall decision, which is real, but not the epsilon. A capacity-boundary case —
+  `requestedSeconds` set to exactly what the source sustains — now discriminates it.
+
+All three are the same shape: **a fixture that never approaches the boundary the code guards.** Two
+of them additionally carried comments claiming coverage the test did not provide, which is the more
+dangerous half — a reader stops looking. When adding to this suite, mutate the line you think you are
+covering and confirm the new test fails.
 
 - [ ] **Step 7: Format and commit**
 
