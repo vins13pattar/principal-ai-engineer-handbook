@@ -87,7 +87,13 @@ export function apportion(
     const allocated = allocatedCharacters[index] ?? 0;
     const desired = (budget.requestedSeconds * beat.weight) / totalWeight;
     const supportable = (budget.expansionFactor * allocated) / budget.charsPerSecond;
-    if (supportable < desired) thinBeats.push(beat.title);
+    // `desired` and `supportable` are computed by unrelated float paths, so a
+    // beat exactly at capacity can land a few ULPs apart. A raw `<` would
+    // report that beat as thin on floating-point residue rather than on any
+    // real shortfall, flipping `shortfall` to non-null and naming a beat that
+    // was never actually clipped. The epsilon is relative to `desired` so it
+    // scales with the magnitude of the comparison.
+    if (desired - supportable > desired * 1e-9) thinBeats.push(beat.title);
 
     return {
       title: beat.title,
@@ -99,7 +105,15 @@ export function apportion(
     };
   });
 
-  const plannedSeconds = beats.reduce((sum, beat) => sum + beat.targetSeconds, 0);
+  // Summing float `targetSeconds` values can overshoot `requestedSeconds` by a
+  // few ULPs even when no beat was individually flagged thin (e.g. weights
+  // 8/7/2 against 100 requested). Clamping here keeps the documented invariant
+  // `plannedSeconds <= requestedSeconds` exact rather than "true up to
+  // residue".
+  const plannedSeconds = Math.min(
+    beats.reduce((sum, beat) => sum + beat.targetSeconds, 0),
+    budget.requestedSeconds,
+  );
 
   if (plannedSeconds <= 0) {
     throw new Error(

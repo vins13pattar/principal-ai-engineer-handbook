@@ -163,6 +163,60 @@ describe("apportion", () => {
     expect(result.plannedSeconds).toBeLessThanOrEqual(capacity);
   });
 
+  it("does not flag a beat as thin on floating-point residue alone", () => {
+    // Weights 8/7/2 against requestedSeconds: 100 sum in floating point to
+    // 100.00000000000001, not 100. With abundant characters -- no beat is
+    // actually ceiling-bound -- a raw `supportable < desired` comparison
+    // would flag a beat as thin purely on that ~1e-14 residue, flipping
+    // `shortfall` to non-null and naming a beat that was never clipped. It
+    // would also violate the schema invariant that `thinBeats` is never
+    // empty when `shortfall` is non-null.
+    const excerpts = [
+      excerpt("doc", "A", 1000),
+      excerpt("doc", "B", 1000),
+      excerpt("doc", "C", 1000),
+    ];
+    const ids = ["doc#a", "doc#b", "doc#c"];
+    const result = apportion(
+      draft([
+        { title: "One", intent: "i", excerptIds: ["doc#a"], weight: 8 },
+        { title: "Two", intent: "i", excerptIds: ["doc#b"], weight: 7 },
+        { title: "Three", intent: "i", excerptIds: ["doc#c"], weight: 2 },
+      ]),
+      excerpts,
+      ids,
+      budget(),
+    );
+
+    expect(result.shortfall).toBeNull();
+  });
+
+  it("clamps plannedSeconds to requestedSeconds despite float overshoot", () => {
+    // Same 8/7/2 weights: summing the per-beat targetSeconds in floating
+    // point overshoots requestedSeconds by ~1e-14 even though no beat is
+    // ceiling-bound. plannedSeconds must not silently exceed what was asked
+    // for.
+    const excerpts = [
+      excerpt("doc", "A", 1000),
+      excerpt("doc", "B", 1000),
+      excerpt("doc", "C", 1000),
+    ];
+    const ids = ["doc#a", "doc#b", "doc#c"];
+    const result = apportion(
+      draft([
+        { title: "One", intent: "i", excerptIds: ["doc#a"], weight: 8 },
+        { title: "Two", intent: "i", excerptIds: ["doc#b"], weight: 7 },
+        { title: "Three", intent: "i", excerptIds: ["doc#c"], weight: 2 },
+      ]),
+      excerpts,
+      ids,
+      budget(),
+    );
+
+    expect(result.plannedSeconds).toBeLessThanOrEqual(100);
+    expect(result.plannedSeconds).toBe(100);
+  });
+
   it("allocates nothing from an excerpt no beat cites", () => {
     // Capacity is the union of *cited* excerpts. An uncited excerpt sitting in
     // the pack must not quietly raise plannedSeconds -- the beat is bound by
