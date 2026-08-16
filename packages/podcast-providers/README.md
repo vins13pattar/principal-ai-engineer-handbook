@@ -101,7 +101,7 @@ pnpm --filter @handbook/podcast-providers test
 pnpm --filter @handbook/podcast-providers check
 ```
 
-48 tests, no network access. Both run as part of `pnpm verify`.
+59 tests, no network access. Both run as part of `pnpm verify`.
 
 ## Multilingual
 
@@ -153,13 +153,65 @@ the chip, the memory, the runner, the quantisation, and what else is open. So me
 
 ```bash
 node --experimental-strip-types packages/podcast-providers/src/bench.ts \
-  --name kokoro-82m --command uv \
-  --args "run,--,mlx_audio.tts.generate,--text,{text},--file_prefix,{out}" \
-  --runs 3 --save /tmp/sample.wav
+  --name kokoro-82m --command .venv/bin/python \
+  --args "-u,runners/kokoro_mlx.py,--text,{text},--out,{out},--voice,{voice},--speed,{speed},--lang,{language}" \
+  --voice af_heart --save /tmp/sample.wav
 ```
 
-It reports cold and warm RTF separately (the first run pays model load), projects a 40-minute
-episode, and saves audio — because RTF says nothing about whether the voice is listenable.
+`runners/kokoro_mlx.py` exists because `mlx_audio.tts.generate` writes `{file_prefix}_000.wav`,
+never the path handed to it, and the port reads exactly `{out}`. Its docstring has the setup,
+including a non-obvious one: **the `espeakng-loader` wheel is broken on Apple silicon** — every
+version from 0.2.0 to 0.2.4 ships a dylib that ignores the data path passed to `espeak_Initialize`
+and hard-exits on the path baked in at its build. `brew install espeak-ng` and symlink the loader at
+it.
+
+The bench sweeps four call sizes instead of repeating one, and reads each duration off the WAV
+rather than estimating it. Both were wrong here, in the same direction:
+
+| Was                                | Is                                                   |
+| ---------------------------------- | ---------------------------------------------------- |
+| Duration estimated at 14 chars/sec | Read from the WAV — `af_heart` speaks 16.2 chars/sec |
+| One call size, cold/warm mean      | Four sizes, least-squares fit of two terms           |
+| `RTF x episodeMinutes`             | `segments x fixed + marginal x audioSeconds`         |
+
+Estimating the duration reported every RTF ~15% better than it was. Scaling a single RTF to an
+episode was worse than imprecise — it was the wrong model, and it is why the number below is a
+formula rather than a factor.
+
+### What it measured here
+
+M4 (24 GB), Kokoro-82M bf16 via mlx-audio, voice `af_heart`, 24 kHz mono:
+
+```text
+   chars     audio    compute    RTF
+     730     45.1s      6.47s   0.143
+    1461     88.9s      9.88s   0.111
+    2923    176.5s     15.65s   0.089
+    4385    263.0s     22.62s   0.086
+
+compute = 3.16s per call + 0.073 x seconds of audio
+```
+
+The per-call RTF falls by 40% across that sweep. Nothing about the model changed; a fixed ~3.2s of
+model load is being spread over more audio. Once loaded it synthesises 13.7x faster than real time,
+and **every call pays the 3.2s again**, because `createLocalTts` spawns a process per
+`synthesise`.
+
+That turns segmentation into a cost decision rather than a structural one:
+
+| Segments | 40-min render | Of which model load |
+| -------- | ------------- | ------------------- |
+| 1        | 3.0 min       | 2%                  |
+| 20       | 4.0 min       | 26%                 |
+| 60       | 6.1 min       | 52%                 |
+| 120      | 9.3 min       | 68%                 |
+
+Same audio, same model, three times the compute. Segment-level regeneration is the primary cost
+control once speech is 87% of the bill — and past a few dozen segments most of what it costs is
+loading Kokoro, not speaking. The fix when that bites is a persistent runner behind the port, not a
+faster model; the port shape does not change either way.
+
+The bench saves the audio too, because RTF says nothing about whether the voice is listenable.
 
 Four guarantees the adapter tests pin against a real subprocess, not a mock:
 
@@ -173,8 +225,10 @@ Four guarantees the adapter tests pin against a real subprocess, not a mock:
 
 - **Only OpenAI, Anthropic, ElevenLabs, and Sarvam are wired.** The Cloudflare gateway list has 26;
   adding one is a case in `registry.ts` plus its SDK package.
-- **No local model is recommended by name here on measured evidence.** The benchmark exists because
-  the recommendation should come from your machine, not from this file.
+- **One model has been measured, on one machine.** Kokoro-82M on an M4 is viable with room to
+  spare; that is evidence about this laptop, not a recommendation for yours. Run the bench.
+- **The 3.2s per-call cost is measured but not addressed.** A persistent runner behind the port
+  would remove it. Nothing needs it yet, and the number should decide when.
 - **`SPEECH_LANGUAGE_COVERAGE` for `local` claims English only.** Widen it after listening, not
   after reading a model card.
 - **Workers AI is not wired as a provider yet**, though `workers-ai-provider` is a dependency for

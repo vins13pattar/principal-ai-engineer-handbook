@@ -100,18 +100,52 @@ export function createLocalTts(options: LocalTtsOptions): TtsPort {
   };
 }
 
+/** How much of each output stream to keep for a failure message. */
+const TAIL_BYTES = 2000;
+
+/**
+ * Keeps only the last `TAIL_BYTES` of a stream.
+ *
+ * Two jobs, and the second is the one that matters. Bounding memory is
+ * housekeeping — a chatty runner over a 40-minute episode should not
+ * accumulate its whole log. Consuming the stream at all is the requirement:
+ * an unread pipe holds ~64 KiB and then blocks the writer indefinitely.
+ */
+function tail() {
+  let text = "";
+  return {
+    consume(stream: NodeJS.ReadableStream) {
+      stream.on("data", (chunk: Buffer) => {
+        text = (text + chunk.toString()).slice(-TAIL_BYTES);
+      });
+    },
+    get text() {
+      return text;
+    },
+  };
+}
+
 function run(command: string, args: string[], timeoutSeconds: number, cwd?: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       // Never a shell: episode text is model output and must not reach one.
       shell: false,
+      // stdin is /dev/null so a runner that reads it gets EOF and exits, rather
+      // than waiting on a pipe nothing will ever write to.
+      stdio: ["ignore", "pipe", "pipe"],
       ...(cwd === undefined ? {} : { cwd }),
     });
 
-    let stderr = "";
-    child.stderr.on("data", (chunk: Buffer) => {
-      stderr += chunk.toString();
-    });
+    // Both streams are drained, not just stderr. Leaving stdout unread hung
+    // this on any runner that prints more than a pipe buffer -- mlx-audio does
+    // it with one progress bar -- and the symptom was a timeout, which points
+    // at the model being slow rather than at this function. Reading it also
+    // means a runner that explains its failure on stdout is quoted rather than
+    // reduced to an exit code.
+    const out = tail();
+    const err = tail();
+    out.consume(child.stdout);
+    err.consume(child.stderr);
 
     const timer = setTimeout(() => {
       child.kill("SIGKILL");
@@ -125,8 +159,12 @@ function run(command: string, args: string[], timeoutSeconds: number, cwd?: stri
 
     child.on("close", (code) => {
       clearTimeout(timer);
-      if (code === 0) resolve();
-      else reject(new Error(`${command} exited ${code}\n${stderr.slice(-2000)}`));
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      const said = [err.text, out.text].filter(Boolean).join("\n").trim();
+      reject(new Error(`${command} exited ${code}${said ? `\n${said}` : ""}`));
     });
   });
 }
@@ -134,10 +172,15 @@ function run(command: string, args: string[], timeoutSeconds: number, cwd?: stri
 /**
  * Real-time factor: seconds of compute per second of audio produced.
  *
- * Below 1.0 means faster than real time. This is the number that decides
- * whether local synthesis is viable, and it is the one nobody publishes for
- * your specific hardware — which is why `bench.ts` measures it rather than
- * quoting it.
+ * Below 1.0 means faster than real time. It is the honest way to describe **one
+ * call**, and a trap for describing a workload: a local runner pays a fixed
+ * model-load cost per invocation, so the factor falls as the call gets longer.
+ * The same model measured on this machine reported 0.142 on a 45-second call
+ * and 0.087 on a 263-second one. Neither is "the" RTF, and multiplying either
+ * by an episode length answers a question nobody asked.
+ *
+ * Use `fitSynthesisCost` and `projectRenderSeconds` to project. This stays for
+ * describing a single measurement.
  */
 export function realTimeFactor(elapsedSeconds: number, audioSeconds: number): number {
   if (audioSeconds <= 0) return Infinity;
@@ -148,9 +191,110 @@ export function realTimeFactor(elapsedSeconds: number, audioSeconds: number): nu
  * Estimates spoken duration from character count.
  *
  * ~14 characters per second is ordinary English narration (roughly 150 words
- * per minute). Crude, and it is only used to turn a benchmark into a
- * projection — measure the real duration from the audio file when it matters.
+ * per minute). It is a planning figure and nothing more: Kokoro's `af_heart`
+ * measured 16.2 chars/sec here, so this runs ~15% long, and an RTF computed
+ * against it comes out ~15% better than the truth. `wavDurationSeconds` reads
+ * the real number off the audio; this is the fallback for formats it cannot
+ * parse.
  */
 export function estimateSpokenSeconds(characters: number, charsPerSecond = 14): number {
   return characters / charsPerSecond;
+}
+
+/**
+ * Reads the duration out of a WAV, or null when the bytes are not a WAV.
+ *
+ * Null rather than a fallback estimate on purpose. A caller that silently
+ * substitutes an estimate reports a measured-looking number that was guessed;
+ * returning null forces the choice to be visible at the call site.
+ */
+export function wavDurationSeconds(audio: Uint8Array): number | null {
+  const view = Buffer.from(audio.buffer, audio.byteOffset, audio.byteLength);
+  if (view.length < 44) return null;
+  if (view.toString("ascii", 0, 4) !== "RIFF") return null;
+  if (view.toString("ascii", 8, 12) !== "WAVE") return null;
+
+  let byteRate = 0;
+
+  // Walk the chunk list rather than assuming fmt at 12 and data at 36. Writers
+  // interleave LIST/INFO, and an assumed offset yields a plausible wrong
+  // duration instead of a parse failure.
+  let offset = 12;
+  while (offset + 8 <= view.length) {
+    const id = view.toString("ascii", offset, offset + 4);
+    const size = view.readUInt32LE(offset + 4);
+    const body = offset + 8;
+
+    if (id === "fmt " && body + 16 <= view.length) {
+      byteRate = view.readUInt32LE(body + 8);
+    } else if (id === "data") {
+      if (byteRate <= 0) return null;
+      // Trust the shorter of the declared size and what is actually present:
+      // a truncated file declares the length it meant to write.
+      const bytes = Math.min(size, view.length - body);
+      return bytes / byteRate;
+    }
+
+    // Chunks are word-aligned; an odd size is followed by a pad byte.
+    offset = body + size + (size % 2);
+  }
+
+  return null;
+}
+
+/** What a local runner costs: a fixed price per call, plus a price per second of audio. */
+export interface SynthesisCost {
+  /** Seconds burned before any audio is produced — interpreter start, model load. */
+  fixedSeconds: number;
+  /** Seconds of compute per second of audio, once the model is loaded. */
+  marginalRtf: number;
+}
+
+export interface CostSample {
+  audioSeconds: number;
+  elapsedSeconds: number;
+}
+
+/**
+ * Fits `elapsed = fixed + marginal x audioSeconds` by least squares.
+ *
+ * Two terms, because a local runner has two. Measuring at one call size cannot
+ * separate them, and the whole class of wrong projection — scaling a per-call
+ * RTF to an episode — comes from assuming the fixed term is zero.
+ */
+export function fitSynthesisCost(samples: readonly CostSample[]): SynthesisCost {
+  if (samples.length < 2) {
+    throw new Error("fitSynthesisCost needs at least two measurements to separate the terms");
+  }
+
+  const n = samples.length;
+  const sumX = samples.reduce((total, s) => total + s.audioSeconds, 0);
+  const sumY = samples.reduce((total, s) => total + s.elapsedSeconds, 0);
+  const sumXX = samples.reduce((total, s) => total + s.audioSeconds ** 2, 0);
+  const sumXY = samples.reduce((total, s) => total + s.audioSeconds * s.elapsedSeconds, 0);
+
+  const denominator = n * sumXX - sumX ** 2;
+  if (denominator === 0) {
+    throw new Error("fitSynthesisCost needs samples at different lengths, not repeats of one");
+  }
+
+  const marginalRtf = (n * sumXY - sumX * sumY) / denominator;
+  return { fixedSeconds: (sumY - marginalRtf * sumX) / n, marginalRtf };
+}
+
+/**
+ * Projects the compute to render an episode, given how it will be cut up.
+ *
+ * `segments` is the parameter that matters and the one a single RTF hides.
+ * `createLocalTts` spawns a process per `synthesise` call, so the fixed cost is
+ * paid per segment, not per episode. On this machine a 40-minute episode is
+ * ~3 minutes as one call and ~9 minutes as 120 — same audio, same model, three
+ * times the compute. That is an episode-planner decision, not a tuning detail.
+ */
+export function projectRenderSeconds(
+  cost: SynthesisCost,
+  audioSeconds: number,
+  segments = 1,
+): number {
+  return segments * cost.fixedSeconds + cost.marginalRtf * audioSeconds;
 }

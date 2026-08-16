@@ -11,7 +11,14 @@ import {
   providersFor,
 } from "./language.ts";
 import { chunkForSarvam, createSarvamTts } from "./sarvam.ts";
-import { createLocalTts, estimateSpokenSeconds, realTimeFactor } from "./local.ts";
+import {
+  createLocalTts,
+  estimateSpokenSeconds,
+  fitSynthesisCost,
+  projectRenderSeconds,
+  realTimeFactor,
+  wavDurationSeconds,
+} from "./local.ts";
 
 describe("language coverage", () => {
   it("treats Indian English as its own target, not a fallback", () => {
@@ -153,9 +160,17 @@ describe("realTimeFactor", () => {
     expect(realTimeFactor(5, 0)).toBe(Infinity);
   });
 
-  it("projects a 40-minute episode from a measured factor", () => {
-    // The number that decides whether local synthesis is viable at all.
-    expect(40 * realTimeFactor(10, 60)).toBeCloseTo(6.67, 1);
+  it("is not a constant across call sizes, so it cannot be scaled to an episode", () => {
+    // Both rows are the same model on the same machine (measured, see
+    // fitSynthesisCost below). The factor nearly halves as the call grows,
+    // because a fixed per-call cost is being amortised over more audio.
+    expect(realTimeFactor(6.4, 45.15)).toBeCloseTo(0.142, 3);
+    expect(realTimeFactor(22.76, 262.975)).toBeCloseTo(0.087, 3);
+
+    // So multiplying either one by an episode length answers a different
+    // question than the one asked, which is what projectRenderSeconds fixes.
+    expect(40 * 60 * realTimeFactor(6.4, 45.15)).toBeCloseTo(340, 0);
+    expect(40 * 60 * realTimeFactor(22.76, 262.975)).toBeCloseTo(208, 0);
   });
 });
 
@@ -165,6 +180,115 @@ describe("estimateSpokenSeconds", () => {
     // that is ~45 minutes, so the estimate is the right order.
     expect(estimateSpokenSeconds(38_000) / 60).toBeGreaterThan(35);
     expect(estimateSpokenSeconds(38_000) / 60).toBeLessThan(50);
+  });
+
+  it("runs long against a measured voice, which is why the bench does not use it", () => {
+    // Kokoro af_heart spoke 731 characters in 45.15s -> 16.2 chars/sec, not 14.
+    // Estimating instead of measuring reports every RTF ~15% better than it is.
+    expect(estimateSpokenSeconds(731)).toBeCloseTo(52.2, 1);
+    expect(estimateSpokenSeconds(731) / 45.15).toBeGreaterThan(1.15);
+  });
+});
+
+describe("wavDurationSeconds", () => {
+  /** A WAV header with no samples, so the byte length is the header itself. */
+  function wav({ sampleRate = 24_000, channels = 1, bits = 16, dataBytes = 0 } = {}): Uint8Array {
+    const byteRate = (sampleRate * channels * bits) / 8;
+    const buffer = Buffer.alloc(44 + dataBytes);
+    buffer.write("RIFF", 0);
+    buffer.writeUInt32LE(36 + dataBytes, 4);
+    buffer.write("WAVE", 8);
+    buffer.write("fmt ", 12);
+    buffer.writeUInt32LE(16, 16);
+    buffer.writeUInt16LE(1, 20);
+    buffer.writeUInt16LE(channels, 22);
+    buffer.writeUInt32LE(sampleRate, 24);
+    buffer.writeUInt32LE(byteRate, 28);
+    buffer.writeUInt16LE((channels * bits) / 8, 32);
+    buffer.writeUInt16LE(bits, 34);
+    buffer.write("data", 36);
+    buffer.writeUInt32LE(dataBytes, 40);
+    return new Uint8Array(buffer);
+  }
+
+  it("reads the duration Kokoro actually produced", () => {
+    // 45.15s of 24 kHz mono 16-bit is 2,167,200 bytes of samples.
+    expect(wavDurationSeconds(wav({ dataBytes: 2_167_200 }))).toBeCloseTo(45.15, 2);
+  });
+
+  it("returns null rather than a wrong number for audio it cannot parse", () => {
+    // An MP3 from a hosted provider must fall back to the estimate visibly,
+    // not be silently assigned a duration derived from a WAV assumption.
+    expect(wavDurationSeconds(new Uint8Array([0xff, 0xfb, 0x90, 0x00]))).toBeNull();
+    expect(wavDurationSeconds(new Uint8Array(8))).toBeNull();
+  });
+
+  it("walks past chunks it does not care about to find the data chunk", () => {
+    // Real writers put LIST/INFO between fmt and data. Assuming data sits at
+    // byte 36 works until it does not, and then reports a plausible duration.
+    const base = Buffer.from(wav({ dataBytes: 48_000 }));
+    const extra = Buffer.alloc(12);
+    extra.write("LIST", 0);
+    extra.writeUInt32LE(4, 4);
+    extra.write("INFO", 8);
+    const spliced = Buffer.concat([base.subarray(0, 36), extra, base.subarray(36)]);
+    spliced.writeUInt32LE(spliced.length - 8, 4);
+
+    expect(wavDurationSeconds(new Uint8Array(spliced))).toBeCloseTo(1, 3);
+  });
+});
+
+describe("fitSynthesisCost", () => {
+  // Measured on an M4 Air (24 GB), Kokoro-82M bf16 via mlx-audio, voice
+  // af_heart. Four call sizes, real audio durations read from the WAVs.
+  const MEASURED = [
+    { audioSeconds: 45.15, elapsedSeconds: 6.4 },
+    { audioSeconds: 88.9, elapsedSeconds: 9.65 },
+    { audioSeconds: 176.525, elapsedSeconds: 15.92 },
+    { audioSeconds: 262.975, elapsedSeconds: 22.76 },
+  ];
+
+  it("separates the per-call fixed cost from the per-second one", () => {
+    const fit = fitSynthesisCost(MEASURED);
+
+    // ~3s of model load on every call, then 13x faster than real time.
+    expect(fit.fixedSeconds).toBeCloseTo(2.96, 1);
+    expect(fit.marginalRtf).toBeCloseTo(0.075, 3);
+  });
+
+  it("refuses to fit a line through one point", () => {
+    // One measurement cannot tell a fixed cost from a marginal one, and
+    // guessing which it is produces the projection this replaced.
+    expect(() => fitSynthesisCost(MEASURED.slice(0, 1))).toThrow(/at least two/);
+    expect(() =>
+      fitSynthesisCost([
+        { audioSeconds: 45, elapsedSeconds: 6.4 },
+        { audioSeconds: 45, elapsedSeconds: 6.5 },
+      ]),
+    ).toThrow(/different lengths/);
+  });
+});
+
+describe("projectRenderSeconds", () => {
+  const FIT = { fixedSeconds: 2.96, marginalRtf: 0.0748 };
+
+  it("renders a 40-minute episode in three minutes as one call", () => {
+    expect(projectRenderSeconds(FIT, 40 * 60, 1) / 60).toBeCloseTo(3.0, 1);
+  });
+
+  it("charges the fixed cost once per segment, not once per episode", () => {
+    // This is the number the episode planner needs: at 120 segments, two
+    // thirds of the render is model loading rather than synthesis.
+    const seconds = projectRenderSeconds(FIT, 40 * 60, 120);
+    expect(seconds / 60).toBeCloseTo(8.9, 1);
+    expect((120 * FIT.fixedSeconds) / seconds).toBeGreaterThan(0.66);
+  });
+
+  it("grows with segment count while the audio stays the same length", () => {
+    const audio = 40 * 60;
+    expect(projectRenderSeconds(FIT, audio, 60)).toBeLessThan(
+      projectRenderSeconds(FIT, audio, 120),
+    );
   });
 });
 
@@ -231,6 +355,53 @@ describe("createLocalTts against a real subprocess", () => {
 
     await expect(tts.synthesise({ text: "x", voice: "d", language: "en-US" })).rejects.toThrow(
       /could not start/,
+    );
+  });
+
+  it("survives a runner that writes more to stdout than a pipe buffer holds", async () => {
+    // mlx-audio prints per call and draws progress bars on a cache miss. An
+    // unread stdout pipe holds 64 KiB and then blocks the writer forever, so
+    // this hung until the timeout killed it -- with a message about a timeout
+    // rather than about the real cause.
+    const noisy = join(tmpdir(), "handbook-noisy-tts.py");
+    await writeFile(
+      noisy,
+      [
+        "import sys, wave, struct",
+        "sys.stdout.write('x' * 300_000)", // comfortably past any pipe buffer
+        "sys.stdout.flush()",
+        "w = wave.open(sys.argv[2], 'w')",
+        "w.setnchannels(1); w.setsampwidth(2); w.setframerate(8000)",
+        "w.writeframes(struct.pack('<h', 0) * 8000)",
+        "w.close()",
+      ].join("\n"),
+    );
+
+    const tts = createLocalTts({
+      name: "noisy",
+      command: "python3",
+      args: [noisy, "{text}", "{out}"],
+      timeoutSeconds: 20,
+    });
+
+    const result = await tts.synthesise({ text: "hello", voice: "d", language: "en-US" });
+
+    expect(Buffer.from(result.audio.slice(0, 4)).toString()).toBe("RIFF");
+  });
+
+  it("puts what the runner printed into the failure, not just its exit code", async () => {
+    // A runner that fails says why on one stream or the other. Keeping only
+    // stderr loses the reason for every runner that logs to stdout.
+    const chatty = join(tmpdir(), "handbook-chatty-tts.py");
+    await writeFile(
+      chatty,
+      ["import sys", "print('could not load the voice pack')", "sys.exit(3)"].join("\n"),
+    );
+
+    const tts = createLocalTts({ name: "chatty", command: "python3", args: [chatty] });
+
+    await expect(tts.synthesise({ text: "x", voice: "d", language: "en-US" })).rejects.toThrow(
+      /could not load the voice pack/,
     );
   });
 

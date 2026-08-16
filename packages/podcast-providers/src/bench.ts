@@ -8,19 +8,34 @@
  * episode-level projection that turns a benchmark into a decision.
  *
  *   node --experimental-strip-types packages/podcast-providers/src/bench.ts \
- *     --name kokoro-82m \
- *     --command uv \
- *     --args "run,--,mlx_audio.tts.generate,--text,{text},--file_prefix,{out}"
+ *     --name kokoro-82m --command .venv/bin/python \
+ *     --args "-u,runners/kokoro_mlx.py,--text,{text},--out,{out},--voice,{voice}" \
+ *     --voice af_heart --save /tmp/sample.wav
  *
  * `{text}` and `{out}` are substituted. Arguments are passed as argv, never
  * through a shell.
+ *
+ * It sweeps several call sizes rather than repeating one, because a local
+ * runner has two costs and one call size cannot separate them. `createLocalTts`
+ * spawns a process per call, so model load is paid every time; measured at a
+ * single length that fixed cost hides inside the RTF and then gets multiplied
+ * by the episode length as if it scaled. It does not. The sweep is what makes
+ * the projection mean something.
  */
 
 import { writeFile } from "node:fs/promises";
-import { createLocalTts, estimateSpokenSeconds, realTimeFactor } from "./local.ts";
+import {
+  createLocalTts,
+  estimateSpokenSeconds,
+  fitSynthesisCost,
+  projectRenderSeconds,
+  realTimeFactor,
+  wavDurationSeconds,
+  type CostSample,
+} from "./local.ts";
 import { DEFAULT_LANGUAGE } from "./language.ts";
 
-/** ~1,200 characters: long enough that startup cost stops dominating. */
+/** ~730 characters: long enough that a sentence-level runner has real work to do. */
 const SAMPLE = [
   "An evaluation platform's job is not to produce a number.",
   "It is to say whether a difference between two numbers is real.",
@@ -33,6 +48,9 @@ const SAMPLE = [
   "That is the uncomfortable part, and it is why the honest answer to whether a",
   "change helped is sometimes that this dataset cannot tell.",
 ].join(" ");
+
+/** Call sizes as multiples of SAMPLE. Needs at least two to fit two terms. */
+const MULTIPLES = [1, 2, 4, 6];
 
 function arg(name: string): string | undefined {
   const index = process.argv.indexOf(`--${name}`);
@@ -49,7 +67,6 @@ if (!name || !command || !argsTemplate) {
   process.exit(2);
 }
 
-const runs = Number(arg("runs") ?? 3);
 const tts = createLocalTts({
   name,
   command,
@@ -57,51 +74,91 @@ const tts = createLocalTts({
   ...(arg("media-type") === undefined ? {} : { mediaType: arg("media-type")! }),
 });
 
-console.log(`benchmarking ${name} — ${runs} run(s), ${SAMPLE.length} characters each\n`);
+const voice = arg("voice") ?? "default";
+const speak = (text: string) => tts.synthesise({ text, voice, language: DEFAULT_LANGUAGE });
 
-const factors: number[] = [];
-let lastAudio: Uint8Array | null = null;
+console.log(`benchmarking ${name} — ${MULTIPLES.length} call sizes\n`);
 
-for (let run = 1; run <= runs; run += 1) {
-  const result = await tts.synthesise({
-    text: SAMPLE,
-    voice: arg("voice") ?? "default",
-    language: DEFAULT_LANGUAGE,
-  });
-  lastAudio = result.audio;
+// The first call pays model download checks and a cold page cache. Report it,
+// then discard it: it is a one-off, and averaging it into the fit would tilt
+// the fixed term with a cost that is not paid again.
+const cold = await speak(SAMPLE);
+console.log(`  cold start: ${cold.elapsedSeconds.toFixed(1)}s for the first call, discarded\n`);
 
-  const spoken = estimateSpokenSeconds(SAMPLE.length);
-  const factor = realTimeFactor(result.elapsedSeconds, spoken);
-  factors.push(factor);
+const samples: CostSample[] = [];
+let estimated = false;
+let longest: Uint8Array | null = null;
 
+console.log("     chars     audio    compute    RTF");
+for (const multiple of MULTIPLES) {
+  const text = Array.from({ length: multiple }, () => SAMPLE).join(" ");
+  const result = await speak(text);
+  longest = result.audio;
+
+  // Read the duration off the audio. Estimating it from character count is how
+  // the previous version of this file reported every RTF ~15% optimistic: the
+  // 14 chars/sec planning figure ran long against the voice being measured.
+  const measured = wavDurationSeconds(result.audio);
+  const audioSeconds = measured ?? estimateSpokenSeconds(text.length);
+  if (measured === null) estimated = true;
+
+  samples.push({ audioSeconds, elapsedSeconds: result.elapsedSeconds });
   console.log(
-    `  run ${run}: ${result.elapsedSeconds.toFixed(1)}s compute for ~${spoken.toFixed(0)}s audio ` +
-      `-> RTF ${factor.toFixed(2)}  (${(result.audio.length / 1024).toFixed(0)} KiB)`,
+    `  ${String(text.length).padStart(8)}` +
+      `  ${(audioSeconds.toFixed(1) + "s").padStart(8)}` +
+      `  ${(result.elapsedSeconds.toFixed(2) + "s").padStart(9)}` +
+      `  ${realTimeFactor(result.elapsedSeconds, audioSeconds).toFixed(3).padStart(6)}`,
   );
 }
 
-// The first run pays model load; report it separately rather than letting it
-// skew a mean that a decision gets made on.
-const warm = factors.length > 1 ? factors.slice(1) : factors;
-const meanWarm = warm.reduce((sum, value) => sum + value, 0) / warm.length;
+if (estimated) {
+  console.log(
+    `\n  ! durations estimated at 14 chars/sec — ${name} did not return parseable WAV,` +
+      `\n    so every RTF above is a guess with a measurement's formatting.`,
+  );
+}
 
-console.log(`\n  cold RTF   ${factors[0]!.toFixed(2)}`);
-console.log(`  warm RTF   ${meanWarm.toFixed(2)} (mean of ${warm.length})`);
-
-const episodeMinutes = 40;
-const renderMinutes = episodeMinutes * meanWarm;
+const cost = fitSynthesisCost(samples);
 console.log(
-  `\n  a ${episodeMinutes}-minute episode renders in ~${renderMinutes.toFixed(0)} minutes`,
+  `\n  compute = ${cost.fixedSeconds.toFixed(2)}s per call` +
+    ` + ${cost.marginalRtf.toFixed(3)} x seconds of audio`,
 );
 console.log(
-  meanWarm < 0.25
-    ? "  -> comfortably viable; iterate locally without thinking about it"
-    : meanWarm < 1
-      ? "  -> viable, but a full re-render is a coffee break; segment-level regeneration matters"
-      : "  -> slower than real time; usable for drafts, painful for a full episode",
+  `  once loaded it runs ${(1 / cost.marginalRtf).toFixed(1)}x faster than real time;` +
+    ` every call pays the ${cost.fixedSeconds.toFixed(1)}s again.`,
 );
 
-if (lastAudio && arg("save")) {
-  await writeFile(arg("save")!, lastAudio);
+// The projection the decision actually needs. Segment count is a planner
+// choice, and it moves the render time more than the model choice does.
+const episodeMinutes = Number(arg("episode-minutes") ?? 40);
+const audioSeconds = episodeMinutes * 60;
+console.log(`\n  a ${episodeMinutes}-minute episode, by how it is cut up:\n`);
+console.log("    segments    render    of which model load");
+for (const segments of [1, 20, 60, 120]) {
+  const seconds = projectRenderSeconds(cost, audioSeconds, segments);
+  const loadShare = (segments * cost.fixedSeconds) / seconds;
+  console.log(
+    `    ${String(segments).padStart(8)}` +
+      `  ${((seconds / 60).toFixed(1) + " min").padStart(8)}` +
+      `  ${((loadShare * 100).toFixed(0) + "%").padStart(19)}`,
+  );
+}
+
+const wholeEpisode = projectRenderSeconds(cost, audioSeconds, 1) / 60;
+console.log(
+  `\n  ` +
+    (wholeEpisode < episodeMinutes * 0.25
+      ? "comfortably viable; iterate locally without thinking about it"
+      : wholeEpisode < episodeMinutes
+        ? "viable, but a full re-render is a coffee break"
+        : "slower than real time; usable for drafts, painful for a full episode"),
+);
+console.log(
+  `  segment-level regeneration is the cost control, and the table above prices it:` +
+    `\n  past a few dozen segments you are paying mostly to load the model.`,
+);
+
+if (longest && arg("save")) {
+  await writeFile(arg("save")!, longest);
   console.log(`\n  wrote ${arg("save")} — listen to it before trusting any of the above`);
 }
