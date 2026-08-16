@@ -15,8 +15,9 @@
  * thing underneath may as well cover both.
  */
 
-import { generateObject, generateSpeech } from "ai";
+import { generateObject, generateSpeech, NoObjectGeneratedError } from "ai";
 import type { LanguageModel, SpeechModel } from "ai";
+import { ModelResponseError } from "./errors.ts";
 import type {
   LlmPort,
   LlmResult,
@@ -37,25 +38,46 @@ export function llmFromModel(name: string, model: LanguageModel): LlmPort {
   return {
     name,
     async generate<T>(request: StructuredRequest<T>): Promise<LlmResult<T>> {
-      const result = await generateObject({
-        model,
-        schema: request.schema,
-        system: request.system,
-        prompt: request.prompt,
-        ...(request.maxOutputTokens === undefined
-          ? {}
-          : { maxOutputTokens: request.maxOutputTokens }),
-      });
+      try {
+        const result = await generateObject({
+          model,
+          schema: request.schema,
+          system: request.system,
+          prompt: request.prompt,
+          ...(request.maxOutputTokens === undefined
+            ? {}
+            : { maxOutputTokens: request.maxOutputTokens }),
+        });
 
-      return {
-        value: result.object as T,
-        modelId: typeof model === "string" ? model : model.modelId,
-        usage: {
-          inputTokens: result.usage?.inputTokens ?? 0,
-          outputTokens: result.usage?.outputTokens ?? 0,
-          speechCharacters: 0,
-        },
-      };
+        return {
+          value: result.object as T,
+          modelId: typeof model === "string" ? model : model.modelId,
+          usage: {
+            inputTokens: result.usage?.inputTokens ?? 0,
+            outputTokens: result.usage?.outputTokens ?? 0,
+            speechCharacters: 0,
+          },
+        };
+      } catch (error) {
+        // Only this shape is translated. Anything else -- transport, auth,
+        // rate limiting -- passes through, because relabelling it as a schema
+        // failure would send debugging to the wrong layer.
+        if (!NoObjectGeneratedError.isInstance(error)) throw error;
+
+        throw new ModelResponseError("the model did not return a value matching the schema", {
+          ...(error.text === undefined ? {} : { rawText: error.text }),
+          ...(error.finishReason === undefined ? {} : { finishReason: error.finishReason }),
+          ...(error.usage === undefined
+            ? {}
+            : {
+                usage: {
+                  inputTokens: error.usage.inputTokens ?? 0,
+                  outputTokens: error.usage.outputTokens ?? 0,
+                  speechCharacters: 0,
+                },
+              }),
+        });
+      }
     },
   };
 }

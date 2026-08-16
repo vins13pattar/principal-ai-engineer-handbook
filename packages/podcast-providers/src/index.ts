@@ -7,3 +7,4 @@ export * from "./registry.ts";
 export * from "./sarvam.ts";
 export * from "./local.ts";
 export * from "./fakes.ts";
+export * from "./errors.ts";
