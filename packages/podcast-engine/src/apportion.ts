@@ -57,6 +57,17 @@ export function apportion(
   excerptIds: readonly string[],
   budget: PlanBudget,
 ): ApportionResult {
+  // `excerpts` and `excerptIds` are positionally aligned -- `excerpts[position]`
+  // is looked up by the id at that same position below. A caller passing
+  // mismatched lengths would silently under-allocate (missing excerpts read as
+  // zero characters) instead of failing, so the contract is asserted up front.
+  if (excerpts.length !== excerptIds.length) {
+    throw new Error(
+      `excerpts and excerptIds must be the same length: got ${excerpts.length} excerpts and ` +
+        `${excerptIds.length} excerptIds`,
+    );
+  }
+
   // Deduped per beat: citing one excerpt twice does not change what the beat
   // is grounded in, and must not change what it is allowed to say.
   const citations = draft.beats.map((beat) => new Set(beat.excerptIds));
@@ -126,6 +137,10 @@ export function apportion(
   // requestedSeconds`, which is a floating-point equality test -- the hazard
   // integer allocation was chosen to avoid. Whether a beat was clipped is a
   // boolean fact about the min().
+  // `Math.max(0, ...)` is defensive, not load-bearing: `plannedSeconds` is
+  // already clamped to `budget.requestedSeconds` above, so the difference
+  // here is non-negative by construction. Nothing currently reaches the
+  // clamp.
   const shortfall: Shortfall | null =
     thinBeats.length === 0
       ? null

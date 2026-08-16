@@ -102,6 +102,36 @@ describe("planEpisode", () => {
     );
   });
 
+  it("rejects invented citations mixed with a valid one, naming all invented ids", async () => {
+    // A single bad id doesn't pin that validateCitations counts every invented
+    // id rather than short-circuiting on the first; this uses one valid id and
+    // two invented ones.
+    const llm = new FakeLlm([
+      {
+        ...goodDraft,
+        beats: [
+          {
+            title: "Setup",
+            intent: "i",
+            excerptIds: ["doc#alpha", "doc#invented-one", "doc#invented-two"],
+            weight: 1,
+          },
+        ],
+      },
+    ]);
+
+    await expect(
+      planEpisode(
+        pack([
+          ["Alpha", 200],
+          ["Beta", 200],
+        ]),
+        budget(),
+        llm,
+      ),
+    ).rejects.toThrow(/doc#invented-one.*doc#invented-two/);
+  });
+
   it("refuses an empty pack without calling the model", async () => {
     const llm = new FakeLlm([goodDraft]);
 

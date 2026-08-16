@@ -50,4 +50,8 @@ pnpm --filter @handbook/podcast-engine check
 
 No network. `FakeLlm` validates every queued response against the caller's real schema, so a test
 cannot prove the pipeline works on data the schema would reject. One suite runs against the live
-content tree rather than fixtures, because duplicate headings and non-ASCII exist in real pages.
+content tree rather than fixtures: 63 documents, 561 excerpt-bearing headings, and zero duplicate
+headings, zero non-ASCII, zero empty slugs, zero collisions -- 0 of 63 packs reach the
+collision-suffix or empty-slug branches. That suite is a regression guard for the first page to
+introduce such a heading, not a collision test; the branches themselves are unit-tested in
+`ids.test.ts`.

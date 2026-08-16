@@ -127,6 +127,22 @@ describe("apportion", () => {
     expect(twice.plannedSeconds).toBeCloseTo(once.plannedSeconds, 10);
   });
 
+  it("sums the shares of every excerpt a single beat cites", () => {
+    // One beat citing two distinct excerpts must accumulate both shares, not
+    // land on whichever excerpt is processed last.
+    const excerpts = [excerpt("doc", "A", 300), excerpt("doc", "B", 700)];
+    const ids = ["doc#a", "doc#b"];
+    const result = apportion(
+      draft([{ title: "One", intent: "i", excerptIds: ["doc#a", "doc#b"], weight: 1 }]),
+      excerpts,
+      ids,
+      budget(),
+    );
+
+    expect(result.beats[0]!.allocatedCharacters).toBe(1000);
+    expect(result.beats[0]!.excerptIds).toEqual(["doc#a", "doc#b"]);
+  });
+
   it("shares an excerpt cited by several beats rather than duplicating it", () => {
     // Total allocated never exceeds the union of cited excerpts.
     const excerpts = [excerpt("doc", "A", 100)];
@@ -271,8 +287,10 @@ describe("apportion", () => {
     ).toThrow(/no beat has any supporting text/);
   });
 
-  it("reports a non-negative shortfall", () => {
-    const excerpts = [excerpt("doc", "A", 1000)];
+  it("reports shortfall.seconds as requestedSeconds minus plannedSeconds", () => {
+    // A genuinely thin case, not the earlier vacuous one: the excerpt sustains
+    // 20s against a 100s request, so shortfall.seconds must equal the gap.
+    const excerpts = [excerpt("doc", "A", 20)];
     const ids = ["doc#a"];
     const result = apportion(
       draft([{ title: "One", intent: "i", excerptIds: ["doc#a"], weight: 1 }]),
@@ -281,6 +299,24 @@ describe("apportion", () => {
       budget(),
     );
 
-    expect(result.shortfall?.seconds ?? 0).toBeGreaterThanOrEqual(0);
+    expect(result.shortfall).not.toBeNull();
+    expect(result.shortfall!.seconds).toBeCloseTo(
+      budget().requestedSeconds - result.plannedSeconds,
+      10,
+    );
+  });
+
+  it("throws when excerpts and excerptIds have different lengths", () => {
+    const excerpts = [excerpt("doc", "A", 100)];
+    const ids = ["doc#a", "doc#b"];
+
+    expect(() =>
+      apportion(
+        draft([{ title: "One", intent: "i", excerptIds: ["doc#a"], weight: 1 }]),
+        excerpts,
+        ids,
+        budget(),
+      ),
+    ).toThrow(/excerpts and excerptIds must be the same length.*1 excerpts.*2 excerptIds/s);
   });
 });
