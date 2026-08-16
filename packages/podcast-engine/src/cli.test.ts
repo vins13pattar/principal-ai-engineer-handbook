@@ -8,6 +8,7 @@ import { ModelResponseError } from "@handbook/podcast-providers";
 import { runCli } from "./cli.ts";
 import { CONFIG_TEMPLATE } from "./config.ts";
 import { deriveExcerptIds } from "./ids.ts";
+import { reserveRunDirectory } from "./run.ts";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..");
 
@@ -118,6 +119,77 @@ describe("runCli — pre-reservation failures", () => {
   });
 });
 
+// Config is one of the five pre-reservation stages -- readFile, JSON.parse,
+// and parseConfig each fail differently, and `beforeEach` writes a valid
+// config for every other test in this file, so none of them exercise this
+// stage at all.
+describe("runCli — config failures", () => {
+  it("refuses a config path that does not exist", async () => {
+    const missingConfigPath = join(outRoot, "does-not-exist.json");
+
+    const code = await runCli(
+      [
+        "plan",
+        "module:06-mcp",
+        "--duration",
+        "2400",
+        "--config",
+        missingConfigPath,
+        "--out",
+        join(outRoot, "runs"),
+      ],
+      deps({ llm: new FakeLlm([draft]) }),
+    );
+
+    expect(code).not.toBe(0);
+    await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+  });
+
+  it("refuses malformed JSON in the config file", async () => {
+    const malformedPath = join(outRoot, "malformed.json");
+    await writeFile(malformedPath, "{ not json");
+
+    const code = await runCli(
+      [
+        "plan",
+        "module:06-mcp",
+        "--duration",
+        "2400",
+        "--config",
+        malformedPath,
+        "--out",
+        join(outRoot, "runs"),
+      ],
+      deps({ llm: new FakeLlm([draft]) }),
+    );
+
+    expect(code).not.toBe(0);
+    await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+  });
+
+  it("refuses valid JSON that fails schema validation", async () => {
+    const invalidPath = join(outRoot, "invalid.json");
+    await writeFile(invalidPath, JSON.stringify({ llm: {} }));
+
+    const code = await runCli(
+      [
+        "plan",
+        "module:06-mcp",
+        "--duration",
+        "2400",
+        "--config",
+        invalidPath,
+        "--out",
+        join(outRoot, "runs"),
+      ],
+      deps({ llm: new FakeLlm([draft]) }),
+    );
+
+    expect(code).not.toBe(0);
+    await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+  });
+});
+
 describe("runCli — create", () => {
   it("refuses with and without --run, naming the missing stages", async () => {
     for (const argv of [
@@ -190,5 +262,43 @@ describe("runCli — plan --run", () => {
     const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
     expect(manifest.status).toBe("failed");
     expect(manifest.failure.stage).toBe("plan");
+  });
+});
+
+// `createLlm`'s provider factories (createAnthropic/createOpenAI) are lazy:
+// they validate nothing synchronously and only touch the network once
+// `generate` is actually called, so there is no apiKey/modelId combination
+// that makes construction itself throw, deterministically, offline. That
+// means the catch around construction added for this ordering fix has no
+// input that exercises its error branch without a real network call -- which
+// is exactly the case this suite must not do.
+//
+// What *is* testable offline: that omitting `deps.llm` (forcing the real,
+// uninjected `createLlm` call) does not crash or block the pre-reservation
+// path, and that construction happening before reservation means a
+// reservation failure -- forced here by pre-seeding the exact directory the
+// CLI is about to reserve -- is reached and reported without ever calling
+// `generate` (proven by the run never getting far enough to touch the
+// network: the test would hang or throw an unhandled network error if it
+// had).
+describe("runCli — llm construction (uninjected)", () => {
+  it("reaches reservation through the real createLlm call without a network call", async () => {
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    // Pre-seed the collision so reservation -- which now happens after the
+    // real llm is constructed -- fails deterministically, before
+    // `planEpisode` would ever call `llm.generate`.
+    await reserveRunDirectory(
+      join(outRoot, "runs"),
+      "module-06-mcp",
+      "2026-08-16T13-42-07Z-a3f9c1",
+    );
+
+    // No `llm` override: runCli must go through `deps.llm ?? createLlm(...)`.
+    const code = await runCli(base(["--run"]), deps());
+
+    expect(code).not.toBe(0);
+    // Nothing was added to the pre-seeded (empty) directory: no plan.json,
+    // no manifest.json, no failure.json -- the run never got past reservation.
+    expect(await readdir(dir)).toEqual([]);
   });
 });

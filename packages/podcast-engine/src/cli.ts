@@ -126,6 +126,24 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return 0;
   }
 
+  // Constructed before the directory is reserved, so a provider that refuses
+  // to build fails with nothing written -- it is a validation failure, not a
+  // run that died. Everything after reservation stays inside the try below,
+  // which is what makes "every failure after reservation writes diagnostics"
+  // true rather than nearly true.
+  let llm: LlmPort;
+  try {
+    llm =
+      deps.llm ??
+      createLlm(config.llm.provider as "openai" | "anthropic", {
+        apiKey: apiKey as string,
+        modelId: config.llm.modelId,
+      });
+  } catch (error) {
+    deps.log(error instanceof Error ? error.message : String(error));
+    return 2;
+  }
+
   const outRoot = flag(argv, "out") ?? join(deps.cwd, ".podcast");
   const root = isAbsolute(outRoot) ? outRoot : join(deps.cwd, outRoot);
   const runId = makeRunId(deps.now(), deps.suffix());
@@ -138,13 +156,6 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     deps.log(error instanceof Error ? error.message : String(error));
     return 1;
   }
-
-  const llm =
-    deps.llm ??
-    createLlm(config.llm.provider as "openai" | "anthropic", {
-      apiKey: apiKey as string,
-      modelId: config.llm.modelId,
-    });
 
   const common = {
     manifestVersion: 1 as const,
