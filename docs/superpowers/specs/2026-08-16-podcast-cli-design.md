@@ -8,12 +8,14 @@ Scope: the operator entry point for the podcast pipeline — `plan` implementabl
 
 **A validated plan is not a podcast.** The user-facing completion criterion is a playable audio file, and nothing short of that counts. This matters because the plan stage is the only stage that currently works, and a CLI that succeeds loudly after writing `plan.json` would quietly redefine the goal to whatever happens to be finished.
 
-So the CLI has two commands, and they are not variations of each other:
+So the CLI has two commands, and they are not variations of each other. Four invocations, four distinct meanings of success:
 
-| Command  | Status               | Success means                                          |
-| -------- | -------------------- | ------------------------------------------------------ |
-| `plan`   | Implementable now    | `plan.json` and `manifest.json` written                |
-| `create` | Specified, not built | `episode.wav` is playable and the manifest is complete |
+| Invocation     | Status               | Success means                                          |
+| -------------- | -------------------- | ------------------------------------------------------ |
+| `plan`         | Implementable now    | An estimate is printed. Nothing is written             |
+| `plan --run`   | Implementable now    | `plan.json` and a complete `manifest.json` written     |
+| `create`       | Specified, not built | Refuses, naming the missing stages                     |
+| `create --run` | Specified, not built | `episode.wav` is playable and the manifest is complete |
 
 `plan` is a diagnostic milestone: it answers whether a real model, handed a real source pack, returns a draft that satisfies `DraftPlanSchema` and cites excerpt ids that exist. That question has never been answered — every test that exercises `planEpisode`, in `plan.test.ts` and in the live-corpus suite, uses `FakeLlm`. No model that can disagree with this design has ever seen it.
 
@@ -55,7 +57,7 @@ A CLI prints, and `no-console` is a warning in this package. Extend the existing
 
 Until the missing stages exist, **both `create` and `create --run` refuse** immediately after argument validation, naming the stages that are absent. It does not estimate.
 
-This is not a limitation to work around — it is the honest behaviour. An estimate for a pipeline whose dialogue, review, and revision stages do not exist would be a number with no method behind it, and rule 4 below exists precisely to stop partial estimates reading as totals. A refusal that names what is missing is more useful than a figure that cannot be derived.
+This is not a limitation to work around — it is the honest behaviour. An estimate for a pipeline whose dialogue, review, and revision stages do not exist would be a number with no method behind it, and the scoping rule in [The spend estimate](#the-spend-estimate) exists precisely to stop partial estimates reading as totals. A refusal that names what is missing is more useful than a figure that cannot be derived.
 
 `create` is present in the surface from the start because a command that names the destination is what stops `plan` being mistaken for the product.
 
@@ -118,25 +120,36 @@ A missing file, or any missing or unrecognised field, prints this template and e
 
 `.strict()` rejects a misspelled key. It says nothing about `maxOutputTokens: -1` or `charsPerSecond: 0`, and those reach further before they fail — a zero speech rate divides, a negative token bound is sent to a provider. Every field carries a bound:
 
-| Field                                                        | Constraint                         |
-| ------------------------------------------------------------ | ---------------------------------- |
-| `llm.provider`                                               | one of `TEXT_PROVIDERS`            |
-| `llm.modelId`                                                | trimmed, non-empty                 |
-| `llm.maxOutputTokens`                                        | integer, positive                  |
-| `prices.*` (all three)                                       | finite, non-negative               |
-| `tts.provider`, `modelId`, `voice`, `language`, `measuredOn` | trimmed, non-empty                 |
-| `tts.charsPerSecond`                                         | finite, positive                   |
-| `tts.synthesisCost.fixedSeconds`                             | finite, positive                   |
-| `tts.synthesisCost.marginalRtf`                              | finite, non-negative               |
-| `tts.runner.name`, `command`                                 | trimmed, non-empty                 |
-| `tts.runner.args`                                            | array of trimmed non-empty strings |
-| `tts.runner.timeoutSeconds`                                  | finite, positive                   |
-| `plan.expansionFactor`                                       | finite, positive                   |
-| `plan.maxRenderSeconds`                                      | finite, positive                   |
+| Field                                | Constraint                                                                  |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `llm.provider`                       | one of `TEXT_PROVIDERS`                                                     |
+| `llm.modelId`                        | trimmed, non-empty                                                          |
+| `llm.maxOutputTokens`                | integer, positive                                                           |
+| `prices.*` (all three)               | finite, non-negative                                                        |
+| `tts.provider`                       | `z.literal("local")` — see below                                            |
+| `tts.language`                       | one of `ALL_LANGUAGES`, **and** covered by `SPEECH_LANGUAGE_COVERAGE.local` |
+| `tts.modelId`, `voice`, `measuredOn` | trimmed, non-empty                                                          |
+| `tts.charsPerSecond`                 | finite, positive                                                            |
+| `tts.synthesisCost.fixedSeconds`     | finite, positive                                                            |
+| `tts.synthesisCost.marginalRtf`      | finite, non-negative                                                        |
+| `tts.runner.name`, `command`         | trimmed, non-empty                                                          |
+| `tts.runner.args`                    | array of trimmed non-empty strings                                          |
+| `tts.runner.timeoutSeconds`          | finite, positive                                                            |
+| `plan.expansionFactor`               | finite, positive                                                            |
+| `plan.maxRenderSeconds`              | finite, positive                                                            |
 
 These deliberately mirror `assertPlanBudget`, which already enforces the same boundaries at the library edge — including the asymmetry that `fixedSeconds` must be positive because it is a divisor while `marginalRtf` may legitimately be zero. Duplicating them here is not redundancy: it moves the failure from partway through a run to config load, where the message can name the file and the field.
 
 `prices` allows zero because zero is meaningful — it is what a local TTS profile sets, and the number that inverts the cost model.
+
+#### `provider` and `language` need meaning, not just shape
+
+"Trimmed, non-empty" accepts `provider: "banana"` and `language: "elvish"`. Both would pass config load and fail much later, at synthesis, with an error about something else.
+
+- **`provider` is `z.literal("local")`.** It is the only speech provider this configuration can currently construct — `tts.runner` describes a subprocess, and `createLocalTts` is what consumes it. Naming a hosted provider here would describe a profile nothing in this spec can build.
+- **`language` must be in `ALL_LANGUAGES`**, and must appear in `SPEECH_LANGUAGE_COVERAGE.local`, which is deliberately narrow: `["en-US", "en-GB"]`. That list's own comment explains why — most small local models are English-only, and the honest default is to claim only what has been listened to. A config asking for `ta-IN` from a local Kokoro profile should fail at load, not produce confident audio in the wrong language, which is precisely the failure `assertSpeakable` exists to prevent at the port boundary.
+
+When a hosted speech provider is wired, `tts` becomes a **discriminated union on `provider`**: the `local` variant keeps `runner`, a hosted variant carries credentials and drops it, and `language` validates against that provider's own coverage entry rather than `local`'s. That is a change to make when there is a second variant to discriminate, not before.
 
 ### Why `tts.runner` exists
 
@@ -150,7 +163,17 @@ The split is deliberate: the fields above `runner` say **what was measured and o
 - `runner.command` and every path inside `runner.args` are **relative to `runner.cwd`**, matching how `createLocalTts` already passes `cwd` to `spawn`.
 - `cwd` is optional; omitted, the subprocess inherits the repository root.
 
-Config validation checks that `cwd` exists and that `command` resolves to an executable file when it contains a path separator, so a mistyped runner fails at config load rather than after the model call has already been paid for.
+**Filesystem checks are deliberately not part of config loading.** Splitting them is the difference between a working `plan` and a dead one:
+
+| When                     | Checks                                                                                                         |
+| ------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Config load              | Structure, types, and numeric bounds only. No filesystem access                                                |
+| `create --run` preflight | `cwd` exists, `command` resolves to an executable, runner paths resolve — **before the first paid model call** |
+| `create` (refusing)      | Never reaches preflight                                                                                        |
+
+The earlier draft of this spec had config load verify the runner executable. On this checkout that is fatal: `packages/podcast-providers/.venv/bin/python` does not exist, so **both `plan` and `plan --run` would have failed at config load** over a synthesis binary neither command uses. A machine that plans is not necessarily a machine that renders, and the config is one file shared by both.
+
+Preflight belongs to `create --run` specifically, and must run _before_ the model call rather than after: discovering a missing runner once the dialogue stage has been paid for is the expensive ordering.
 
 ### Why the profile carries provenance
 
@@ -212,7 +235,9 @@ Without this, the CLI cannot diagnose the single most likely first-contact failu
 
 ## The spend estimate
 
-An estimate that reports one number, or that omits stages it cannot price, is worse than none: it invites a decision on a figure whose shape is not what the reader assumes. So the estimate is a **bounded breakdown that names its own scope**.
+An estimate that reports one number, or that omits stages it cannot price, is worse than none: it invites a decision on a figure whose shape is not what the reader assumes. So the estimate is a **scoped breakdown that names what it covers** — "bounded" would claim the thing rule 1 says it is not.
+
+**A dry run writes nothing.** It prints the breakdown to stdout and exits zero. No run directory is created, no `plan.json`, no manifest. There is no manifest variant for it because there is nothing to record: no `EpisodePlan` was produced, no model was called, no usage exists, and a directory holding only an estimate would be an artifact implying work that did not happen. The run directory is created by `--run`, at the point the first real thing exists to put in it.
 
 ```text
 $ cli.ts plan module:06-mcp --duration 2400
@@ -277,12 +302,14 @@ The suffix is not decoration. Second-resolution timestamps collide, and combined
 
 An existing run directory is never overwritten. The command refuses and names the path. Runs are evidence; silently replacing one destroys the artifact someone is comparing against.
 
-### `plan` writes
+### `plan` writes nothing; `plan --run` writes two files
 
 ```text
 plan.json        the EpisodePlan
 manifest.json    see below
 ```
+
+A dry run creates no directory at all — see [The spend estimate](#the-spend-estimate). The run directory comes into existence only when there is a model result to put in it.
 
 ### `create` must write
 
@@ -357,10 +384,11 @@ Common to both variants:
 | Argument or config validation         | absent   | absent  | absent                            | absent                      |
 | Credential missing under `--run`      | absent   | absent  | absent                            | absent                      |
 | Pack loading (unknown document id)    | absent   | absent  | absent                            | absent                      |
-| Estimate produced, call not made      | present  | present | absent                            | `measured: null`            |
 | Model call failed (schema, citations) | present  | present | present when the error carried it | `measured` when usage known |
 
-A failure before config validation may leave `resolvedConfig` unwritable too; in that case no manifest is written at all, because there is no run directory yet — the directory is created only once arguments and config have both validated.
+There is deliberately no row for "estimate produced, call not made". That is a dry run, and a dry run is a success that writes nothing — not a failed run missing its fields. Listing it here would have made the absence of a model call look like a fault.
+
+A manifest exists only under `--run`. The run directory is created after arguments and config validate **and** the decision to call has been made; a failure before that point writes no manifest at all, because there is nowhere to put one.
 
 `artifacts` lists what was written rather than what was expected — the difference between the two is what makes a failed run legible.
 
@@ -411,6 +439,9 @@ Anything else is a failed run. Failed runs **may and should preserve diagnostics
 - manifest variants — a `complete` manifest carrying a `failure` fails validation, and so does a `failed` one without it;
 - runner path resolution — `command` and `args` resolve against `runner.cwd`, and `cwd` against the repository root;
 - config value bounds — `maxOutputTokens: 0`, a negative price, `charsPerSecond: 0`, and `fixedSeconds: 0` each fail at config load with the field named;
+- **a dry `plan` creates no directory** — assert the output root is untouched afterwards, and that `FakeLlm` recorded zero calls;
+- **config load performs no filesystem check on the runner** — a config naming a `command` that does not exist still loads, and `plan --run` completes against `FakeLlm`, which is the regression that would otherwise make `plan` unusable on a machine without the synthesis venv;
+- `tts.provider` other than `"local"` fails; `tts.language` outside `ALL_LANGUAGES` fails; a language valid in `ALL_LANGUAGES` but outside `SPEECH_LANGUAGE_COVERAGE.local` (`ta-IN`) fails;
 - the playable predicate — valid WAV passes; empty bytes, truncated header, and zero-sample WAV all fail;
 - `create` refusing both with and without `--run`.
 
