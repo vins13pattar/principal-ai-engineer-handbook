@@ -27,7 +27,7 @@ compute = 3.16s per call + 0.073 x seconds of audio
 ```
 
 `createLocalTts` spawns a process per `synthesise` call, so the fixed term is paid per segment.
-A 40-minute episode renders in 3.0 minutes as one call and 9.3 minutes as 120 — same audio, same
+A 40-minute episode renders in 3.0 minutes as one call and 9.2 minutes as 120 — same audio, same
 model, because at 120 segments 68% of the render is loading the model. Segment count is therefore a
 priced decision, and the planner is the stage with enough context to make it.
 

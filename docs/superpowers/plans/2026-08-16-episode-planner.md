@@ -1838,7 +1838,7 @@ a real excerpt id from a plausible one. Ids are derived from the pack and checke
 
 `createLocalTts` spawns a process per `synthesise` call, so model load is paid per segment. At the
 measured 3.16s fixed and 0.073 marginal, a 40-minute episode renders in 3.0 minutes as one call and
-9.3 as 120. `maxSegments` falls out of inverting `projectRenderSeconds` against a render ceiling —
+9.2 as 120. `maxSegments` falls out of inverting `projectRenderSeconds` against a render ceiling —
 39 segments for a 40-minute episode under five minutes of render. `assertWithinBudget` is how the
 voice-script stage proves it honoured that.
 
@@ -1851,21 +1851,34 @@ pnpm --filter @handbook/podcast-engine check
 
 No network. `FakeLlm` validates every queued response against the caller's real schema, so a test
 cannot prove the pipeline works on data the schema would reject. One suite runs against the live
-content tree rather than fixtures, because duplicate headings and non-ASCII exist in real pages.
+content tree rather than fixtures: 63 documents, 561 excerpt-bearing headings, and zero duplicate
+headings, zero non-ASCII, zero empty slugs, zero collisions -- 0 of 63 packs reach the
+collision-suffix or empty-slug branches. That suite is a regression guard for the first page to
+introduce such a heading, not a collision test; the branches themselves are unit-tested in
+`ids.test.ts`.
 ````
 
 - [ ] **Step 6: Run the full gate**
 
 Run: `pnpm verify`
-Expected: exit 0, and **186 tests** — the 122 baseline plus 64 added by this plan (13 ids, 8 schema,
-13 budget, 15 apportion, 13 plan, 2 corpus). The count is deterministic, so any other number means a
+Expected: exit 0, and **189 tests** — the 122 baseline plus 67 added by this plan (13 ids, 8 schema,
+13 budget, 17 apportion, 14 plan, 2 corpus). The count is deterministic, so any other number means a
 task was skipped, a test was dropped, or a suite was double-counted. Reconcile it before committing
 rather than accepting a green run at the wrong total.
 
-Originally 184, against 13 apportion tests. Task 4's review found that all 13 passed against an
-implementation carrying a real float-residue defect, because every one used two beats or equal
-weights where the residue is identically zero; two tests pinning the discriminating input were added
-in the fix round, and the total moved with them.
+The total moved twice, both times because a review found the suite passing against a defect it
+should have caught:
+
+- **184 → 186.** Every one of the 13 apportionment tests passed against a real float-residue defect,
+  because each used two beats or equal weights, where the residue is identically zero. Two tests
+  pinning the discriminating input were added.
+- **186 → 189.** The final whole-branch review found that no test anywhere had a beat citing two
+  _distinct_ excerpts, so `apportion`'s cross-excerpt accumulation was untested and could be
+  replaced by plain assignment without failing anything. Three tests were added: multi-excerpt
+  accumulation, the parallel-array length guard, and a citation set mixing valid with invented ids.
+
+Both are the same shape — fixtures that never combine the thing under test — which is worth
+remembering when adding to this suite.
 
 - [ ] **Step 7: Format and commit**
 
