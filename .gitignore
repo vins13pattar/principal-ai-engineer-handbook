@@ -41,6 +41,13 @@ pnpm-debug.log*
 # TypeScript build info
 *.tsbuildinfo
 
+# Agent scratch. Both hold working state for an in-progress task -- worktree
+# checkouts and per-plan ledgers, briefs, and review packages. Neither is
+# ignored by default, and an unignored worktree directory commits an entire
+# second checkout into the repo.
+.claude/worktrees/
+.superpowers/
+
 # Python (labs)
 __pycache__/
 *.pyc
