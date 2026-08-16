@@ -1851,10 +1851,15 @@ content tree rather than fixtures, because duplicate headings and non-ASCII exis
 - [ ] **Step 6: Run the full gate**
 
 Run: `pnpm verify`
-Expected: exit 0, and **184 tests** — the 122 baseline plus 62 added by this plan (13 ids, 8 schema,
-13 budget, 13 apportion, 13 plan, 2 corpus). The count is deterministic, so any other number means a
+Expected: exit 0, and **186 tests** — the 122 baseline plus 64 added by this plan (13 ids, 8 schema,
+13 budget, 15 apportion, 13 plan, 2 corpus). The count is deterministic, so any other number means a
 task was skipped, a test was dropped, or a suite was double-counted. Reconcile it before committing
 rather than accepting a green run at the wrong total.
+
+Originally 184, against 13 apportion tests. Task 4's review found that all 13 passed against an
+implementation carrying a real float-residue defect, because every one used two beats or equal
+weights where the residue is identically zero; two tests pinning the discriminating input were added
+in the fix round, and the total moved with them.
 
 - [ ] **Step 7: Format and commit**
 
