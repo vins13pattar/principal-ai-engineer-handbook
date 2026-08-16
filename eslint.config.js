@@ -17,6 +17,11 @@ export default [
       "**/test-results/**",
       "**/public/pagefind/**",
       "labs/**",
+      // Agent worktrees are full checkouts of this repo living inside it, so
+      // linting them reports every finding a second time against a path that
+      // is not the working tree. Scoped to `worktrees/` rather than `.claude/`
+      // so anything hand-written elsewhere under `.claude/` is still linted.
+      ".claude/worktrees/**",
     ],
   },
   js.configs.recommended,
