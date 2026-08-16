@@ -1676,8 +1676,14 @@ import { FakeLlm } from "@handbook/podcast-providers";
 import { deriveExcerptIds } from "./ids.ts";
 import { planEpisode } from "./plan.ts";
 
-// Fixtures do not contain duplicate headings, punctuation-only headings, or
-// non-ASCII. Real pages do, and that is the class of bug id derivation has.
+// This establishes global id uniqueness and non-emptiness across every real
+// document in the corpus (63 documents, 561 excerpt-bearing headings as of
+// writing), derived from actual content rather than fixtures. It is a
+// regression guard, not a collision test: nothing in today's corpus is
+// duplicated, punctuation-only, or non-Latin, so this run does not exercise
+// `deriveExcerptIds`'s collision-suffix or empty-slug branches -- those are
+// covered as unit cases in ids.test.ts. What this guards against is the first
+// real page that introduces one.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 describe("against the live content tree", () => {

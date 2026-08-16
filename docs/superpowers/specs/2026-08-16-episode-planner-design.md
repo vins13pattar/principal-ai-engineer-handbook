@@ -518,9 +518,29 @@ asserting a downstream consequence that only holds under symmetry.
 ### Against the live corpus, not fixtures
 
 Build a real `SourcePack` from the content tree — `@handbook/content` already does this in its own
-tests — and derive ids from real headings. Duplicate headings, punctuation, and non-ASCII exist in
-real pages and not in fixtures. That approach found two loader bugs per ADR-0008, and id derivation
-is the same class of thing.
+tests — and derive ids from real headings. That approach found two loader bugs per ADR-0008, and id
+derivation is the same class of thing.
+
+**What this establishes, stated precisely, because the first version of this section overstated it.**
+The original claim was that duplicate headings, punctuation-only headings, and non-ASCII exist in
+real pages and not in fixtures, and that the corpus run therefore exercises the collision and
+fallback paths. Measured during implementation, that is false for this corpus:
+
+```text
+documents 63   excerpt-bearing headings 561
+empty slugs 0   non-ASCII 0   duplicate headings 0   slug collisions 0
+packs exercising the collision suffix:    0 / 63
+packs exercising the empty-slug fallback: 0 / 63
+```
+
+So the corpus run establishes **uniqueness and non-emptiness over real content**, and it is the
+**regression guard for the first page that introduces a colliding, punctuation-only, or non-Latin
+heading** — which nothing else would catch, since every other test in this stage is a fixture. The
+collision-suffix and empty-slug branches themselves are covered as unit cases in `ids.test.ts`.
+
+The distinction matters because a test whose comment claims more than it does is worse than no
+comment: a maintainer reading it concludes those paths are validated against real data and stops
+looking.
 
 ## Open note
 
