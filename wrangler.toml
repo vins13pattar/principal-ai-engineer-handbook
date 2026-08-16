@@ -19,3 +19,20 @@ directory = "apps/handbook/dist"
 # Astro emits a styled 404.html at the output root; without this, an unknown path returns a bare
 # Cloudflare 404 instead of the site's own.
 not_found_handling = "404-page"
+
+## Workers Logs. Declared here rather than left to the dashboard, because a setting that lives only
+## in the dashboard is one a redeploy can silently revert — which is exactly what Cloudflare's own
+## "ensure settings are consistent across deployments" prompt is warning about.
+##
+## Temper expectations about what this collects. Workers Logs captures invocation logs, custom logs,
+## errors, and uncaught exceptions — and with no `main`, this Worker has no script to emit the last
+## three. Invocation logs are the only category that can apply, and whether the assets runtime emits
+## them is not something Cloudflare's docs state either way. Enabling it is the cheap way to find
+## out; if the dashboard shows nothing after a deploy, set this to `false` rather than leaving a
+## setting that implies observability nobody is getting.
+##
+## Retention is 7 days. `head_sampling_rate` is left at its default of 1 (log every request)
+## deliberately: sampling a static site with this traffic would trade the only data source for
+## nothing worth saving.
+[observability]
+enabled = true
