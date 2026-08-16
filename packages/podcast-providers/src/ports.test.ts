@@ -57,18 +57,36 @@ describe("FakeTts", () => {
     const ignoring = new FakeTts();
     ignoring.honoursSpeed = false;
 
-    expect((await honouring.synthesise({ text: "hi", voice: "v", speed: 1.3 })).appliedSpeed).toBe(
-      1.3,
-    );
     expect(
-      (await ignoring.synthesise({ text: "hi", voice: "v", speed: 1.3 })).appliedSpeed,
+      (
+        await honouring.synthesise({
+          text: "hi",
+          voice: "v",
+          language: "en-US" as const,
+          speed: 1.3,
+        })
+      ).appliedSpeed,
+    ).toBe(1.3);
+    expect(
+      (
+        await ignoring.synthesise({
+          text: "hi",
+          voice: "v",
+          language: "en-US" as const,
+          speed: 1.3,
+        })
+      ).appliedSpeed,
     ).toBeNull();
   });
 
   it("bills speech per character rather than per token", async () => {
     const tts = new FakeTts();
 
-    const result = await tts.synthesise({ text: "twelve chars", voice: "v" });
+    const result = await tts.synthesise({
+      text: "twelve chars",
+      voice: "v",
+      language: "en-US" as const,
+    });
 
     expect(result.usage.speechCharacters).toBe(12);
     expect(result.usage.outputTokens).toBe(0);

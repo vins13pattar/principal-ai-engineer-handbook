@@ -13,6 +13,7 @@
  */
 
 import type { z } from "zod";
+import type { LanguageTag } from "./language.ts";
 
 /** What one model call cost, in tokens and characters rather than currency. */
 export interface Usage {
@@ -65,6 +66,16 @@ export interface SpeechRequest {
   text: string;
   /** Provider-specific voice identifier. */
   voice: string;
+  /**
+   * Required, not optional, and deliberately so.
+   *
+   * An optional language defaults to English somewhere in a provider adapter,
+   * and a provider handed text it cannot pronounce usually returns confident
+   * audio rather than an error. That produces a shippable-looking artifact in
+   * the wrong language which nothing downstream can detect. Making the caller
+   * state it means the mismatch is caught at the boundary.
+   */
+  language: LanguageTag;
   /** 1.0 is normal. Not every provider honours this; see `TtsResult.appliedSpeed`. */
   speed?: number;
 }
@@ -84,6 +95,14 @@ export interface TtsResult {
    * flat episode with no error anywhere.
    */
   appliedSpeed: number | null;
+  /**
+   * Seconds of wall-clock time the synthesis took.
+   *
+   * Meaningless for a hosted provider beyond latency, but the whole decision
+   * for a local model: real-time factor is what says whether a 40-minute
+   * episode renders in four minutes or forty.
+   */
+  elapsedSeconds: number;
 }
 
 export interface TtsPort {

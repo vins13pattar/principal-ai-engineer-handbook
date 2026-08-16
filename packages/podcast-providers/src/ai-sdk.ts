@@ -73,6 +73,7 @@ export function ttsFromModel(name: string, model: SpeechModel): TtsPort {
   return {
     name,
     async synthesise(request: SpeechRequest): Promise<TtsResult> {
+      const started = Date.now();
       const result = await generateSpeech({
         model,
         text: request.text,
@@ -85,6 +86,7 @@ export function ttsFromModel(name: string, model: SpeechModel): TtsPort {
         mediaType: result.audio.mediaType,
         modelId: typeof model === "string" ? model : model.modelId,
         appliedSpeed: request.speed ?? null,
+        elapsedSeconds: (Date.now() - started) / 1000,
         usage: {
           inputTokens: 0,
           outputTokens: 0,

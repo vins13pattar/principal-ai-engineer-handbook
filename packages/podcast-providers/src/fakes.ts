@@ -89,6 +89,7 @@ export class FakeTts implements TtsPort {
       mediaType: "audio/mpeg",
       modelId: "fake-tts",
       appliedSpeed: this.honoursSpeed ? (request.speed ?? null) : null,
+      elapsedSeconds: 0,
       usage: { inputTokens: 0, outputTokens: 0, speechCharacters: request.text.length },
     };
   }
