@@ -294,18 +294,22 @@ Expected: FAIL — cannot resolve `./ids.ts`.
 import type { SourceExcerpt } from "@handbook/content";
 
 /**
- * NFKC, lowercase, runs of non-letter/non-digit to "-", trimmed.
+ * NFKC, lowercase, runs of non-letter/non-digit/non-mark to "-", trimmed.
  *
- * `\p{L}` and `\p{N}` are Unicode-aware on purpose. Stripping to ASCII would
- * empty every Devanagari and Tamil heading in the corpus and route them all
- * through the ordinal fallback, which reads as a bug in the fallback rather
- * than in the slug.
+ * `\p{L}`, `\p{N}` and `\p{M}` are Unicode-aware on purpose. Stripping to
+ * ASCII would empty every Devanagari and Tamil heading in the corpus and
+ * route them all through the ordinal fallback, which reads as a bug in the
+ * fallback rather than in the slug. `\p{M}` (combining marks) matters
+ * because Devanagari and Tamil compose base letters with dependent vowel
+ * signs and viramas that are their own Unicode category — without it, those
+ * marks fall into the "non-letter" bucket and every combined syllable gets
+ * torn apart.
  */
 export function slugForHeading(heading: string): string {
   return heading
     .normalize("NFKC")
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/[^\p{L}\p{N}\p{M}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
 }
 

@@ -128,7 +128,7 @@ heading, and two distinct headings may normalise to the same slug. The identity 
 is **position: the excerpt's ordered occurrence in `pack.excerpts`**. The derived id has to be a
 readable label for that position, not a claim of natural uniqueness.
 
-`slug` is NFKC normalise, lowercase, replace runs of non-`(\p{L}|\p{N})` with `-`, trim leading and
+`slug` is NFKC normalise, lowercase, replace runs of non-`(\p{L}|\p{N}|\p{M})` with `-`, trim leading and
 trailing `-`. When the slug is empty, the base uses `section-${n}` with `n` the excerpt's 0-based
 ordinal in its document. Uniqueness is then established **against the set of final ids already
 issued**, walking `pack.excerpts` in order:
@@ -159,10 +159,14 @@ Five things that follow, each of which a naive implementation gets wrong:
 - **Uniqueness is global across the pack, not per base.** See above.
 - **Collisions are resolved on the normalised slug, not on the raw heading.** "Why not?" and
   "Why not" produce the same slug and must be disambiguated even though the headings differ.
-- **Unicode headings survive.** `\p{L}` and `\p{N}` are Unicode-aware, so Devanagari and Tamil
-  headings slug to themselves lowercased rather than to nothing. Stripping to ASCII would empty
-  every non-Latin heading and route them all through the empty-slug fallback, silently collapsing
-  distinct sections onto one label.
+- **Unicode headings survive.** `\p{L}`, `\p{N}` and `\p{M}` are Unicode-aware, so Devanagari and
+  Tamil headings slug to themselves lowercased rather than to nothing. Stripping to ASCII would
+  empty every non-Latin heading and route them all through the empty-slug fallback, silently
+  collapsing distinct sections onto one label. **`\p{M}` is load-bearing, not decoration:** these
+  scripts compose base letters with dependent vowel signs and viramas that are their own Unicode
+  category, so omitting it does not empty the heading — it tears every syllable apart. `नमस्ते`
+  becomes `नमस-त`. Caught during implementation, when the first version of this rule failed the
+  Devanagari test written alongside it.
 - **Punctuation-only headings are the empty-slug case** and get the positional fallback rather than
   a bare `documentId#`.
 - **Ids are pack-relative.** Because identity is occurrence-based, an id means nothing against a
