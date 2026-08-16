@@ -301,9 +301,26 @@ fact rather than by whether two floats happen to land on each other.
 names the clipped beats so the starved part of the arc is identifiable rather than merely the fact
 that something was.
 
-One boundary remains and is accepted: `supportable` within a floating-point whisker of `desired`
-may resolve either way. The consequence is a shortfall of approximately zero seconds reported as
-non-null, which errs toward disclosure and is the safe direction.
+**A beat is thin only on a material clip**, not on any clip:
+
+```ts
+if (desired - supportable > desired * 1e-9) thinBeats.push(beat.title);
+```
+
+`desired` and `supportable` are computed by two unrelated float paths — `requestedSeconds × weight /
+Σweights` against `expansionFactor × allocated / charsPerSecond` — so when they are mathematically
+equal the raw `<` resolves on residue. This design originally accepted that, on the reasoning that a
+spurious ~0-second shortfall errs toward disclosure. **Implementation review reversed it**, with
+evidence the earlier reasoning did not have: at `requestedSeconds` exactly equal to capacity, 5,070
+of 20,000 randomised configurations flagged a beat as thin on a gap of ~1.4e-14. Concretely, 2,226
+characters over weights 1/3/2 gives `desired 89.04` against `supportable 89.03999999999999`.
+
+The correction is that this is not a decimal being slightly wrong — it flips a categorical output.
+`shortfall` goes non-null, and `thinBeats` names a beat nothing clipped, which is prose a reader
+would act on. Erring toward disclosure is only safe when the disclosure is true.
+
+`targetSeconds` stays `min(desired, supportable)` regardless; the epsilon governs only the thin
+verdict.
 
 ## Segment budget
 
@@ -424,6 +441,11 @@ would reject.
    Follows from (2), pinned separately because it is the anti-inflation claim that is actually true.
 4. **`plannedSeconds ≤ min(requestedSeconds, capacity)`**, where
    `capacity = expansionFactor × unionChars / charsPerSecond`. Both bounds, since either can bind.
+   Holds **exactly**, not up to residue: summing float `targetSeconds` can overshoot
+   `requestedSeconds` by a few ULPs even when no beat was clipped — weights 8/7/2 against 100
+   requested sums to 100.00000000000001 — so `plannedSeconds` is clamped to `requestedSeconds`.
+   Without the clamp this invariant is literally false and any downstream assertion of it is
+   intermittently flaky.
 5. **An empty pack produces zero `FakeLlm` calls** — proving the refusal happens before the model
    call rather than after it, which is the entire point of putting it there.
 6. **Model-reported gaps stay visible when computed shortfall is null** — `unsupported` and

@@ -1208,7 +1208,10 @@ export function apportion(
     const allocated = allocatedCharacters[index] ?? 0;
     const desired = (budget.requestedSeconds * beat.weight) / totalWeight;
     const supportable = (budget.expansionFactor * allocated) / budget.charsPerSecond;
-    if (supportable < desired) thinBeats.push(beat.title);
+    // Thin only on a material clip. `desired` and `supportable` come from two
+    // unrelated float paths, so a raw `<` flags a beat that was never clipped
+    // when the two are mathematically equal.
+    if (desired - supportable > desired * 1e-9) thinBeats.push(beat.title);
 
     return {
       title: beat.title,
@@ -1220,7 +1223,13 @@ export function apportion(
     };
   });
 
-  const plannedSeconds = beats.reduce((sum, beat) => sum + beat.targetSeconds, 0);
+  // Clamped: summing float targetSeconds can overshoot requestedSeconds by a
+  // few ULPs even when nothing was clipped, which would make the documented
+  // `plannedSeconds <= requestedSeconds` invariant literally false.
+  const plannedSeconds = Math.min(
+    beats.reduce((sum, beat) => sum + beat.targetSeconds, 0),
+    budget.requestedSeconds,
+  );
 
   if (plannedSeconds <= 0) {
     throw new Error(
