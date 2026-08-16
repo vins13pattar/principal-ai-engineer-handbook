@@ -1,7 +1,7 @@
 # Podcast CLI design
 
 Date: 2026-08-16
-Status: in review — not approved, not implemented
+Status: approved, not implemented
 Scope: the operator entry point for the podcast pipeline — `plan` implementable now, `create` specified as the destination
 
 ## The distinction this document exists to hold
@@ -237,7 +237,7 @@ Without this, the CLI cannot diagnose the single most likely first-contact failu
 
 An estimate that reports one number, or that omits stages it cannot price, is worse than none: it invites a decision on a figure whose shape is not what the reader assumes. So the estimate is a **scoped breakdown that names what it covers** — "bounded" would claim the thing rule 1 says it is not.
 
-**A dry run writes nothing.** It prints the breakdown to stdout and exits zero. No run directory is created, no `plan.json`, no manifest. There is no manifest variant for it because there is nothing to record: no `EpisodePlan` was produced, no model was called, no usage exists, and a directory holding only an estimate would be an artifact implying work that did not happen. The run directory is created by `--run`, at the point the first real thing exists to put in it.
+**A dry run writes nothing.** It prints the breakdown to stdout and exits zero. No run directory is created, no `plan.json`, no manifest. There is no manifest variant for it because there is nothing to record: no `EpisodePlan` was produced, no model was called, no usage exists, and a directory holding only an estimate would be an artifact implying work that did not happen. Under `--run`, the directory is reserved before the model call — see [Run lifecycle](#run-lifecycle).
 
 ```text
 $ cli.ts plan module:06-mcp --duration 2400
@@ -309,7 +309,23 @@ plan.json        the EpisodePlan
 manifest.json    see below
 ```
 
-A dry run creates no directory at all — see [The spend estimate](#the-spend-estimate). The run directory comes into existence only when there is a model result to put in it.
+A dry run creates no directory at all. Under `--run` the directory is reserved **after pre-call validation and before the model call** — see [Run lifecycle](#run-lifecycle).
+
+## Run lifecycle
+
+Directory creation has exactly one defined point, because two plausible ones contradict each other: reserving _after_ the model returns leaves nowhere to write `failure.json` when the model returns unusable output, and reserving at process start creates directories for invocations that never had a chance of running.
+
+Under `--run`, in order:
+
+1. **Validate** arguments, config, credentials, the document id, and the sanitised path.
+2. **Reserve** the run directory, atomically. A collision refuses here — before any model call, so a name clash never costs money.
+3. **Call** the model.
+4. **Every failure from this point writes diagnostics and a failed manifest** into the reserved directory: `failure.json` carrying the `ModelResponseError` fields, and a manifest with `status: "failed"`.
+5. **Every failure before step 2 writes nothing** — no directory, no manifest. There is nowhere to put one, and creating a directory to record that the run never started would be an artifact of an event that produced no work.
+
+Reservation is atomic — `mkdir` with `recursive: false` on the leaf, which fails rather than succeeding silently if the path already exists. This is what makes step 2's collision check a check rather than a race.
+
+A dry `plan` never reaches step 2.
 
 ### `create` must write
 
@@ -379,16 +395,16 @@ Common to both variants:
 
 **Which fields may be absent is a function of where the run died**, and the boundaries are worth naming:
 
-| Failure point                         | `source` | `model` | `usage`                           | `cost`                      |
-| ------------------------------------- | -------- | ------- | --------------------------------- | --------------------------- |
-| Argument or config validation         | absent   | absent  | absent                            | absent                      |
-| Credential missing under `--run`      | absent   | absent  | absent                            | absent                      |
-| Pack loading (unknown document id)    | absent   | absent  | absent                            | absent                      |
-| Model call failed (schema, citations) | present  | present | present when the error carried it | `measured` when usage known |
+Every row here is a failure **after** the directory was reserved, because those are the only failures that produce a manifest at all:
 
-There is deliberately no row for "estimate produced, call not made". That is a dry run, and a dry run is a success that writes nothing — not a failed run missing its fields. Listing it here would have made the absence of a model call look like a fault.
+| Failure point                           | `source` | `model` | `usage`                           | `cost`                      |
+| --------------------------------------- | -------- | ------- | --------------------------------- | --------------------------- |
+| Model call failed (schema, citations)   | present  | present | present when the error carried it | `measured` when usage known |
+| Synthesis or assembly failed (`create`) | present  | present | present                           | present                     |
 
-A manifest exists only under `--run`. The run directory is created after arguments and config validate **and** the decision to call has been made; a failure before that point writes no manifest at all, because there is nowhere to put one.
+Argument validation, config validation, a missing credential, and an unknown document id are **not** in this table. They all occur before step 2 of the [Run lifecycle](#run-lifecycle), so there is no directory and no manifest — listing them as manifest states would describe files that never exist.
+
+There is likewise no row for "estimate produced, call not made". That is a dry run: a success that writes nothing, not a failed run missing its fields.
 
 `artifacts` lists what was written rather than what was expected — the difference between the two is what makes a failed run legible.
 
@@ -418,7 +434,7 @@ Anything else is a failed run. Failed runs **may and should preserve diagnostics
 | Document id sanitises to empty, `.`, or `..`           | Refuse, naming the id                                                                                       |
 | Model returns prose or schema-invalid JSON             | `ModelResponseError` carries `rawText`; write it to `failure.json`, mark the manifest failed, exit non-zero |
 | Invented excerpt citations                             | `validateCitations` throws naming the invented ids; same diagnostic path                                    |
-| Run directory exists                                   | Refuse, naming the path                                                                                     |
+| Run directory exists                                   | Refuse at reservation, naming the path — before the model call, so a collision never costs money            |
 | `create` or `create --run` invoked                     | Refuse immediately after argument validation, naming the missing stages                                     |
 
 ## Testing
@@ -440,6 +456,8 @@ Anything else is a failed run. Failed runs **may and should preserve diagnostics
 - runner path resolution — `command` and `args` resolve against `runner.cwd`, and `cwd` against the repository root;
 - config value bounds — `maxOutputTokens: 0`, a negative price, `charsPerSecond: 0`, and `fixedSeconds: 0` each fail at config load with the field named;
 - **a dry `plan` creates no directory** — assert the output root is untouched afterwards, and that `FakeLlm` recorded zero calls;
+- **every pre-reservation failure leaves the output root untouched** — bad `--duration`, invalid config, missing credential under `--run`, and unknown document id each assert the root is unchanged and no manifest exists;
+- **a schema failure preserves its diagnostics** — `failure.json` present with `rawText`, manifest present with `status: "failed"`, exit non-zero, and the directory reserved before the call rather than after it;
 - **config load performs no filesystem check on the runner** — a config naming a `command` that does not exist still loads, and `plan --run` completes against `FakeLlm`, which is the regression that would otherwise make `plan` unusable on a machine without the synthesis venv;
 - `tts.provider` other than `"local"` fails; `tts.language` outside `ALL_LANGUAGES` fails; a language valid in `ALL_LANGUAGES` but outside `SPEECH_LANGUAGE_COVERAGE.local` (`ta-IN`) fails;
 - the playable predicate — valid WAV passes; empty bytes, truncated header, and zero-sample WAV all fail;
