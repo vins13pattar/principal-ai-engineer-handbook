@@ -85,6 +85,7 @@ This is not a limitation to work around — it is the honest behaviour. An estim
     "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
     "runner": {
       "name": "kokoro-82m",
+      "cwd": "packages/podcast-providers",
       "command": ".venv/bin/python",
       "args": [
         "-u",
@@ -113,11 +114,43 @@ This is not a limitation to work around — it is the honest behaviour. An estim
 
 A missing file, or any missing or unrecognised field, prints this template and exits non-zero **before any network call or model construction**.
 
+### Strictness covers keys; the values need their own bounds
+
+`.strict()` rejects a misspelled key. It says nothing about `maxOutputTokens: -1` or `charsPerSecond: 0`, and those reach further before they fail — a zero speech rate divides, a negative token bound is sent to a provider. Every field carries a bound:
+
+| Field                                                        | Constraint                         |
+| ------------------------------------------------------------ | ---------------------------------- |
+| `llm.provider`                                               | one of `TEXT_PROVIDERS`            |
+| `llm.modelId`                                                | trimmed, non-empty                 |
+| `llm.maxOutputTokens`                                        | integer, positive                  |
+| `prices.*` (all three)                                       | finite, non-negative               |
+| `tts.provider`, `modelId`, `voice`, `language`, `measuredOn` | trimmed, non-empty                 |
+| `tts.charsPerSecond`                                         | finite, positive                   |
+| `tts.synthesisCost.fixedSeconds`                             | finite, positive                   |
+| `tts.synthesisCost.marginalRtf`                              | finite, non-negative               |
+| `tts.runner.name`, `command`                                 | trimmed, non-empty                 |
+| `tts.runner.args`                                            | array of trimmed non-empty strings |
+| `tts.runner.timeoutSeconds`                                  | finite, positive                   |
+| `plan.expansionFactor`                                       | finite, positive                   |
+| `plan.maxRenderSeconds`                                      | finite, positive                   |
+
+These deliberately mirror `assertPlanBudget`, which already enforces the same boundaries at the library edge — including the asymmetry that `fixedSeconds` must be positive because it is a divisor while `marginalRtf` may legitimately be zero. Duplicating them here is not redundancy: it moves the failure from partway through a run to config load, where the message can name the file and the field.
+
+`prices` allows zero because zero is meaningful — it is what a local TTS profile sets, and the number that inverts the cost model.
+
 ### Why `tts.runner` exists
 
 Provenance alone cannot synthesise anything. `createLocalTts` requires `name`, `command`, and `args`; a block carrying only `provider`, `voice`, and measured constants describes a profile that `create` could never actually run. `runner` mirrors `LocalTtsOptions` exactly — including the `{text}` and `{out}` placeholders the port substitutes, and never through a shell.
 
 The split is deliberate: the fields above `runner` say **what was measured and on what**, and `runner` says **how to reproduce it**. Both are needed, and neither substitutes for the other.
+
+**Path resolution is stated because getting it wrong fails only at synthesis time.** The CLI runs from the repository root, but the Kokoro runner and its virtualenv live under `packages/podcast-providers` — `runners/kokoro_mlx.py` does not resolve from the root, and neither does `.venv/bin/python`. The rule:
+
+- `runner.cwd` is **resolved relative to the repository root**, and is where the subprocess runs.
+- `runner.command` and every path inside `runner.args` are **relative to `runner.cwd`**, matching how `createLocalTts` already passes `cwd` to `spawn`.
+- `cwd` is optional; omitted, the subprocess inherits the repository root.
+
+Config validation checks that `cwd` exists and that `command` resolves to an executable file when it contains a path separator, so a mistyped runner fails at config load rather than after the model call has already been paid for.
 
 ### Why the profile carries provenance
 
@@ -144,12 +177,15 @@ Secrets never go in `podcast.config.json`. A config file inside a repository is 
 ```ts
 export function buildPlanRequest(
   pack: SourcePack,
-  excerptIds: readonly string[],
   options: { maxOutputTokens: number },
-): StructuredRequest<DraftPlan>;
+): { request: StructuredRequest<DraftPlan>; excerptIds: string[] };
 ```
 
-It returns the complete request — `schema`, `system`, `prompt`, and `maxOutputTokens`. `planEpisode` calls it; the estimator calls it. One construction, two readers.
+**The builder derives the ids; it does not accept them.** Returning `{ request, excerptIds }` and reusing that array for `validateCitations` and `apportion` means there is exactly one derivation per run and no way for a caller to pair a prompt with ids from a different array.
+
+Taking ids as a parameter would have reintroduced an unchecked parallel-array contract at a new site. `renderPrompt` skips an excerpt whose position has no entry rather than failing, so a length mismatch there produces a prompt missing excerpts, a model that cannot cite what it never saw, and a citation error that names the model rather than the caller. `apportion` already asserts this invariant — that guard was added during implementation review precisely because silent under-allocation is undetectable downstream — and there is no reason to create a second place where it can go wrong.
+
+The returned request is complete: `schema`, `system`, `prompt`, and `maxOutputTokens`. `planEpisode` calls it; the estimator calls it. One construction, two readers.
 
 This fixes two defects at once:
 
@@ -184,10 +220,12 @@ $ cli.ts plan module:06-mcp --duration 2400
   pack            24 excerpts, ~18,400 est. input tokens
   model           anthropic:claude-...
 
-  input           ~18,400 tok   $0.055   (estimated from the exact request)
-  output (max)      4,000 tok   $0.060   (enforced via maxOutputTokens)
+  input (est.)    ~18,400 tok   $0.055   estimated, NOT capped
+  output (cap)      4,000 tok   $0.060   enforced via maxOutputTokens
   ────────────────────────────────────
-  upper bound                   $0.115
+  estimated at max output       $0.115
+
+  input is an approximation and can exceed this; only output is capped
 
   covers          plan only
   excludes        dialogue, review, revision, voice script, synthesis
@@ -196,12 +234,15 @@ $ cli.ts plan module:06-mcp --duration 2400
   (estimate only — pass --run to call the model)
 ```
 
-Four rules govern it:
+Five rules govern it:
 
-1. **Input is estimated from the exact request that will be sent** — the one `buildPlanRequest` returns, system prompt included. It is still an estimate: `estimateTokens` is documented as deliberately crude at four characters per token, and the true count arrives only in `LlmResult.usage`. The report says "estimated", never "measured".
-2. **Output is unknown before the call, so it is reported as a maximum**, and that maximum is _enforced_ by the same `maxOutputTokens` the request carries. A bound that is reported but not applied is not a bound.
-3. **Speech is not part of a `plan` estimate at all.** `plan` does not synthesise, so pricing synthesis into its total would put dollars on work the command never performs — visibly wrong the moment a hosted TTS profile is configured. Speech is priced only under `create`, from `plannedSeconds × tts.charsPerSecond` at `prices.speechPerMillionCharacters`. A `plan` run may print it as a clearly separated _excluded_ projection; it never enters the upper bound.
-4. **The report names which stages it covers and which it excludes**, and says the excluded ones are not implemented. Omitting that turns a partial estimate into an apparent total.
+1. **The total is not an upper bound, and must not be named one.** It is `estimatedAtMaxOutput` — in the report and in the manifest field. Only the output side is capped. The input side is an estimate that can be exceeded, for two independent reasons: `estimateTokens` is documented as deliberately crude at four characters per token, and structured-output calls send the JSON schema as part of the request, framing that a character count of the prompt string never sees. Calling the sum a guaranteed spending limit would be the exact failure this whole section exists to prevent — a figure whose shape is not what the reader assumes.
+2. **Input is estimated from the exact request that will be sent** — the one `buildPlanRequest` returns, system prompt included. The report says "estimated", never "measured", and says outright that it is not capped.
+3. **Output is reported as a maximum**, and that maximum is _enforced_ by the same `maxOutputTokens` the request carries. A bound that is reported but not applied is not a bound.
+4. **Speech is not part of a `plan` estimate at all.** `plan` does not synthesise, so pricing synthesis into its total would put dollars on work the command never performs — visibly wrong the moment a hosted TTS profile is configured. Speech is priced only under `create`, from `plannedSeconds × tts.charsPerSecond` at `prices.speechPerMillionCharacters`. A `plan` run may print it as a clearly separated _excluded_ projection; it never enters the total.
+5. **The report names which stages it covers and which it excludes**, and says the excluded ones are not implemented. Omitting that turns a partial estimate into an apparent total.
+
+A genuine ceiling would need a provider-accurate input count — the vendor's own tokeniser, applied to the serialised request including schema framing. That is available, and worth doing if this number is ever used to authorise spend rather than to inform it. Until then the honest move is the name.
 
 After a `--run`, the breakdown is reprinted with measured usage from `LlmResult` beside the estimate, so the estimate's accuracy is observable rather than assumed.
 
@@ -260,11 +301,14 @@ manifest.json
 
 Versioned and Zod-validated **before** it is written, because it is the file that declares a run complete and the one most likely to be parsed by something later.
 
+**A Zod discriminated union on `status`**, not a flat object with an optional `failure`. A flat shape admits both `complete` carrying a failure and `failed` carrying none — two states that should be unrepresentable in the one file whose job is to say which happened.
+
+Common to both variants:
+
 ```ts
 {
   manifestVersion: 1,
   command: "plan" | "create",
-  status: "complete" | "failed",
   documentId: string,
   runId: string,
   startedAt: string,          // ISO-8601 UTC
@@ -274,17 +318,49 @@ Versioned and Zod-validated **before** it is written, because it is the file tha
     llm: { provider, modelId, maxOutputTokens },
     prices: PriceList,
     tts: { provider, modelId, voice, language, measuredOn,
-           charsPerSecond, synthesisCost, runner: { name, command, args, ... } },
+           charsPerSecond, synthesisCost, runner: { name, cwd?, command, args, ... } },
     plan: { expansionFactor, maxRenderSeconds },
   },
+  artifacts: string[],        // files actually written, relative to the run dir
+}
+```
+
+`status: "complete"` **requires** everything a finished run necessarily produced, and **forbids** `failure`:
+
+```ts
+{
+  status: "complete",
   source: { sourceHash: string, excerptCount: number, droppedForBudget: string[] },
   model: { modelId: string },
   usage: Usage,
-  cost: { estimatedUpperBound: number, measured: number | null },
-  artifacts: string[],        // files actually written, relative to the run dir
-  failure?: { stage: string, message: string },
+  cost: { estimatedAtMaxOutput: number, measured: number },
 }
 ```
+
+`status: "failed"` **requires** `failure`, and makes those four optional — because a run can fail before any of them exists:
+
+```ts
+{
+  status: "failed",
+  failure: { stage: string, message: string },
+  source?: ...,   // absent when the failure preceded pack loading
+  model?: ...,    // absent when no provider was constructed
+  usage?: ...,    // absent when no call was made
+  cost?: { estimatedAtMaxOutput: number, measured: number | null },
+}
+```
+
+**Which fields may be absent is a function of where the run died**, and the boundaries are worth naming:
+
+| Failure point                         | `source` | `model` | `usage`                           | `cost`                      |
+| ------------------------------------- | -------- | ------- | --------------------------------- | --------------------------- |
+| Argument or config validation         | absent   | absent  | absent                            | absent                      |
+| Credential missing under `--run`      | absent   | absent  | absent                            | absent                      |
+| Pack loading (unknown document id)    | absent   | absent  | absent                            | absent                      |
+| Estimate produced, call not made      | present  | present | absent                            | `measured: null`            |
+| Model call failed (schema, citations) | present  | present | present when the error carried it | `measured` when usage known |
+
+A failure before config validation may leave `resolvedConfig` unwritable too; in that case no manifest is written at all, because there is no run directory yet — the directory is created only once arguments and config have both validated.
 
 `artifacts` lists what was written rather than what was expected — the difference between the two is what makes a failed run legible.
 
@@ -331,7 +407,10 @@ Anything else is a failed run. Failed runs **may and should preserve diagnostics
 - schema-failure diagnostics — a `ModelResponseError` produces `failure.json` with `rawText` and a failed manifest, and **no** provider internals, headers, or credentials in the written file;
 - no-overwrite behaviour, using an injected clock and id generator to force a collision deterministically;
 - sanitisation, including the empty/`.`/`..` rejections;
-- cost-breakdown arithmetic, including that speech contributes zero to a `plan` upper bound;
+- cost-breakdown arithmetic, including that speech contributes nothing to a `plan` total, and that the reported field is named `estimatedAtMaxOutput` rather than an upper bound;
+- manifest variants — a `complete` manifest carrying a `failure` fails validation, and so does a `failed` one without it;
+- runner path resolution — `command` and `args` resolve against `runner.cwd`, and `cwd` against the repository root;
+- config value bounds — `maxOutputTokens: 0`, a negative price, `charsPerSecond: 0`, and `fixedSeconds: 0` each fail at config load with the field named;
 - the playable predicate — valid WAV passes; empty bytes, truncated header, and zero-sample WAV all fail;
 - `create` refusing both with and without `--run`.
 
