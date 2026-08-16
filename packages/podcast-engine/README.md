@@ -37,7 +37,7 @@ a real excerpt id from a plausible one. Ids are derived from the pack and checke
 
 `createLocalTts` spawns a process per `synthesise` call, so model load is paid per segment. At the
 measured 3.16s fixed and 0.073 marginal, a 40-minute episode renders in 3.0 minutes as one call and
-9.3 as 120. `maxSegments` falls out of inverting `projectRenderSeconds` against a render ceiling —
+9.2 as 120. `maxSegments` falls out of inverting `projectRenderSeconds` against a render ceiling —
 39 segments for a 40-minute episode under five minutes of render. `assertWithinBudget` is how the
 voice-script stage proves it honoured that.
 
