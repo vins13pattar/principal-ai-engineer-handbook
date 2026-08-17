@@ -56,10 +56,32 @@ const RenderedSchema = z.object({
   droppedTurns: z.array(z.number()),
 });
 
+/**
+ * What the review stage found, and whether it ran at all.
+ *
+ * `ran: false` is a distinct claim from zero findings: one says nobody checked,
+ * the other says somebody checked and the episode was clean. A manifest that
+ * could not tell them apart would make `--skip-review` invisible after the fact.
+ */
+const ReviewSchema = z.object({
+  ran: z.boolean(),
+  beatsReviewed: z.number(),
+  beatsRevised: z.number(),
+  findings: z.array(
+    z.object({
+      beat: z.number(),
+      turn: z.number(),
+      problem: z.string(),
+      detail: z.string(),
+    }),
+  ),
+});
+
 const CompleteSchema = z.object({
   ...CommonSchema,
   status: z.literal("complete"),
   dialogue: RenderedSchema.optional(),
+  review: ReviewSchema.optional(),
   source: SourceSchema,
   model: z.object({ modelId: z.string() }),
   usage: UsageSchema,

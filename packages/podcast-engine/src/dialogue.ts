@@ -28,6 +28,8 @@ import { ZERO_USAGE, addUsage } from "@handbook/podcast-providers";
 import type { LlmPort, StructuredRequest, Usage } from "@handbook/podcast-providers";
 import { z } from "zod";
 import { deriveExcerptIds } from "./ids.ts";
+import { reviewBeat } from "./review.ts";
+import type { BeatReview } from "./review.ts";
 import type { EpisodePlan, PlannedBeat } from "./schema.ts";
 
 const semanticString = z.string().trim().min(1);
@@ -68,6 +70,8 @@ export interface DialogueResult {
   script: DialogueScript;
   usage: Usage;
   modelId: string;
+  /** One entry per beat that was reviewed. Empty when review is off. */
+  reviews: BeatReview[];
 }
 
 export interface DialogueOptions {
@@ -75,6 +79,17 @@ export interface DialogueOptions {
   charsPerSecond: number;
   /** Ceiling per call. A beat asks for less than this unless it is very long. */
   maxOutputTokens: number;
+  /**
+   * Check each beat against its sources, and fix what fails.
+   *
+   * On by default: groundedness is the promise this pipeline makes, and an
+   * unsupported claim is spoken in the same confident voice as a correct one.
+   * Turn it off to halve the call count when the script does not matter --
+   * a smoke test of the synthesis path, say.
+   */
+  review?: boolean;
+  /** Called after each beat is reviewed, so a long run is not a silent wait. */
+  onReview?: (review: BeatReview) => void;
 }
 
 const SYSTEM = [
@@ -257,20 +272,48 @@ export async function writeDialogue(
   options: DialogueOptions,
 ): Promise<DialogueResult> {
   const turns: DialogueTurn[] = [];
+  const reviews: BeatReview[] = [];
+  const sources = excerptsById(pack);
   let usage = ZERO_USAGE;
   let modelId = llm.name;
 
   for (const [position, beat] of plan.beats.entries()) {
-    const context: BeatContext = {
-      covered: plan.beats.slice(0, position).map((earlier) => earlier.title),
-      previous: turns[turns.length - 1],
-    };
+    const covered = plan.beats.slice(0, position).map((earlier) => earlier.title);
+    const context: BeatContext = { covered, previous: turns[turns.length - 1] };
 
-    let result;
+    let written: BeatScript["turns"];
     try {
-      result = await llm.generate<BeatScript>(
+      const result = await llm.generate<BeatScript>(
         buildBeatRequest(plan, beat, position, pack, options, context),
       );
+      usage = addUsage(usage, result.usage);
+      modelId = result.modelId;
+      written = result.value.turns;
+
+      // Reviewed inside the loop rather than over the finished script, so the
+      // next beat's continuity context is the corrected text. Reviewing at the
+      // end would leave every later beat built on a turn that was wrong.
+      if (options.review !== false) {
+        const reviewed = await reviewBeat(
+          beat,
+          written,
+          sources,
+          covered,
+          llm,
+          options.maxOutputTokens,
+        );
+
+        usage = addUsage(usage, reviewed.usage);
+        written = reviewed.turns;
+
+        const record: BeatReview = {
+          beat: position + 1,
+          findings: reviewed.findings,
+          revised: reviewed.revised,
+        };
+        reviews.push(record);
+        options.onReview?.(record);
+      }
     } catch (error) {
       // Naming the beat matters: with one call per beat, "the dialogue stage
       // failed" no longer says which part of the episode to look at.
@@ -281,9 +324,7 @@ export async function writeDialogue(
       );
     }
 
-    usage = addUsage(usage, result.usage);
-    modelId = result.modelId;
-    for (const turn of result.value.turns) {
+    for (const turn of written) {
       turns.push({ speaker: turn.speaker, beat: position + 1, text: turn.text });
     }
   }
@@ -291,5 +332,5 @@ export async function writeDialogue(
   const script: DialogueScript = { turns };
   validateSpeakers(script);
 
-  return { script, usage, modelId };
+  return { script, usage, modelId, reviews };
 }

@@ -81,7 +81,8 @@ const sources = pack([
   ["Beta", "Confidence intervals are the fix."],
 ]);
 
-const options = { charsPerSecond: 16, maxOutputTokens: 16_000 };
+/** Review off: these exercise the writing loop, and it is tested on its own below. */
+const options = { charsPerSecond: 16, maxOutputTokens: 16_000, review: false };
 
 /** One answer per beat, in order. */
 function beatAnswers() {
@@ -189,6 +190,76 @@ describe("writeDialogue", () => {
     await expect(writeDialogue(plan(), sources, llm, options)).rejects.toThrow(
       /only the guest speaks/,
     );
+  });
+});
+
+describe("writeDialogue — with review", () => {
+  const clean = { findings: [] };
+
+  it("reviews every beat by default", async () => {
+    // Groundedness is the promise this pipeline makes, so checking it is the
+    // default rather than a flag someone remembers to pass.
+    const llm = new FakeLlm([beatAnswers()[0]!, clean, beatAnswers()[1]!, clean]);
+
+    const { reviews } = await writeDialogue(plan(), sources, llm, {
+      charsPerSecond: 16,
+      maxOutputTokens: 16_000,
+    });
+
+    expect(llm.calls).toHaveLength(4);
+    expect(reviews.map((review) => review.beat)).toEqual([1, 2]);
+    expect(reviews.every((review) => !review.revised)).toBe(true);
+  });
+
+  it("carries the revised text into the next beat's context", async () => {
+    // Reviewing inside the loop rather than over the finished script is the
+    // whole point: a later beat picking up from a turn that was wrong would be
+    // built on the uncorrected version.
+    const revised = {
+      turns: [
+        { speaker: "host", text: "Why do small evaluation sets mislead?" },
+        { speaker: "guest", text: "Corrected: the noise swamps the effect." },
+      ],
+    };
+    const llm = new FakeLlm([
+      beatAnswers()[0]!,
+      { findings: [{ turn: 1, problem: "unsupported", detail: "not in the excerpts" }] },
+      revised,
+      beatAnswers()[1]!,
+      clean,
+    ]);
+
+    const { script, reviews } = await writeDialogue(plan(), sources, llm, {
+      charsPerSecond: 16,
+      maxOutputTokens: 16_000,
+    });
+
+    expect(reviews[0]!.revised).toBe(true);
+    expect(script.turns[1]!.text).toBe("Corrected: the noise swamps the effect.");
+    // The second beat's prompt quotes the corrected line, not the original.
+    expect(llm.calls[3]!.prompt).toContain("Corrected: the noise swamps the effect.");
+  });
+
+  it("reports each beat as it is reviewed", async () => {
+    const seen: number[] = [];
+    const llm = new FakeLlm([beatAnswers()[0]!, clean, beatAnswers()[1]!, clean]);
+
+    await writeDialogue(plan(), sources, llm, {
+      charsPerSecond: 16,
+      maxOutputTokens: 16_000,
+      onReview: (review) => seen.push(review.beat),
+    });
+
+    expect(seen).toEqual([1, 2]);
+  });
+
+  it("halves the call count when review is off", async () => {
+    const llm = new FakeLlm(beatAnswers());
+
+    const { reviews } = await writeDialogue(plan(), sources, llm, options);
+
+    expect(llm.calls).toHaveLength(2);
+    expect(reviews).toEqual([]);
   });
 });
 

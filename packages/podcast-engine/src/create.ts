@@ -21,6 +21,7 @@ import type { PodcastConfig } from "./config.ts";
 import { scriptCharacters, writeDialogue } from "./dialogue.ts";
 import type { DialogueScript } from "./dialogue.ts";
 import { renderEpisode } from "./episode.ts";
+import type { BeatReview } from "./review.ts";
 import type { EpisodeAudio } from "./episode.ts";
 import { planEpisode } from "./plan.ts";
 import type { EpisodePlan } from "./schema.ts";
@@ -40,6 +41,8 @@ export interface CreateOptions {
   pack: SourcePack;
   config: PodcastConfig;
   durationSeconds: number;
+  /** Check each beat against its sources. On unless the operator opts out. */
+  review: boolean;
   llm: LlmPort;
   tts: TtsPort;
   directory: string;
@@ -56,6 +59,8 @@ export interface CreateResult {
   script: DialogueScript;
   /** What was spoken, and which turns of `script` were left out. */
   rendered: TrimResult;
+  /** One entry per reviewed beat. Empty when review was skipped. */
+  reviews: BeatReview[];
   episode: EpisodeAudio;
 }
 
@@ -92,6 +97,14 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   const written = await writeDialogue(planned.plan, options.pack, options.llm, {
     charsPerSecond: config.tts.charsPerSecond,
     maxOutputTokens: config.llm.maxOutputTokens,
+    review: options.review,
+    onReview: (review) => {
+      const summary =
+        review.findings.length === 0
+          ? "clean"
+          : `${review.findings.map((finding) => finding.problem).join(", ")} — revised`;
+      options.log(`  reviewed        beat ${review.beat}: ${summary}`);
+    },
   });
 
   await writeFile(join(directory, "script.json"), `${JSON.stringify(written.script, null, 2)}\n`);
@@ -135,5 +148,11 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   await writeFile(join(directory, EPISODE_FILE), episode.audio);
   options.onStageDone("synthesis", { usage: episode.usage, artifact: EPISODE_FILE });
 
-  return { plan: planned.plan, script: written.script, rendered: trimmed, episode };
+  return {
+    plan: planned.plan,
+    script: written.script,
+    rendered: trimmed,
+    reviews: written.reviews,
+    episode,
+  };
 }

@@ -213,11 +213,15 @@ describe("runCli — create", () => {
     ],
   };
 
-  /** `create` costs two model calls, in this order. */
+  /**
+   * `create` costs a plan call, then a write and a review per beat. The draft
+   * has one beat, so: plan, write, review.
+   */
   async function creating(ids: string[]) {
     return new FakeLlm([
       { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] },
       script,
+      { findings: [] },
     ]);
   }
 
@@ -287,6 +291,58 @@ describe("runCli — create", () => {
     );
 
     expect(lines.join("\n")).toMatch(/script\s+2 turns, 86 chars vs \d+ budgeted \([+-]\d+%\)/);
+  });
+
+  it("records whether review ran, and what it found", async () => {
+    await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: new FakeWavTts() }),
+    );
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+
+    expect(manifest.review.ran).toBe(true);
+    expect(manifest.review.beatsReviewed).toBe(1);
+    expect(manifest.review.beatsRevised).toBe(0);
+    expect(lines.join("\n")).toMatch(/reviewed\s+beat 1: clean/);
+  });
+
+  it("skips review on request, and says so in the manifest", async () => {
+    // `ran: false` is a different claim from zero findings: one says nobody
+    // checked, the other says somebody did and it was clean.
+    const llm = new FakeLlm([
+      { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [(await realIds())[0]!] }] },
+      script,
+    ]);
+
+    const code = await runCli(
+      create(["--run", "--skip-review"]),
+      deps({ llm, tts: new FakeWavTts() }),
+    );
+
+    expect(code).toBe(0);
+    expect(llm.calls).toHaveLength(2);
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+    expect(manifest.review.ran).toBe(false);
+    expect(manifest.review.beatsReviewed).toBe(0);
+  });
+
+  it("prices review into the estimate, and drops it when skipped", async () => {
+    await runCli(create(), deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }));
+    const withReview = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+
+    lines = [];
+    await runCli(
+      create(["--skip-review"]),
+      deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }),
+    );
+    const without = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+
+    expect(withReview).toBeGreaterThan(without);
+    expect(lines.join("\n")).not.toMatch(/^\s+review\s/m);
   });
 
   it("casts the two speakers to the two configured voices", async () => {

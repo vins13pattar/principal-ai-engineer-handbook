@@ -130,6 +130,10 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   const isCreate = command === "create";
   const wantsRun = argv.includes("--run");
+  // Opt-out rather than opt-in: groundedness is the property the closed-set
+  // design exists to protect, and a check nobody remembers to enable protects
+  // nothing.
+  const review = !argv.includes("--skip-review");
   const apiKey = deps.env["PODCAST_LLM_API_KEY"];
   if (wantsRun && (apiKey === undefined || apiKey === "")) {
     deps.log("PODCAST_LLM_API_KEY is required with --run");
@@ -168,8 +172,17 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     ? estimatePlanCost(request, config.prices, config.llm.maxOutputTokens)
     : null;
 
+  // Review reads the same excerpts a second time and answers with a short list,
+  // so its input is dialogue's and its output is nowhere near the cap. Priced
+  // at the same ceiling anyway: this whole figure is a ceiling, and a review
+  // line quietly cheaper than the truth would be the one number here that is
+  // optimistic.
+  const reviewCost = isCreate && review ? dialogueCost : null;
+
   const estimatedAtMaxOutput =
-    planCost.estimatedAtMaxOutput + (dialogueCost?.estimatedAtMaxOutput ?? 0);
+    planCost.estimatedAtMaxOutput +
+    (dialogueCost?.estimatedAtMaxOutput ?? 0) +
+    (reviewCost?.estimatedAtMaxOutput ?? 0);
 
   deps.log(
     `  pack            ${pack.excerpts.length} excerpts, ~${planCost.inputTokens} est. input tokens`,
@@ -194,6 +207,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     );
     deps.log(
       `  dialogue output ${dialogueCost.maxOutputTokens} tok   $${dialogueCost.maxOutputCost.toFixed(4)}   enforced via maxOutputTokens`,
+    );
+  }
+
+  if (reviewCost) {
+    deps.log(
+      `  review          ${reviewCost.inputTokens} tok in   $${reviewCost.estimatedAtMaxOutput.toFixed(4)}   checks each beat against its sources (--skip-review to omit)`,
     );
   }
 
@@ -316,6 +335,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         pack,
         config,
         durationSeconds,
+        review,
         llm,
         tts,
         directory,
@@ -350,6 +370,16 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
           charactersWritten: result.rendered.charactersBefore,
           charactersRendered: result.rendered.charactersAfter,
           droppedTurns: result.rendered.dropped,
+        },
+        review: {
+          ran: review,
+          beatsReviewed: result.reviews.length,
+          beatsRevised: result.reviews.filter((entry) => entry.revised).length,
+          // Kept in full rather than counted: "two unsupported claims" is a
+          // statistic, and the sentences they were is the thing worth reading.
+          findings: result.reviews.flatMap((entry) =>
+            entry.findings.map((finding) => ({ beat: entry.beat, ...finding })),
+          ),
         },
         artifacts,
       });
