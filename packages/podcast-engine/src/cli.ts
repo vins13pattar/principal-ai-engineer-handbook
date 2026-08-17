@@ -14,10 +14,12 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { buildSourcePack, loadAllDocuments } from "@handbook/content";
 import { createLlm, ModelResponseError } from "@handbook/podcast-providers";
-import type { LlmPort } from "@handbook/podcast-providers";
-import { parseConfig } from "./config.ts";
+import type { LlmPort, Usage } from "@handbook/podcast-providers";
+import { CONFIG_TEMPLATE, parseConfig } from "./config.ts";
+import type { PodcastConfig } from "./config.ts";
 import { estimatePlanCost } from "./estimate.ts";
 import { writeManifest } from "./manifest.ts";
 import { buildPlanRequest, planEpisode } from "./plan.ts";
@@ -37,6 +39,19 @@ const MISSING_STAGES = "dialogue, review, revision, voice script, synthesis, ass
 function flag(argv: readonly string[], name: string): string | undefined {
   const index = argv.indexOf(`--${name}`);
   return index === -1 ? undefined : argv[index + 1];
+}
+
+// The one place that turns measured tokens into a dollar figure, so the
+// success path and the failed-with-usage path can never compute it two
+// different ways.
+function measuredCost(
+  usage: Usage,
+  prices: { inputPerMillionTokens: number; outputPerMillionTokens: number },
+): number {
+  return (
+    (usage.inputTokens / 1_000_000) * prices.inputPerMillionTokens +
+    (usage.outputTokens / 1_000_000) * prices.outputPerMillionTokens
+  );
 }
 
 export async function runCli(argv: readonly string[], deps: CliDeps): Promise<number> {
@@ -67,10 +82,44 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return 1;
   }
 
+  // Reading, parsing, and validating are three separately-failing steps, and
+  // only the last one used to explain itself: `parseConfig`'s own error
+  // embeds `CONFIG_TEMPLATE`, but a missing file or malformed JSON never
+  // reached it, so those two guaranteed-first-run failures printed a bare
+  // ENOENT or a bare parse error with no hint that a template exists.
   const configPath = flag(argv, "config") ?? join(deps.cwd, "podcast.config.json");
-  let config;
+
+  let configText: string;
   try {
-    config = parseConfig(JSON.parse(await readFile(configPath, "utf8")));
+    configText = await readFile(configPath, "utf8");
+  } catch (error) {
+    const isMissing =
+      error instanceof Error &&
+      "code" in error &&
+      (error as NodeJS.ErrnoException).code === "ENOENT";
+    deps.log(error instanceof Error ? error.message : String(error));
+    if (isMissing) {
+      deps.log(`copy podcast.config.example.json to ${configPath} and fill it in.`);
+    }
+    deps.log("");
+    deps.log(`Expected shape:\n${CONFIG_TEMPLATE}`);
+    return 2;
+  }
+
+  let configJson: unknown;
+  try {
+    configJson = JSON.parse(configText);
+  } catch (error) {
+    deps.log(error instanceof Error ? error.message : String(error));
+    deps.log("");
+    deps.log(`Expected shape:\n${CONFIG_TEMPLATE}`);
+    return 2;
+  }
+
+  let config: PodcastConfig;
+  try {
+    // `parseConfig`'s own thrown message already embeds `CONFIG_TEMPLATE`.
+    config = parseConfig(configJson);
   } catch (error) {
     deps.log(error instanceof Error ? error.message : String(error));
     return 2;
@@ -135,7 +184,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   try {
     llm =
       deps.llm ??
-      createLlm(config.llm.provider as "openai" | "anthropic", {
+      createLlm(config.llm.provider, {
         apiKey: apiKey as string,
         modelId: config.llm.modelId,
       });
@@ -182,9 +231,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     );
 
     await writeFile(join(directory, "plan.json"), `${JSON.stringify(plan, null, 2)}\n`);
-    const measured =
-      (usage.inputTokens / 1_000_000) * config.prices.inputPerMillionTokens +
-      (usage.outputTokens / 1_000_000) * config.prices.outputPerMillionTokens;
+    const measured = measuredCost(usage, config.prices);
 
     await writeManifest(directory, {
       ...common,
@@ -201,11 +248,22 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       artifacts: ["plan.json", "manifest.json"],
     });
 
+    // The estimate is `estimatedAtMaxOutput`, not a promise -- reprinting the
+    // measured figure beside it is how that gap becomes observable instead of
+    // assumed away.
+    deps.log("");
+    deps.log(
+      `  measured        ${usage.inputTokens} in / ${usage.outputTokens} out tok   $${measured.toFixed(4)}`,
+    );
+    deps.log(
+      `  estimated at max output       $${breakdown.estimatedAtMaxOutput.toFixed(4)}   (vs. measured $${measured.toFixed(4)})`,
+    );
     deps.log("");
     deps.log(`  wrote ${directory}`);
     return 0;
   } catch (error) {
     const artifacts = ["manifest.json"];
+    let usage: Usage | undefined;
     if (error instanceof ModelResponseError) {
       // The raw text is the only thing that makes this diagnosable, and it is
       // the reason the provider layer translates the SDK's error at all.
@@ -218,7 +276,10 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         )}\n`,
       );
       artifacts.unshift("failure.json");
+      usage = error.usage;
     }
+
+    const measured = usage === undefined ? null : measuredCost(usage, config.prices);
 
     await writeManifest(directory, {
       ...common,
@@ -230,7 +291,9 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         excerptCount: pack.excerpts.length,
         droppedForBudget: pack.droppedForBudget,
       },
-      cost: { estimatedAtMaxOutput: breakdown.estimatedAtMaxOutput, measured: null },
+      model: { modelId: config.llm.modelId },
+      ...(usage === undefined ? {} : { usage }),
+      cost: { estimatedAtMaxOutput: breakdown.estimatedAtMaxOutput, measured },
       artifacts,
     });
 
@@ -241,10 +304,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 }
 
 // Only runs when invoked directly, so the module stays importable by tests.
-if (
-  process.argv[1] !== undefined &&
-  import.meta.url.endsWith(process.argv[1].split("/").pop() ?? "")
-) {
+if (process.argv[1] !== undefined && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const code = await runCli(process.argv.slice(2), {
     cwd: process.cwd(),
     env: process.env,

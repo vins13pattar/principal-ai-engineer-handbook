@@ -28,8 +28,8 @@ const positive = z.number().finite().positive();
 const nonNegative = z.number().finite().nonnegative();
 
 const languageTag = z
-  .enum(ALL_LANGUAGES as unknown as [string, ...string[]])
-  .refine((tag) => (SPEECH_LANGUAGE_COVERAGE["local"] ?? []).includes(tag as never), {
+  .enum(ALL_LANGUAGES)
+  .refine((tag) => (SPEECH_LANGUAGE_COVERAGE["local"] ?? []).includes(tag), {
     message: `local speech covers only ${(SPEECH_LANGUAGE_COVERAGE["local"] ?? []).join(", ")}`,
   });
 
@@ -37,7 +37,7 @@ export const PodcastConfigSchema = z
   .object({
     llm: z
       .object({
-        provider: z.enum(TEXT_PROVIDERS as unknown as [string, ...string[]]),
+        provider: z.enum(TEXT_PROVIDERS),
         modelId: identifier,
         maxOutputTokens: z.number().int().positive(),
       })

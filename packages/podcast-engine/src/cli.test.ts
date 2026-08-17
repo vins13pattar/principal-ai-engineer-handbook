@@ -99,6 +99,8 @@ describe("runCli — pre-reservation failures", () => {
       "unknown document",
       ["plan", "nope:nope", "--duration", "2400", "--config", configPath, "--run"],
     ],
+    ["invalid command", ["render", "module:06-mcp", "--duration", "2400", "--config", configPath]],
+    ["missing document id", ["plan", "--duration", "2400", "--config", configPath]],
   ] as Array<[string, string[]]>)("leaves the output root untouched: %s", async (_label, argv) => {
     const llm = new FakeLlm([draft]);
 
@@ -143,6 +145,12 @@ describe("runCli — config failures", () => {
 
     expect(code).not.toBe(0);
     await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+    // This is the guaranteed first-run experience -- podcast.config.json is
+    // gitignored, so every new operator hits ENOENT here first. A bare ENOENT
+    // with no mention of the template or the example file is a dead end.
+    const output = lines.join("\n");
+    expect(output).toContain(CONFIG_TEMPLATE);
+    expect(output).toContain("podcast.config.example.json");
   });
 
   it("refuses malformed JSON in the config file", async () => {
@@ -165,6 +173,7 @@ describe("runCli — config failures", () => {
 
     expect(code).not.toBe(0);
     await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+    expect(lines.join("\n")).toContain(CONFIG_TEMPLATE);
   });
 
   it("refuses valid JSON that fails schema validation", async () => {
@@ -187,6 +196,7 @@ describe("runCli — config failures", () => {
 
     expect(code).not.toBe(0);
     await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+    expect(lines.join("\n")).toContain(CONFIG_TEMPLATE);
   });
 });
 
@@ -229,6 +239,21 @@ describe("runCli — plan --run", () => {
     expect(manifest.cost.estimatedAtMaxOutput).toBeGreaterThan(0);
   });
 
+  it("reprints the estimate with measured usage beside it", async () => {
+    // The estimate section exists to stop `estimatedAtMaxOutput` being read as
+    // a promise; the reprint is how far off that estimate was becomes
+    // observable rather than assumed.
+    const ids = await realIds();
+    const llm = new FakeLlm([{ ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] }]);
+
+    const code = await runCli(base(["--run"]), deps({ llm }));
+
+    expect(code).toBe(0);
+    const output = lines.join("\n");
+    expect(output).toMatch(/estimated at max output/i);
+    expect(output).toMatch(/measured/i);
+  });
+
   it("refuses a second run with the same id rather than overwriting", async () => {
     const ids = await realIds();
     const draftWithIds = { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] };
@@ -259,9 +284,40 @@ describe("runCli — plan --run", () => {
     const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
     const failure = JSON.parse(await readFile(join(dir, "failure.json"), "utf8"));
     expect(failure.rawText).toBe("Sure! Here is a plan:");
+    expect(failure.finishReason).toBe("stop");
     const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
     expect(manifest.status).toBe("failed");
     expect(manifest.failure.stage).toBe("plan");
+    // The model was identified before the call failed -- the manifest is the
+    // file a tool reads to attribute cost, and losing `model` here means a
+    // failed run cannot be attributed to anything.
+    expect(manifest.model.modelId).toBe("claude-test");
+  });
+
+  it("carries measured usage into the failed manifest when the error has it", async () => {
+    // A failed call can still have burned real tokens. `failure.json` already
+    // records them; the manifest must not report `measured: null` while they
+    // sit in a sibling file no schema describes.
+    const failing = {
+      name: "failing",
+      generate: () =>
+        Promise.reject(
+          new ModelResponseError("the model did not return a value matching the schema", {
+            rawText: "Sure! Here is a plan:",
+            finishReason: "stop",
+            usage: { inputTokens: 500, outputTokens: 12, speechCharacters: 0 },
+          }),
+        ),
+    };
+
+    const code = await runCli(base(["--run"]), deps({ llm: failing as never }));
+
+    expect(code).not.toBe(0);
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+    expect(manifest.status).toBe("failed");
+    expect(manifest.usage).toEqual({ inputTokens: 500, outputTokens: 12, speechCharacters: 0 });
+    expect(manifest.cost.measured).toBeGreaterThan(0);
   });
 });
 
