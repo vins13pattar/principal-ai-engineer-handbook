@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { FakeLlm } from "@handbook/podcast-providers";
 import type { StructuredRequest } from "@handbook/podcast-providers";
 import type { SourcePack } from "@handbook/content";
-import { buildPlanRequest, planEpisode } from "./plan.ts";
+import { beatsForSeconds, buildPlanRequest, planEpisode } from "./plan.ts";
 import type { PlanBudget } from "./budget.ts";
 
 function pack(sections: Array<[string, number]>): SourcePack {
@@ -61,7 +61,7 @@ describe("buildPlanRequest", () => {
         ["Alpha", 200],
         ["Beta", 200],
       ]),
-      { maxOutputTokens: 4000 },
+      { maxOutputTokens: 4000, requestedSeconds: 300 },
     );
 
     expect(excerptIds).toEqual(["doc#alpha", "doc#beta"]);
@@ -71,10 +71,45 @@ describe("buildPlanRequest", () => {
   it("carries the system prompt and the token bound", () => {
     // The estimator prices this exact request. A system prompt missing here is
     // an estimate priced against text the model never receives.
-    const { request } = buildPlanRequest(pack([["Alpha", 200]]), { maxOutputTokens: 1234 });
+    const { request } = buildPlanRequest(pack([["Alpha", 200]]), {
+      maxOutputTokens: 1234,
+      requestedSeconds: 300,
+    });
 
     expect(request.system.length).toBeGreaterThan(0);
     expect(request.maxOutputTokens).toBe(1234);
+  });
+
+  it("asks for a beat count proportional to the episode", () => {
+    // A real 300-second run came back with 11 beats -- 27 seconds each, two
+    // turns before the subject changes. Unconstrained, the model plans one
+    // beat per excerpt heading regardless of how long the episode is.
+    const { request } = buildPlanRequest(pack([["Alpha", 200]]), {
+      maxOutputTokens: 4000,
+      requestedSeconds: 300,
+    });
+
+    expect(request.prompt).toContain("Plan 5 beats");
+    expect(request.prompt).toContain("about 300 seconds");
+  });
+});
+
+describe("beatsForSeconds", () => {
+  it("gives every beat about a minute", () => {
+    expect(beatsForSeconds(300)).toBe(5);
+    expect(beatsForSeconds(600)).toBe(10);
+  });
+
+  it("keeps a short episode from collapsing to one beat", () => {
+    // Even 90 seconds needs an opening, a middle, and a close; a single-beat
+    // plan has no arc to apportion.
+    expect(beatsForSeconds(90)).toBe(3);
+    expect(beatsForSeconds(30)).toBe(3);
+  });
+
+  it("keeps a long episode from becoming a list", () => {
+    // Past a dozen segments the arc is a list again, however long each gets.
+    expect(beatsForSeconds(2400)).toBe(12);
   });
 });
 

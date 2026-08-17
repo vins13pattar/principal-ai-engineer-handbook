@@ -153,7 +153,10 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return 1;
   }
 
-  const { request } = buildPlanRequest(pack, { maxOutputTokens: config.llm.maxOutputTokens });
+  const { request } = buildPlanRequest(pack, {
+    maxOutputTokens: config.llm.maxOutputTokens,
+    requestedSeconds: durationSeconds,
+  });
   const planCost = estimatePlanCost(request, config.prices, config.llm.maxOutputTokens);
 
   // The dialogue prompt is the plan's excerpt material minus whatever the plan

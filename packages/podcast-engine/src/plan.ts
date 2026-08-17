@@ -35,10 +35,40 @@ const SYSTEM = [
   "and do not estimate durations.",
 ].join(" ");
 
-export function renderPrompt(pack: SourcePack, excerptIds: readonly string[]): string {
+/**
+ * The shortest a beat can be and still be a segment rather than an aside.
+ *
+ * Unconstrained, the model plans a beat per excerpt heading: a real 300-second
+ * run came back with 11, which is 27 seconds each -- two turns of dialogue
+ * before the subject changes. The episode reads as a list of topics rather than
+ * an argument, and no downstream stage can put that back together.
+ */
+export const SECONDS_PER_BEAT = 60;
+
+/**
+ * Beats to ask for, from the duration.
+ *
+ * Floored at 3 because an episode still needs an opening, a middle, and a
+ * close however short it is, and capped at 12 because past a dozen segments
+ * the arc is a list again regardless of how long each one gets.
+ */
+export function beatsForSeconds(seconds: number): number {
+  return Math.min(12, Math.max(3, Math.round(seconds / SECONDS_PER_BEAT)));
+}
+
+export function renderPrompt(
+  pack: SourcePack,
+  excerptIds: readonly string[],
+  requestedSeconds: number,
+): string {
+  const beats = beatsForSeconds(requestedSeconds);
   const lines = [
     `Topic: ${pack.topic}`,
     `Primary source: ${pack.primary.title} (${pack.primary.url})`,
+    `Episode length: about ${Math.round(requestedSeconds)} seconds.`,
+    `Plan ${beats} beats. Each one is a segment of the argument with room to`,
+    "develop, not a heading to mention -- combine related excerpts into one",
+    "beat rather than giving every excerpt its own.",
     "",
     "Excerpts, each with the id you must cite it by:",
     "",
@@ -81,6 +111,11 @@ export function validateCitations(draft: DraftPlan, excerptIds: readonly string[
 
 export interface PlanRequestOptions {
   maxOutputTokens: number;
+  /**
+   * Drives the beat count, so the prompt can ask for an arc proportional to
+   * the episode rather than one beat per heading.
+   */
+  requestedSeconds: number;
 }
 
 /**
@@ -103,7 +138,7 @@ export function buildPlanRequest(
     request: {
       schema: DraftPlanSchema,
       system: SYSTEM,
-      prompt: renderPrompt(pack, excerptIds),
+      prompt: renderPrompt(pack, excerptIds, options.requestedSeconds),
       maxOutputTokens: options.maxOutputTokens,
     },
     excerptIds,
@@ -114,7 +149,7 @@ export async function planEpisode(
   pack: SourcePack,
   budget: PlanBudget,
   llm: LlmPort,
-  options: PlanRequestOptions,
+  options: { maxOutputTokens: number },
 ): Promise<PlanResult> {
   // Both refusals precede the model call. The pack is the only input, and a
   // plan built from nothing is built from the model's memory of the topic --
@@ -124,7 +159,13 @@ export async function planEpisode(
     throw new Error(`source pack for "${pack.topic}" has no excerpts with any text`);
   }
 
-  const { request, excerptIds } = buildPlanRequest(pack, options);
+  // The duration comes from the budget rather than from `options`: two sources
+  // for one number is one that can disagree, and a disagreement here would ask
+  // the model for a different episode than the one being apportioned.
+  const { request, excerptIds } = buildPlanRequest(pack, {
+    maxOutputTokens: options.maxOutputTokens,
+    requestedSeconds: budget.requestedSeconds,
+  });
   const result = await llm.generate<DraftPlan>(request);
 
   validateCitations(result.value, excerptIds);
