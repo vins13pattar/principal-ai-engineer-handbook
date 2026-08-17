@@ -113,6 +113,25 @@ export function trimToBudget(
     carry = budget - spent;
   });
 
+  // Second pass: spend whatever the beats left over.
+  //
+  // The carry moves a beat's remainder forward, but the last beat's remainder
+  // has nowhere to go, and a beat whose next turn is much larger than its
+  // share leaves a gap the carry cannot fill either. A real run came out 9%
+  // under budget this way. Re-offering the dropped turns in their original
+  // order takes that back without ever exceeding the total.
+  let total = script.turns.reduce(
+    (sum, turn, index) => (keep.has(index) ? sum + turn.text.length : sum),
+    0,
+  );
+
+  script.turns.forEach((turn, index) => {
+    if (keep.has(index)) return;
+    if (total + turn.text.length > totalBudget) return;
+    keep.add(index);
+    total += turn.text.length;
+  });
+
   const kept = script.turns.filter((_, index) => keep.has(index));
   const dropped = script.turns.map((_, index) => index).filter((index) => !keep.has(index));
 

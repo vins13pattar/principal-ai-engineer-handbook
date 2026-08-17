@@ -72,9 +72,13 @@ export const PodcastConfigSchema = z
          *
          * Measure it on dialogue, not on prose. The benchmark's 16.2 came from
          * one paragraph read straight through; real two-speaker dialogue has
-         * more sentence breaks and more punctuation, and both runs of it here
-         * came back at 14.0 over 8,860 characters. Using the prose figure made
-         * a 300-second request produce 513 seconds of audio.
+         * more sentence breaks and more punctuation. Using the prose figure
+         * made a 300-second request produce 513 seconds of audio.
+         *
+         * 14.47 is pooled over five real episodes and 22,349 characters. The
+         * per-episode rates ranged 13.96 to 15.28, so treat this as a mean
+         * with about 5% spread rather than a constant -- it is why a request
+         * lands near its duration rather than on it.
          */
         charsPerSecond: positive,
         synthesisCost: z.object({ fixedSeconds: positive, marginalRtf: nonNegative }).strict(),
@@ -109,7 +113,7 @@ export const CONFIG_TEMPLATE = `{
     "voices": { "host": "af_heart", "guest": "am_michael" },
     "language": "en-US",
     "measuredOn": "Apple M4, 24 GB",
-    "charsPerSecond": 14.0,
+    "charsPerSecond": 14.47,
     "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
     "runner": {
       "name": "kokoro-82m",

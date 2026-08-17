@@ -158,6 +158,23 @@ describe("trimToBudget", () => {
     expect(result.charactersAfter).toBeGreaterThan(4200 - 320);
   });
 
+  it("spends the leftover the per-beat pass could not place", () => {
+    // The last beat's remainder has nowhere to carry to, and a beat whose next
+    // turn dwarfs its share leaves a gap the carry cannot fill. A real run came
+    // out 9% under budget this way, which reads as an episode that stops early.
+    //
+    // Budget is 5 x 60s x 14 = 4200. Turns of 700 divide badly into a 840
+    // share, which is exactly the shape that strands budget.
+    const script: DialogueScript = {
+      turns: [1, 2, 3, 4, 5].flatMap((beat) => turns(beat, 3, 700)),
+    };
+
+    const result = trimToBudget(script, plan([60, 60, 60, 60, 60]), 14);
+
+    expect(result.charactersAfter).toBeLessThanOrEqual(4200);
+    expect(result.charactersAfter).toBeGreaterThanOrEqual(4200 - 700);
+  });
+
   it("never renders more than the episode's total budget", () => {
     // The property that makes this a guarantee rather than a request: whatever
     // the model wrote and however it tagged it, this holds.
