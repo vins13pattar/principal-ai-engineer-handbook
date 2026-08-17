@@ -22,6 +22,12 @@ export default [
       // is not the working tree. Scoped to `worktrees/` rather than `.claude/`
       // so anything hand-written elsewhere under `.claude/` is still linted.
       ".claude/worktrees/**",
+      // Python virtualenvs for the local synthesis runner. Already gitignored,
+      // but eslint does not read .gitignore, so `site-packages` reaches the
+      // linter: torch ships a bundled preact and a model viewer, urllib3 an
+      // emscripten worker. Thirty errors, none of them ours, none fixable here.
+      // No hand-written source lives under a `.venv`.
+      "**/.venv/**",
     ],
   },
   js.configs.recommended,
