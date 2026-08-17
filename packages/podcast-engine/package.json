@@ -10,7 +10,8 @@
   },
   "scripts": {
     "test": "vitest run",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit && pnpm check:strip",
+    "check:strip": "node --experimental-strip-types --input-type=module --eval \"await import('./src/index.ts')\""
   },
   "dependencies": {
     "@handbook/content": "workspace:*",

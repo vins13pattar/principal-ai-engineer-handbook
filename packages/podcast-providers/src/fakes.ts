@@ -108,8 +108,14 @@ export function fakeWav(seconds: number, sampleRate = 24_000): Uint8Array {
 export class FakeWavTts implements TtsPort {
   readonly name = "fake-wav-tts";
   readonly requests: SpeechRequest[] = [];
+  // A plain field, not a parameter property: this package runs under
+  // `node --experimental-strip-types`, which rejects those outright. Vitest
+  // transpiles them happily, so the test suite cannot catch it.
+  private readonly charsPerSecond: number;
 
-  constructor(private readonly charsPerSecond = 16) {}
+  constructor(charsPerSecond = 16) {
+    this.charsPerSecond = charsPerSecond;
+  }
 
   async synthesise(request: SpeechRequest): Promise<TtsResult> {
     this.requests.push(request);

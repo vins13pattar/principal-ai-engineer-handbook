@@ -37,8 +37,11 @@ class WavTts implements TtsPort {
   readonly name = "wav-tts";
   readonly requests: SpeechRequest[] = [];
   private call = 0;
+  private readonly options: WavTtsOptions;
 
-  constructor(private readonly options: WavTtsOptions = {}) {}
+  constructor(options: WavTtsOptions = {}) {
+    this.options = options;
+  }
 
   async synthesise(request: SpeechRequest): Promise<TtsResult> {
     const index = this.call++;
