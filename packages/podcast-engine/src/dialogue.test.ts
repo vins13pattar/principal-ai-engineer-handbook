@@ -2,11 +2,10 @@ import { describe, expect, it } from "vitest";
 import { FakeLlm } from "@handbook/podcast-providers";
 import type { SourcePack } from "@handbook/content";
 import {
-  assertDialogueFits,
-  buildDialogueRequest,
+  beatOutputTokens,
   projectOutputTokens,
-  turnsForCharacters,
   scriptCharacters,
+  turnsForCharacters,
   validateSpeakers,
   writeDialogue,
 } from "./dialogue.ts";
@@ -82,92 +81,153 @@ const sources = pack([
   ["Beta", "Confidence intervals are the fix."],
 ]);
 
-const goodScript: DialogueScript = {
-  turns: [
-    { speaker: "host", beat: 1, text: "Why do small evaluation sets mislead?" },
-    { speaker: "guest", beat: 1, text: "Because the noise is larger than the effect." },
-  ],
-};
+const options = { charsPerSecond: 16, maxOutputTokens: 16_000 };
 
-describe("renderDialoguePrompt", () => {
-  it("budgets each beat in turns, which the model can count", () => {
-    const { prompt } = buildDialogueRequest(plan(), sources, {
-      charsPerSecond: 16,
-      maxOutputTokens: 4000,
-    });
+/** One answer per beat, in order. */
+function beatAnswers() {
+  return [
+    {
+      turns: [
+        { speaker: "host", text: "Why do small evaluation sets mislead?" },
+        { speaker: "guest", text: "Because the noise is larger than the effect." },
+      ],
+    },
+    {
+      turns: [
+        { speaker: "host", text: "So what fixes it?" },
+        { speaker: "guest", text: "Confidence intervals, reported alongside the number." },
+      ],
+    },
+  ];
+}
 
-    // 60s at 16 chars/s is 960 characters, which is 3 turns of ~300. Character
-    // budgets were tried first and overrun by 48% and 57% on real runs: a model
-    // cannot count the characters it is emitting, so the number was readable
-    // and not applicable.
-    expect(prompt).toContain("Write 3 turns for this beat");
-    expect(prompt).toContain("6 turns, alternating host and guest");
-    expect(prompt).toContain("Two or three sentences per turn");
-    expect(prompt).toContain("Setup");
-    expect(prompt).toContain("Payoff");
+describe("writeDialogue", () => {
+  it("makes one call per beat", async () => {
+    // The whole-episode call could not be bounded: output length varied
+    // enormously for an identical request, and two of six real runs died on
+    // truncation. Per beat, the cap is per beat.
+    const llm = new FakeLlm(beatAnswers());
+
+    await writeDialogue(plan(), sources, llm, options);
+
+    expect(llm.calls).toHaveLength(2);
   });
 
-  it("never asks for zero turns, however thin the beat", () => {
-    // A beat allocated almost no time still has to be spoken or not exist.
-    // "Write 0 turns" is an instruction with no correct execution.
-    expect(turnsForCharacters(1)).toBe(1);
-    expect(turnsForCharacters(0)).toBe(1);
-    expect(turnsForCharacters(450)).toBe(2);
+  it("stamps each turn with the beat it was written for", async () => {
+    // Assigned by the engine, not asked of the model: the caller knows which
+    // beat it requested, and a model mis-tagging its own turns would distort
+    // the trim that depends on those numbers.
+    const llm = new FakeLlm(beatAnswers());
+
+    const { script } = await writeDialogue(plan(), sources, llm, options);
+
+    expect(script.turns.map((turn) => turn.beat)).toEqual([1, 1, 2, 2]);
   });
 
-  it("includes the body of every cited excerpt", () => {
-    const { prompt } = buildDialogueRequest(plan(), sources, {
-      charsPerSecond: 16,
-      maxOutputTokens: 4000,
-    });
+  it("sends each beat only the excerpts it cites", async () => {
+    // The reason this is cheaper than one whole-episode call: a beat needs its
+    // own sources, not the entire pack.
+    const llm = new FakeLlm(beatAnswers());
 
-    expect(prompt).toContain("Small evaluation sets report noise as signal.");
-    expect(prompt).toContain("Confidence intervals are the fix.");
+    await writeDialogue(plan(), sources, llm, options);
+
+    expect(llm.calls[0]!.prompt).toContain("Small evaluation sets report noise as signal.");
+    expect(llm.calls[0]!.prompt).not.toContain("Confidence intervals are the fix.");
+    expect(llm.calls[1]!.prompt).toContain("Confidence intervals are the fix.");
   });
 
-  it("names what the planner could not source, as material to avoid", () => {
-    const { prompt } = buildDialogueRequest(plan({ unsupported: ["a cost comparison"] }), sources, {
-      charsPerSecond: 16,
-      maxOutputTokens: 4000,
-    });
+  it("tells each beat what came before, so nobody re-introduces the show", async () => {
+    const llm = new FakeLlm(beatAnswers());
 
-    expect(prompt).toContain("a cost comparison");
-    expect(prompt).toContain("Do not write them");
+    await writeDialogue(plan(), sources, llm, options);
+
+    expect(llm.calls[0]!.prompt).toContain("opening segment");
+    expect(llm.calls[1]!.prompt).toContain("Already covered");
+    expect(llm.calls[1]!.prompt).toContain("Setup");
+    // And the actual last line, so the next segment can pick up from it.
+    expect(llm.calls[1]!.prompt).toContain("Because the noise is larger than the effect.");
   });
 
-  it("carries the token bound onto the request", () => {
-    const request = buildDialogueRequest(plan(), sources, {
-      charsPerSecond: 16,
-      maxOutputTokens: 1234,
-    });
+  it("tells the last beat to close the episode", async () => {
+    const llm = new FakeLlm(beatAnswers());
 
-    expect(request.maxOutputTokens).toBe(1234);
-    expect(request.system.length).toBeGreaterThan(0);
+    await writeDialogue(plan(), sources, llm, options);
+
+    expect(llm.calls[0]!.prompt).not.toContain("final segment");
+    expect(llm.calls[1]!.prompt).toContain("final segment");
+  });
+
+  it("accumulates usage across every call", async () => {
+    const single = await writeDialogue(
+      plan({ beats: plan().beats.slice(0, 1) }),
+      sources,
+      new FakeLlm(beatAnswers().slice(0, 1)),
+      options,
+    );
+    const both = await writeDialogue(plan(), sources, new FakeLlm(beatAnswers()), options);
+
+    expect(both.usage.outputTokens).toBeGreaterThan(single.usage.outputTokens);
+    expect(both.modelId).toBe("fake-llm");
+  });
+
+  it("names the beat that failed", async () => {
+    // With one call per beat, "the dialogue stage failed" no longer says which
+    // part of the episode to look at.
+    const llm = new FakeLlm([beatAnswers()[0]!]);
+
+    await expect(writeDialogue(plan(), sources, llm, options)).rejects.toThrow(
+      /beat 2 of 2 \("Payoff"\) failed/,
+    );
+  });
+
+  it("rejects a script where only one voice ever speaks", async () => {
+    const llm = new FakeLlm([
+      { turns: [{ speaker: "guest", text: "One." }] },
+      { turns: [{ speaker: "guest", text: "Two." }] },
+    ]);
+
+    await expect(writeDialogue(plan(), sources, llm, options)).rejects.toThrow(
+      /only the guest speaks/,
+    );
   });
 });
 
-describe("assertDialogueFits", () => {
-  it("refuses before the call when the bound cannot hold the script", () => {
-    // 9720 characters is a 10-minute episode at 16.2 chars/s. It needs ~3280
-    // output tokens; a 2000-token bound truncates the JSON mid-string, and the
-    // resulting error blames the model for a configuration mistake.
-    expect(() => assertDialogueFits(9720, 2000, 600)).toThrow(/maxOutputTokens is 2000/);
-    expect(() => assertDialogueFits(9720, 2000, 600)).toThrow(/shorter --duration/);
+describe("beatOutputTokens", () => {
+  it("asks for far more than the projection, because a cap only costs when hit", () => {
+    // The observed runaway reached six times budget. A cap sitting just above
+    // the expected length turns ordinary verbosity into a failed run.
+    expect(beatOutputTokens(840, 16_000)).toBe(projectOutputTokens(840) * 6);
   });
 
-  it("allows a script the bound can hold", () => {
-    expect(() => assertDialogueFits(9720, 4000, 600)).not.toThrow();
+  it("never exceeds the operator's configured ceiling", () => {
+    expect(beatOutputTokens(100_000, 4000)).toBe(4000);
   });
 
+  it("leaves a short beat room for a complete object", () => {
+    expect(beatOutputTokens(10, 16_000)).toBe(1000);
+  });
+});
+
+describe("turnsForCharacters", () => {
+  it("converts a character budget into a countable unit", () => {
+    expect(turnsForCharacters(960)).toBe(3);
+    expect(turnsForCharacters(450)).toBe(2);
+  });
+
+  it("never asks for zero turns, however thin the beat", () => {
+    expect(turnsForCharacters(1)).toBe(1);
+    expect(turnsForCharacters(0)).toBe(1);
+  });
+});
+
+describe("projectOutputTokens", () => {
   it("prices JSON scaffolding, not just prose", () => {
-    // Four chars per token would say 1000; the wrapper per turn and the escaped
-    // punctuation are what make a bound that looks sufficient truncate.
     expect(projectOutputTokens(4000)).toBe(1350);
   });
 });
 
 describe("validateSpeakers", () => {
-  it("rejects a monologue that satisfies the two-turn schema", () => {
+  it("rejects a monologue", () => {
     const monologue: DialogueScript = {
       turns: [
         { speaker: "host", beat: 1, text: "First." },
@@ -177,60 +237,17 @@ describe("validateSpeakers", () => {
 
     expect(() => validateSpeakers(monologue)).toThrow(/only the host speaks/);
   });
-
-  it("accepts a genuine two-hander", () => {
-    expect(() => validateSpeakers(goodScript)).not.toThrow();
-  });
-});
-
-describe("writeDialogue", () => {
-  it("returns the script, its usage, and the model that answered", async () => {
-    const llm = new FakeLlm([goodScript]);
-
-    const result = await writeDialogue(plan(), sources, llm, {
-      charsPerSecond: 16,
-      maxOutputTokens: 4000,
-    });
-
-    expect(result.script.turns).toHaveLength(2);
-    expect(result.modelId).toBe("fake-llm");
-    expect(result.usage.outputTokens).toBeGreaterThan(0);
-    expect(llm.calls).toHaveLength(1);
-  });
-
-  it("spends nothing when the bound cannot hold the episode", async () => {
-    const llm = new FakeLlm([goodScript]);
-
-    await expect(
-      writeDialogue(plan({ plannedSeconds: 1800 }), sources, llm, {
-        charsPerSecond: 16,
-        maxOutputTokens: 4000,
-      }),
-    ).rejects.toThrow(/maxOutputTokens/);
-
-    expect(llm.calls).toHaveLength(0);
-  });
-
-  it("rejects a one-voice script after the call", async () => {
-    const llm = new FakeLlm([
-      {
-        turns: [
-          { speaker: "guest", beat: 1, text: "One." },
-          { speaker: "guest", beat: 1, text: "Two." },
-        ],
-      },
-    ]);
-
-    await expect(
-      writeDialogue(plan(), sources, llm, { charsPerSecond: 16, maxOutputTokens: 4000 }),
-    ).rejects.toThrow(/only the guest speaks/);
-  });
 });
 
 describe("scriptCharacters", () => {
   it("counts what will be submitted for synthesis", () => {
-    expect(scriptCharacters(goodScript)).toBe(
-      goodScript.turns[0]!.text.length + goodScript.turns[1]!.text.length,
-    );
+    const script: DialogueScript = {
+      turns: [
+        { speaker: "host", beat: 1, text: "abc" },
+        { speaker: "guest", beat: 1, text: "de" },
+      ],
+    };
+
+    expect(scriptCharacters(script)).toBe(5);
   });
 });

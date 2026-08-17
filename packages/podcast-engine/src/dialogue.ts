@@ -1,10 +1,21 @@
 /**
  * The dialogue stage: an episode plan in, a two-speaker script out.
  *
- * One model call, like the plan stage, and for the same reason: the planner
- * already decided the arc, the citations, and how many seconds each beat gets.
- * Asking a second model call per beat would buy continuity problems -- a guest
- * who introduces themselves three times -- in exchange for latency.
+ * One model call per beat, which is the second design. The first asked for the
+ * whole episode at once, on the reasoning that a single call cannot contradict
+ * itself. It could not be bounded: output length varied enormously run to run
+ * for an identical request -- one call returned 4,861 characters and the next
+ * tried to write six times its budget -- and two of six real runs died on
+ * truncation, each costing a full pair of calls for nothing.
+ *
+ * Per beat, the cap is per beat. A runaway damages one segment instead of the
+ * run, and the input shrinks too: a beat needs the excerpts it cites, not the
+ * whole 24,500-token pack, so five small calls cost less to send than one
+ * large one.
+ *
+ * Continuity is bought back explicitly. Each call sees the episode's shape, the
+ * beats already covered, and the last thing said -- which is what stops a guest
+ * introducing themselves three times.
  *
  * The stage owns one number the plan does not: how many characters of speech a
  * beat's seconds are worth. That conversion is `charsPerSecond`, measured on
@@ -13,33 +24,45 @@
  */
 
 import type { SourceExcerpt, SourcePack } from "@handbook/content";
+import { ZERO_USAGE, addUsage } from "@handbook/podcast-providers";
 import type { LlmPort, StructuredRequest, Usage } from "@handbook/podcast-providers";
 import { z } from "zod";
 import { deriveExcerptIds } from "./ids.ts";
-import type { EpisodePlan } from "./schema.ts";
+import type { EpisodePlan, PlannedBeat } from "./schema.ts";
 
 const semanticString = z.string().trim().min(1);
 
-export const DialogueTurnSchema = z.object({
+/**
+ * What the model returns for one beat.
+ *
+ * No beat number: the caller knows which beat it asked for, so stamping the
+ * answer is both cheaper and correct by construction. Asking the model to tag
+ * its own turns -- the previous design -- made a labelling mistake able to
+ * distort the trim.
+ */
+export const BeatTurnSchema = z.object({
   speaker: z.enum(["host", "guest"]),
-  /**
-   * Which beat this turn belongs to, 1-based.
-   *
-   * Asked for so the script can be cut back to length beat by beat. Trimming a
-   * flat list of turns takes the whole ending off; trimming per beat takes the
-   * padding out of each and leaves the arc intact.
-   */
-  beat: z.number().int().positive(),
   /** What this speaker says. Rendered verbatim; no stage directions. */
   text: semanticString,
 });
 
-export const DialogueScriptSchema = z.object({
-  turns: z.array(DialogueTurnSchema).min(2),
+export const BeatScriptSchema = z.object({
+  turns: z.array(BeatTurnSchema).min(1),
 });
 
-export type DialogueTurn = z.infer<typeof DialogueTurnSchema>;
-export type DialogueScript = z.infer<typeof DialogueScriptSchema>;
+export type BeatScript = z.infer<typeof BeatScriptSchema>;
+
+/** A turn, once the engine has stamped it with the beat it was written for. */
+export interface DialogueTurn {
+  speaker: "host" | "guest";
+  /** 1-based, assigned by the engine rather than the model. */
+  beat: number;
+  text: string;
+}
+
+export interface DialogueScript {
+  turns: DialogueTurn[];
+}
 
 export interface DialogueResult {
   script: DialogueScript;
@@ -50,40 +73,39 @@ export interface DialogueResult {
 export interface DialogueOptions {
   /** Measured, from the TTS profile. Converts a beat's seconds into characters. */
   charsPerSecond: number;
+  /** Ceiling per call. A beat asks for less than this unless it is very long. */
   maxOutputTokens: number;
 }
 
 const SYSTEM = [
   "You write two-person podcast dialogue from an approved episode plan.",
-  "The host drives: they introduce the topic, ask, and close. The guest",
-  "explains. Neither narrates stage directions, reads headings aloud, nor",
-  "says anything the excerpts do not support.",
+  "You are writing one segment of a longer episode, and you are told what has",
+  "already been covered: do not re-introduce the show, the speakers, or a topic",
+  "that an earlier segment has already handled.",
+  "The host drives: they ask and steer. The guest explains. Neither narrates",
+  "stage directions, reads headings aloud, nor says anything the excerpts do",
+  "not support.",
   "Write only what is spoken. No speaker labels inside `text`, no markdown,",
   "no bracketed sound cues, no URLs read aloud.",
-  "Tag every turn with the number of the beat it belongs to.",
-  "Cover the beats in the order given, and write the number of turns each beat",
-  "asks for -- no more. Keep every turn to two or three sentences; if a point",
-  "needs more room, cut the point rather than extending the turn.",
-  "Length is a requirement, not a suggestion: the operator asked for an episode",
-  "of a particular duration, and turns are how it is measured.",
+  "Write the number of turns you are asked for, each two or three sentences.",
 ].join(" ");
 
 /**
  * Characters one turn of two-or-three sentences actually comes to.
  *
- * Measured, not assumed: two real episodes came back at 301 and 326 characters
- * per turn across 44 turns. 300 is the round number inside that range.
+ * Measured, not assumed: real episodes came back at 301, 326 and 324
+ * characters per turn. 300 is the round number inside that range.
  */
 export const CHARACTERS_PER_TURN = 300;
 
 /**
  * Converts a character budget into a turn count.
  *
- * This exists because character budgets do not work. Two runs were given one
- * and overran it by 48% and 57%; the second run was even told to stay within
- * ten percent. A model cannot count the characters it is emitting, so a
- * character budget is a number it can read and not a constraint it can apply.
- * Turns and sentences it can count while writing.
+ * Turns are what the model is asked for, because character budgets do not
+ * work: runs given one overran it by 48%, 57% and 96%, the last of them after
+ * being told a ten-percent tolerance. A model cannot count the characters it
+ * is emitting. It is not reliable at stopping on a turn count either -- that
+ * is what `trimToBudget` is for -- but a countable unit at least gets close.
  */
 export function turnsForCharacters(characters: number): number {
   return Math.max(1, Math.round(characters / CHARACTERS_PER_TURN));
@@ -99,34 +121,23 @@ export function projectOutputTokens(characters: number): number {
 }
 
 /**
- * Refuses a script the token bound cannot hold, before the call rather than
- * after it.
+ * The output ceiling for one beat's call.
  *
- * Without this the failure is a truncated JSON response, which surfaces as a
- * schema error naming a parse position -- an error about the model's output
- * when the actual fault is a duration and a bound that were never compatible.
+ * Six times the projection, because caps only cost anything when they are hit
+ * and the observed overrun reached six times budget. Floored at 1000 so a
+ * short beat still has room for a complete JSON object, and never above the
+ * operator's configured ceiling.
  */
-export function assertDialogueFits(
-  characters: number,
-  maxOutputTokens: number,
-  plannedSeconds: number,
-): void {
-  const needed = projectOutputTokens(characters);
-  if (needed <= maxOutputTokens) return;
-
-  throw new Error(
-    `a ${Math.round(plannedSeconds)}s episode needs about ${needed} output tokens ` +
-      `(~${characters} characters of speech) but llm.maxOutputTokens is ${maxOutputTokens}. ` +
-      "Raise maxOutputTokens, or ask for a shorter --duration.",
-  );
+export function beatOutputTokens(characters: number, configured: number): number {
+  return Math.min(configured, Math.max(1000, projectOutputTokens(characters) * 6));
 }
 
 /**
  * A dialogue with one speaker is a monologue that passed a two-speaker schema.
  *
- * `turns.min(2)` does not catch it: two host turns satisfy it. This is checked
- * after generation for the same reason `validateCitations` is -- shape
- * validation cannot tell a cast of two from a cast of one.
+ * Checked across the finished script rather than per beat: a single beat can
+ * legitimately be one speaker answering at length, but an episode where only
+ * one voice ever speaks is a two-voice episode that is not.
  */
 export function validateSpeakers(script: DialogueScript): void {
   const speakers = new Set(script.turns.map((turn) => turn.speaker));
@@ -148,70 +159,89 @@ export function excerptsById(pack: SourcePack): Map<string, SourceExcerpt> {
   return map;
 }
 
-export function renderDialoguePrompt(
+export interface BeatContext {
+  /** Titles of the beats already written, in order. Empty for the first. */
+  covered: string[];
+  /** The final turn of the previous beat, so this one can pick up from it. */
+  previous: DialogueTurn | undefined;
+}
+
+export function renderBeatPrompt(
   plan: EpisodePlan,
+  beat: PlannedBeat,
+  position: number,
   sources: ReadonlyMap<string, SourceExcerpt>,
   charsPerSecond: number,
+  context: BeatContext,
 ): string {
-  const totalTurns = plan.beats.reduce(
-    (total, beat) => total + turnsForCharacters(Math.round(beat.targetSeconds * charsPerSecond)),
-    0,
-  );
+  const characters = Math.round(beat.targetSeconds * charsPerSecond);
+  const turns = turnsForCharacters(characters);
 
   const lines = [
-    `Episode title: ${plan.title}`,
+    `Episode: ${plan.title}`,
     `Through-line: ${plan.throughLine}`,
-    `Total length: ${totalTurns} turns, alternating host and guest, ` +
-      `which comes to about ${Math.round(plan.plannedSeconds)} seconds of speech. ` +
-      "Two or three sentences per turn.",
-    "",
-    "Beats, in order:",
+    `This is segment ${position + 1} of ${plan.beats.length}.`,
     "",
   ];
 
-  plan.beats.forEach((beat, index) => {
-    const characters = Math.round(beat.targetSeconds * charsPerSecond);
-    const turns = turnsForCharacters(characters);
+  if (context.covered.length > 0) {
+    lines.push("Already covered, do not repeat:", ...context.covered.map((t) => `  - ${t}`), "");
+  } else {
+    lines.push("This is the opening segment: the host sets the episode up here.", "");
+  }
+
+  if (context.previous) {
     lines.push(
-      `Beat ${index + 1}: ${beat.title}`,
-      `  Intent: ${beat.intent}`,
-      `  Write ${turns} turn${turns === 1 ? "" : "s"} for this beat (~${Math.round(beat.targetSeconds)}s).`,
-      "  Source material:",
-    );
-
-    for (const id of beat.excerptIds) {
-      const excerpt = sources.get(id);
-      // A beat citing an id the pack does not hold cannot happen -- the plan
-      // stage validates citations -- but printing nothing beats printing
-      // "undefined" into a prompt if that ever changes.
-      if (excerpt) lines.push(`  [${id}] ${excerpt.heading}`, excerpt.body, "");
-    }
-
-    lines.push("");
-  });
-
-  if (plan.unsupported.length > 0) {
-    lines.push(
-      "The planner wanted these and found no source for them. Do not write them:",
-      ...plan.unsupported.map((gap) => `  - ${gap}`),
+      `The previous segment ended with the ${context.previous.speaker} saying:`,
+      context.previous.text,
       "",
     );
   }
 
-  lines.push("Write the dialogue for these beats, using only this material.");
+  lines.push(
+    `Segment: ${beat.title}`,
+    `Intent: ${beat.intent}`,
+    `Write ${turns} turn${turns === 1 ? "" : "s"}, alternating host and guest.`,
+    "",
+    "Source material for this segment:",
+    "",
+  );
+
+  for (const id of beat.excerptIds) {
+    const excerpt = sources.get(id);
+    if (excerpt) lines.push(`[${id}] ${excerpt.heading}`, excerpt.body, "");
+  }
+
+  if (position === plan.beats.length - 1) {
+    lines.push("This is the final segment: close the episode here.", "");
+  }
+
+  lines.push(`Write the dialogue for this segment only, in ${turns} turns.`);
   return lines.join("\n");
 }
 
-export function buildDialogueRequest(
+export function buildBeatRequest(
   plan: EpisodePlan,
+  beat: PlannedBeat,
+  position: number,
   pack: SourcePack,
   options: DialogueOptions,
-): StructuredRequest<DialogueScript> {
+  context: BeatContext,
+): StructuredRequest<BeatScript> {
+  const characters = Math.round(beat.targetSeconds * options.charsPerSecond);
+
   return {
-    schema: DialogueScriptSchema,
+    schema: BeatScriptSchema,
     system: SYSTEM,
-    prompt: renderDialoguePrompt(plan, excerptsById(pack), options.charsPerSecond),
-    maxOutputTokens: options.maxOutputTokens,
+    prompt: renderBeatPrompt(
+      plan,
+      beat,
+      position,
+      excerptsById(pack),
+      options.charsPerSecond,
+      context,
+    ),
+    maxOutputTokens: beatOutputTokens(characters, options.maxOutputTokens),
   };
 }
 
@@ -226,14 +256,40 @@ export async function writeDialogue(
   llm: LlmPort,
   options: DialogueOptions,
 ): Promise<DialogueResult> {
-  assertDialogueFits(
-    Math.round(plan.plannedSeconds * options.charsPerSecond),
-    options.maxOutputTokens,
-    plan.plannedSeconds,
-  );
+  const turns: DialogueTurn[] = [];
+  let usage = ZERO_USAGE;
+  let modelId = llm.name;
 
-  const result = await llm.generate<DialogueScript>(buildDialogueRequest(plan, pack, options));
-  validateSpeakers(result.value);
+  for (const [position, beat] of plan.beats.entries()) {
+    const context: BeatContext = {
+      covered: plan.beats.slice(0, position).map((earlier) => earlier.title),
+      previous: turns[turns.length - 1],
+    };
 
-  return { script: result.value, usage: result.usage, modelId: result.modelId };
+    let result;
+    try {
+      result = await llm.generate<BeatScript>(
+        buildBeatRequest(plan, beat, position, pack, options, context),
+      );
+    } catch (error) {
+      // Naming the beat matters: with one call per beat, "the dialogue stage
+      // failed" no longer says which part of the episode to look at.
+      throw new Error(
+        `beat ${position + 1} of ${plan.beats.length} ("${beat.title}") failed: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
+
+    usage = addUsage(usage, result.usage);
+    modelId = result.modelId;
+    for (const turn of result.value.turns) {
+      turns.push({ speaker: turn.speaker, beat: position + 1, text: turn.text });
+    }
+  }
+
+  const script: DialogueScript = { turns };
+  validateSpeakers(script);
+
+  return { script, usage, modelId };
 }
