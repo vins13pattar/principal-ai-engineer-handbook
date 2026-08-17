@@ -138,13 +138,18 @@ export function projectOutputTokens(characters: number): number {
 /**
  * The output ceiling for one beat's call.
  *
- * Six times the projection, because caps only cost anything when they are hit
- * and the observed overrun reached six times budget. Floored at 1000 so a
- * short beat still has room for a complete JSON object, and never above the
- * operator's configured ceiling.
+ * Deliberately far above any plausible length. A cap that truncates destroys
+ * the whole response and everything spent reaching it, so it is not a budget --
+ * it is a backstop against one runaway beat consuming an episode's worth of
+ * tokens, and it belongs nowhere near the expected size.
+ *
+ * Six times the projection was not enough: a 60-second beat projected 293
+ * tokens, was capped at 1,884, and the model wanted more. Twelve times, floored
+ * at 4,000, sits about seven times above the largest beat observed writing
+ * normally.
  */
 export function beatOutputTokens(characters: number, configured: number): number {
-  return Math.min(configured, Math.max(1000, projectOutputTokens(characters) * 6));
+  return Math.min(configured, Math.max(4000, projectOutputTokens(characters) * 12));
 }
 
 /**

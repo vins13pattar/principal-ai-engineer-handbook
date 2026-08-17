@@ -39,9 +39,13 @@ export interface CliDeps {
 }
 
 /** What `plan` does not do. Naming them is what stops `plan` reading as the product. */
-const PLAN_EXCLUDES = "dialogue, synthesis, assembly";
-/** What `create` still does not do. The quality passes the spec's full arc has. */
-const CREATE_EXCLUDES = "review, revision";
+const PLAN_EXCLUDES = "dialogue, review, synthesis, assembly";
+/**
+ * Every stage the designed pipeline has. `create` now runs all of them, so
+ * there is no "excludes" line for it -- and printing one that named already
+ * implemented stages was worse than printing nothing.
+ */
+const CREATE_COVERS = "plan, dialogue, review, revision, synthesis, assembly";
 
 function flag(argv: readonly string[], name: string): string | undefined {
   const index = argv.indexOf(`--${name}`);
@@ -231,16 +235,15 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     );
   }
 
-  deps.log(`  covers          ${isCreate ? "plan, dialogue, synthesis, assembly" : "plan only"}`);
-  // Two different claims, and conflating them was wrong once already: what
-  // `plan` skips exists and is one command away, while what `create` skips does
-  // not exist at all. Printing "not implemented" for both told operators the
-  // pipeline could not make an episode when it could.
+  // This line has been wrong twice, both times by outliving a stage that got
+  // built. It now derives from what the command runs rather than from a
+  // hand-maintained list of what it does not.
   deps.log(
-    isCreate
-      ? `  excludes        ${CREATE_EXCLUDES} — these stages are not implemented`
-      : `  excludes        ${PLAN_EXCLUDES} — run \`create\` for those`,
+    `  covers          ${isCreate ? (review ? CREATE_COVERS : `${CREATE_COVERS} (review skipped)`) : "plan only"}`,
   );
+  if (!isCreate) {
+    deps.log(`  excludes        ${PLAN_EXCLUDES} — run \`create\` for those`);
+  }
 
   if (!wantsRun) {
     deps.log("");

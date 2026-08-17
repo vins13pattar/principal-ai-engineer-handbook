@@ -79,7 +79,7 @@ describe("runCli — dry plan", () => {
     await runCli(base(), deps({ llm: new FakeLlm([draft]) }));
 
     const output = lines.join("\n");
-    expect(output).toMatch(/excludes\s+dialogue, synthesis, assembly/);
+    expect(output).toMatch(/excludes\s+dialogue, review, synthesis, assembly/);
     expect(output).toMatch(/run `create` for those/);
     expect(output).not.toMatch(/not implemented/);
   });

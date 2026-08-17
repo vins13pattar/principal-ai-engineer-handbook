@@ -265,17 +265,17 @@ describe("writeDialogue — with review", () => {
 
 describe("beatOutputTokens", () => {
   it("asks for far more than the projection, because a cap only costs when hit", () => {
-    // The observed runaway reached six times budget. A cap sitting just above
-    // the expected length turns ordinary verbosity into a failed run.
-    expect(beatOutputTokens(840, 16_000)).toBe(projectOutputTokens(840) * 6);
+    // A 60-second beat projected 293 tokens, was capped at 1,884, and the model
+    // wanted more. A cap near the expected length destroys the whole response.
+    expect(beatOutputTokens(2000, 16_000)).toBe(projectOutputTokens(2000) * 12);
   });
 
   it("never exceeds the operator's configured ceiling", () => {
     expect(beatOutputTokens(100_000, 4000)).toBe(4000);
   });
 
-  it("leaves a short beat room for a complete object", () => {
-    expect(beatOutputTokens(10, 16_000)).toBe(1000);
+  it("floors well above what any short beat could need", () => {
+    expect(beatOutputTokens(10, 16_000)).toBe(4000);
   });
 });
 
