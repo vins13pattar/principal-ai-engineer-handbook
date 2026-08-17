@@ -52,9 +52,11 @@ const SYSTEM = [
   "says anything the excerpts do not support.",
   "Write only what is spoken. No speaker labels inside `text`, no markdown,",
   "no bracketed sound cues, no URLs read aloud.",
-  "Cover the beats in the order given, and treat each beat's character budget",
-  "as a target to hit rather than a ceiling to avoid -- a script well under",
-  "budget produces an episode shorter than the one that was asked for.",
+  "Cover the beats in the order given and keep each beat within about ten",
+  "percent of its character budget. Both directions are failures the operator",
+  "sees: over budget produces an episode longer than the one they asked for,",
+  "under budget produces a shorter one. The budgets are measured, not",
+  "decorative.",
 ].join(" ");
 
 /**

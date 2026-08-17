@@ -18,7 +18,7 @@ import { join } from "node:path";
 import type { SourcePack } from "@handbook/content";
 import type { LlmPort, TtsPort, Usage } from "@handbook/podcast-providers";
 import type { PodcastConfig } from "./config.ts";
-import { writeDialogue } from "./dialogue.ts";
+import { scriptCharacters, writeDialogue } from "./dialogue.ts";
 import type { DialogueScript } from "./dialogue.ts";
 import { renderEpisode } from "./episode.ts";
 import type { EpisodeAudio } from "./episode.ts";
@@ -95,7 +95,17 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
     modelId: written.modelId,
     artifact: "script.json",
   });
-  options.log(`  script          ${written.script.turns.length} turns`);
+  // Printed as a comparison rather than a count. The first real run came back
+  // 48% over budget, and nothing said so until the finished audio turned out
+  // to be eight and a half minutes against a five-minute request -- by which
+  // point both model calls and two minutes of synthesis were already spent.
+  const budgeted = Math.round(planned.plan.plannedSeconds * config.tts.charsPerSecond);
+  const characters = scriptCharacters(written.script);
+  const overBy = Math.round((characters / budgeted - 1) * 100);
+  options.log(
+    `  script          ${written.script.turns.length} turns, ${characters} chars vs ${budgeted} budgeted ` +
+      `(${overBy >= 0 ? "+" : ""}${overBy}%)`,
+  );
 
   options.onStageStart("synthesis");
   const episode = await renderEpisode(written.script, options.tts, {

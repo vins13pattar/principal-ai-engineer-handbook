@@ -66,6 +66,16 @@ export const PodcastConfigSchema = z
         voices: z.object({ host: identifier, guest: identifier }).strict(),
         language: languageTag,
         measuredOn: identifier,
+        /**
+         * Speaking rate, and the number that decides whether "5 minutes" means
+         * five minutes.
+         *
+         * Measure it on dialogue, not on prose. The benchmark's 16.2 came from
+         * one paragraph read straight through; real two-speaker dialogue has
+         * more sentence breaks and more punctuation, and both runs of it here
+         * came back at 14.0 over 8,860 characters. Using the prose figure made
+         * a 300-second request produce 513 seconds of audio.
+         */
         charsPerSecond: positive,
         synthesisCost: z.object({ fixedSeconds: positive, marginalRtf: nonNegative }).strict(),
         runner: z
@@ -99,7 +109,7 @@ export const CONFIG_TEMPLATE = `{
     "voices": { "host": "af_heart", "guest": "am_michael" },
     "language": "en-US",
     "measuredOn": "Apple M4, 24 GB",
-    "charsPerSecond": 16.2,
+    "charsPerSecond": 14.0,
     "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
     "runner": {
       "name": "kokoro-82m",

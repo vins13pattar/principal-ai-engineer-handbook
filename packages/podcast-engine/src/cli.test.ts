@@ -273,6 +273,18 @@ describe("runCli — create", () => {
     expect(wavDurationSeconds(new Uint8Array(audio))).toBeCloseTo(86 / 16, 2);
   });
 
+  it("reports the script against its budget, not just its turn count", async () => {
+    // The first real run came back 48% over budget and produced eight and a
+    // half minutes for a five-minute request. Nothing said so until the audio
+    // existed. A bare turn count cannot show it; the comparison can.
+    await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: new FakeWavTts() }),
+    );
+
+    expect(lines.join("\n")).toMatch(/script\s+2 turns, 86 chars vs \d+ budgeted \([+-]\d+%\)/);
+  });
+
   it("casts the two speakers to the two configured voices", async () => {
     const tts = new FakeWavTts();
 
