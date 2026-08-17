@@ -338,12 +338,19 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         model: { modelId },
         usage,
         cost: { estimatedAtMaxOutput, measured },
+        dialogue: {
+          turnsWritten: result.script.turns.length,
+          turnsRendered: result.rendered.script.turns.length,
+          charactersWritten: result.rendered.charactersBefore,
+          charactersRendered: result.rendered.charactersAfter,
+          droppedTurns: result.rendered.dropped,
+        },
         artifacts,
       });
 
       deps.log("");
       deps.log(
-        `  episode         ${seconds(result.episode.audioSeconds)} of audio from ${result.script.turns.length} turns`,
+        `  episode         ${seconds(result.episode.audioSeconds)} of audio from ${result.rendered.script.turns.length} turns`,
       );
       deps.log(
         `  asked for       ${Math.round(durationSeconds)}s, planned ${Math.round(result.plan.plannedSeconds)}s`,

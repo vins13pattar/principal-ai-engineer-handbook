@@ -22,6 +22,14 @@ const semanticString = z.string().trim().min(1);
 
 export const DialogueTurnSchema = z.object({
   speaker: z.enum(["host", "guest"]),
+  /**
+   * Which beat this turn belongs to, 1-based.
+   *
+   * Asked for so the script can be cut back to length beat by beat. Trimming a
+   * flat list of turns takes the whole ending off; trimming per beat takes the
+   * padding out of each and leaves the arc intact.
+   */
+  beat: z.number().int().positive(),
   /** What this speaker says. Rendered verbatim; no stage directions. */
   text: semanticString,
 });
@@ -52,6 +60,7 @@ const SYSTEM = [
   "says anything the excerpts do not support.",
   "Write only what is spoken. No speaker labels inside `text`, no markdown,",
   "no bracketed sound cues, no URLs read aloud.",
+  "Tag every turn with the number of the beat it belongs to.",
   "Cover the beats in the order given, and write the number of turns each beat",
   "asks for -- no more. Keep every turn to two or three sentences; if a point",
   "needs more room, cut the point rather than extending the turn.",

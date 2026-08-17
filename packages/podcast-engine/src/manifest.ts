@@ -39,9 +39,27 @@ const CommonSchema = {
   artifacts: z.array(z.string()),
 };
 
+/**
+ * What the model wrote against what was spoken.
+ *
+ * Present only for `create`. `script.json` holds the full script and the audio
+ * holds the cut one; without this block the difference between them is
+ * invisible, and a listener wondering why a point stops mid-argument has
+ * nowhere to look.
+ */
+const RenderedSchema = z.object({
+  turnsWritten: z.number(),
+  turnsRendered: z.number(),
+  charactersWritten: z.number(),
+  charactersRendered: z.number(),
+  /** Indices into `script.json`'s turns that were not spoken. */
+  droppedTurns: z.array(z.number()),
+});
+
 const CompleteSchema = z.object({
   ...CommonSchema,
   status: z.literal("complete"),
+  dialogue: RenderedSchema.optional(),
   source: SourceSchema,
   model: z.object({ modelId: z.string() }),
   usage: UsageSchema,

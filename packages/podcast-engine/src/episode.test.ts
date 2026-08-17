@@ -60,8 +60,8 @@ class WavTts implements TtsPort {
 
 const script: DialogueScript = {
   turns: [
-    { speaker: "host", text: "a".repeat(160) },
-    { speaker: "guest", text: "b".repeat(320) },
+    { speaker: "host", beat: 1, text: "a".repeat(160) },
+    { speaker: "guest", beat: 1, text: "b".repeat(320) },
   ],
 };
 

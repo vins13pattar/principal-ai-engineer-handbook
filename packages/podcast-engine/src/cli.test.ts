@@ -204,8 +204,8 @@ describe("runCli — config failures", () => {
 describe("runCli — create", () => {
   const script = {
     turns: [
-      { speaker: "host", text: "What does MCP actually standardise?" },
-      { speaker: "guest", text: "The transport, and deliberately not the capability." },
+      { speaker: "host", beat: 1, text: "What does MCP actually standardise?" },
+      { speaker: "guest", beat: 1, text: "The transport, and deliberately not the capability." },
     ],
   };
 
@@ -349,8 +349,8 @@ describe("runCli — create", () => {
       // Two turns, one speaker: a monologue that satisfies the schema.
       {
         turns: [
-          { speaker: "host", text: "One." },
-          { speaker: "host", text: "Two." },
+          { speaker: "host", beat: 1, text: "One." },
+          { speaker: "host", beat: 1, text: "Two." },
         ],
       },
     ]);

@@ -84,8 +84,8 @@ const sources = pack([
 
 const goodScript: DialogueScript = {
   turns: [
-    { speaker: "host", text: "Why do small evaluation sets mislead?" },
-    { speaker: "guest", text: "Because the noise is larger than the effect." },
+    { speaker: "host", beat: 1, text: "Why do small evaluation sets mislead?" },
+    { speaker: "guest", beat: 1, text: "Because the noise is larger than the effect." },
   ],
 };
 
@@ -170,8 +170,8 @@ describe("validateSpeakers", () => {
   it("rejects a monologue that satisfies the two-turn schema", () => {
     const monologue: DialogueScript = {
       turns: [
-        { speaker: "host", text: "First." },
-        { speaker: "host", text: "Second." },
+        { speaker: "host", beat: 1, text: "First." },
+        { speaker: "host", beat: 1, text: "Second." },
       ],
     };
 
@@ -215,8 +215,8 @@ describe("writeDialogue", () => {
     const llm = new FakeLlm([
       {
         turns: [
-          { speaker: "guest", text: "One." },
-          { speaker: "guest", text: "Two." },
+          { speaker: "guest", beat: 1, text: "One." },
+          { speaker: "guest", beat: 1, text: "Two." },
         ],
       },
     ]);

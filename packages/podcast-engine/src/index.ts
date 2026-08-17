@@ -15,6 +15,7 @@ export * from "./plan.ts";
 export * from "./dialogue.ts";
 export * from "./episode.ts";
 export * from "./create.ts";
+export * from "./trim.ts";
 
 export * from "./config.ts";
 export * from "./run.ts";

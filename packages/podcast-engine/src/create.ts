@@ -24,6 +24,8 @@ import { renderEpisode } from "./episode.ts";
 import type { EpisodeAudio } from "./episode.ts";
 import { planEpisode } from "./plan.ts";
 import type { EpisodePlan } from "./schema.ts";
+import { trimToBudget } from "./trim.ts";
+import type { TrimResult } from "./trim.ts";
 
 export type CreateStage = "plan" | "dialogue" | "synthesis";
 
@@ -50,7 +52,10 @@ export interface CreateOptions {
 
 export interface CreateResult {
   plan: EpisodePlan;
+  /** What the model wrote, before any cut. */
   script: DialogueScript;
+  /** What was spoken, and which turns of `script` were left out. */
+  rendered: TrimResult;
   episode: EpisodeAudio;
 }
 
@@ -107,8 +112,19 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
       `(${overBy >= 0 ? "+" : ""}${overBy}%)`,
   );
 
+  // `script.json` above is what the model wrote; this is what gets spoken. The
+  // two are kept separate so a trim is auditable rather than invisible -- the
+  // dropped turns are named in the manifest, not quietly absent.
+  const trimmed = trimToBudget(written.script, planned.plan, config.tts.charsPerSecond);
+  if (trimmed.dropped.length > 0) {
+    options.log(
+      `  trimmed         ${trimmed.dropped.length} turn(s) cut, ${trimmed.charactersAfter} chars rendered ` +
+        `(asked for ${budgeted})`,
+    );
+  }
+
   options.onStageStart("synthesis");
-  const episode = await renderEpisode(written.script, options.tts, {
+  const episode = await renderEpisode(trimmed.script, options.tts, {
     voices: config.tts.voices,
     language: config.tts.language,
     onTurn: (index, total, speaker) => {
@@ -119,5 +135,5 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   await writeFile(join(directory, EPISODE_FILE), episode.audio);
   options.onStageDone("synthesis", { usage: episode.usage, artifact: EPISODE_FILE });
 
-  return { plan: planned.plan, script: written.script, episode };
+  return { plan: planned.plan, script: written.script, rendered: trimmed, episode };
 }
