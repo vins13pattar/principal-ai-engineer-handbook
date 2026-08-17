@@ -75,6 +75,55 @@ export class BrokenLlm implements LlmPort {
   }
 }
 
+/**
+ * Builds a real 16-bit mono WAV of the requested length, filled with a constant.
+ *
+ * The container has to be genuine: assembly parses the format header and
+ * refuses mismatches, so a fake returning arbitrary bytes would test the
+ * refusal path and never the join.
+ */
+export function fakeWav(seconds: number, sampleRate = 24_000): Uint8Array {
+  const bytesPerSample = 2;
+  const data = Buffer.alloc(Math.round(seconds * sampleRate) * bytesPerSample, 1);
+  const header = Buffer.alloc(44);
+
+  header.write("RIFF", 0, "ascii");
+  header.writeUInt32LE(36 + data.length, 4);
+  header.write("WAVE", 8, "ascii");
+  header.write("fmt ", 12, "ascii");
+  header.writeUInt32LE(16, 16);
+  header.writeUInt16LE(1, 20);
+  header.writeUInt16LE(1, 22);
+  header.writeUInt32LE(sampleRate, 24);
+  header.writeUInt32LE(sampleRate * bytesPerSample, 28);
+  header.writeUInt16LE(bytesPerSample, 32);
+  header.writeUInt16LE(16, 34);
+  header.write("data", 36, "ascii");
+  header.writeUInt32LE(data.length, 40);
+
+  return new Uint8Array(Buffer.concat([header, data]));
+}
+
+/** Returns joinable WAV audio at a fixed speaking rate, and records every request. */
+export class FakeWavTts implements TtsPort {
+  readonly name = "fake-wav-tts";
+  readonly requests: SpeechRequest[] = [];
+
+  constructor(private readonly charsPerSecond = 16) {}
+
+  async synthesise(request: SpeechRequest): Promise<TtsResult> {
+    this.requests.push(request);
+    return {
+      audio: fakeWav(request.text.length / this.charsPerSecond),
+      mediaType: "audio/wav",
+      modelId: "fake-wav-tts",
+      appliedSpeed: request.speed ?? null,
+      elapsedSeconds: 0.25,
+      usage: { inputTokens: 0, outputTokens: 0, speechCharacters: request.text.length },
+    };
+  }
+}
+
 /** Produces deterministic bytes proportional to the text, and records every request. */
 export class FakeTts implements TtsPort {
   readonly name = "fake-tts";

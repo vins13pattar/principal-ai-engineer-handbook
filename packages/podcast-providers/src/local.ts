@@ -22,6 +22,7 @@ import { readFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SpeechRequest, TtsPort, TtsResult } from "./ports.ts";
+import { readWavChunks } from "./wav.ts";
 
 export interface LocalTtsOptions {
   /** Display name, e.g. "kokoro-82m". */
@@ -209,34 +210,19 @@ export function estimateSpokenSeconds(characters: number, charsPerSecond = 14): 
  * returning null forces the choice to be visible at the call site.
  */
 export function wavDurationSeconds(audio: Uint8Array): number | null {
-  const view = Buffer.from(audio.buffer, audio.byteOffset, audio.byteLength);
-  if (view.length < 44) return null;
-  if (view.toString("ascii", 0, 4) !== "RIFF") return null;
-  if (view.toString("ascii", 8, 12) !== "WAVE") return null;
+  if (audio.byteLength < 44) return null;
+
+  const chunks = readWavChunks(audio);
+  if (chunks === null) return null;
 
   let byteRate = 0;
-
-  // Walk the chunk list rather than assuming fmt at 12 and data at 36. Writers
-  // interleave LIST/INFO, and an assumed offset yields a plausible wrong
-  // duration instead of a parse failure.
-  let offset = 12;
-  while (offset + 8 <= view.length) {
-    const id = view.toString("ascii", offset, offset + 4);
-    const size = view.readUInt32LE(offset + 4);
-    const body = offset + 8;
-
-    if (id === "fmt " && body + 16 <= view.length) {
-      byteRate = view.readUInt32LE(body + 8);
-    } else if (id === "data") {
+  for (const chunk of chunks) {
+    if (chunk.id === "fmt " && chunk.body.length >= 16) {
+      byteRate = chunk.body.readUInt32LE(8);
+    } else if (chunk.id === "data") {
       if (byteRate <= 0) return null;
-      // Trust the shorter of the declared size and what is actually present:
-      // a truncated file declares the length it meant to write.
-      const bytes = Math.min(size, view.length - body);
-      return bytes / byteRate;
+      return chunk.body.length / byteRate;
     }
-
-    // Chunks are word-aligned; an odd size is followed by a pad byte.
-    offset = body + size + (size % 2);
   }
 
   return null;
