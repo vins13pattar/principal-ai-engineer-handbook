@@ -12,7 +12,7 @@ function valid(): Record<string, unknown> {
     tts: {
       provider: "local",
       modelId: "mlx-community/Kokoro-82M-bf16",
-      voice: "af_heart",
+      voices: { host: "af_heart", guest: "am_michael" },
       language: "en-US",
       measuredOn: "Apple M4, 24 GB",
       charsPerSecond: 16.2,
@@ -96,6 +96,16 @@ describe("parseConfig", () => {
     expect(() => parseConfig(withField(["tts", "language"], "elvish"))).toThrow();
     expect(() => parseConfig(withField(["tts", "language"], "ta-IN"))).toThrow();
     expect(() => parseConfig(withField(["tts", "language"], "en-GB"))).not.toThrow();
+  });
+
+  it("rejects casting that would make both speakers sound the same", () => {
+    // A single `voice`, or a host with no guest, is the shape that yields an
+    // episode where the dialogue is two people and the audio is one.
+    expect(() => parseConfig(withField(["tts", "voices"], { host: "af_heart" }))).toThrow();
+    expect(() => parseConfig(withField(["tts", "voices"], "af_heart"))).toThrow();
+    expect(() =>
+      parseConfig(withField(["tts", "voices"], { host: "af_heart", guest: "  " })),
+    ).toThrow();
   });
 
   it("does not touch the filesystem", () => {

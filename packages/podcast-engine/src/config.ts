@@ -55,7 +55,15 @@ export const PodcastConfigSchema = z
         // describes a subprocess and `createLocalTts` is what consumes it.
         provider: z.literal("local"),
         modelId: identifier,
-        voice: identifier,
+        /**
+         * One voice per speaker, and both required.
+         *
+         * A single `voice` with a fallback for the second speaker produces an
+         * episode where two people sound identical -- which reads as a bug in
+         * the dialogue, not in the casting, and is invisible to every check
+         * except listening.
+         */
+        voices: z.object({ host: identifier, guest: identifier }).strict(),
         language: languageTag,
         measuredOn: identifier,
         charsPerSecond: positive,
@@ -88,7 +96,7 @@ export const CONFIG_TEMPLATE = `{
   "tts": {
     "provider": "local",
     "modelId": "mlx-community/Kokoro-82M-bf16",
-    "voice": "af_heart",
+    "voices": { "host": "af_heart", "guest": "am_michael" },
     "language": "en-US",
     "measuredOn": "Apple M4, 24 GB",
     "charsPerSecond": 16.2,
@@ -97,7 +105,11 @@ export const CONFIG_TEMPLATE = `{
       "name": "kokoro-82m",
       "cwd": "packages/podcast-providers",
       "command": ".venv/bin/python",
-      "args": ["-u", "runners/kokoro_mlx.py", "--text", "{text}", "--out", "{out}"],
+      "args": [
+        "-u", "runners/kokoro_mlx.py",
+        "--text", "{text}", "--out", "{out}",
+        "--voice", "{voice}", "--lang", "{language}"
+      ],
       "mediaType": "audio/wav",
       "timeoutSeconds": 600
     }

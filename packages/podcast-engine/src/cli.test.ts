@@ -3,8 +3,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { buildSourcePack, loadAllDocuments } from "@handbook/content";
-import { FakeLlm } from "@handbook/podcast-providers";
+import { FakeLlm, FakeWavTts, wavDurationSeconds } from "@handbook/podcast-providers";
 import { ModelResponseError } from "@handbook/podcast-providers";
+import type { TtsPort } from "@handbook/podcast-providers";
 import { runCli } from "./cli.ts";
 import { CONFIG_TEMPLATE } from "./config.ts";
 import { deriveExcerptIds } from "./ids.ts";
@@ -201,21 +202,154 @@ describe("runCli — config failures", () => {
 });
 
 describe("runCli — create", () => {
-  it("refuses with and without --run, naming the missing stages", async () => {
-    for (const argv of [
-      ["create", ...base().slice(1)],
-      ["create", ...base(["--run"]).slice(1)],
-    ]) {
-      lines = [];
-      const llm = new FakeLlm([draft]);
+  const script = {
+    turns: [
+      { speaker: "host", text: "What does MCP actually standardise?" },
+      { speaker: "guest", text: "The transport, and deliberately not the capability." },
+    ],
+  };
 
-      const code = await runCli(argv, deps({ llm }));
+  /** `create` costs two model calls, in this order. */
+  async function creating(ids: string[]) {
+    return new FakeLlm([
+      { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] },
+      script,
+    ]);
+  }
 
-      expect(code).not.toBe(0);
-      expect(llm.calls).toHaveLength(0);
-      expect(lines.join("\n")).toMatch(/dialogue/);
-      await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
-    }
+  async function realIds(): Promise<string[]> {
+    const documents = await loadAllDocuments(REPO_ROOT);
+    return deriveExcerptIds(buildSourcePack(documents, "module:06-mcp").excerpts);
+  }
+
+  const create = (extra: string[] = []) => ["create", ...base(extra).slice(1)];
+
+  it("estimates both model calls and writes nothing without --run", async () => {
+    const llm = new FakeLlm([draft, script]);
+
+    const code = await runCli(create(), deps({ llm, tts: new FakeWavTts() }));
+
+    expect(code).toBe(0);
+    expect(llm.calls).toHaveLength(0);
+    await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
+
+    const output = lines.join("\n");
+    expect(output).toMatch(/dialogue input/);
+    expect(output).toMatch(/dialogue output/);
+    // The quality passes are what `create` still does not do. Saying so is the
+    // same discipline that made `create` refuse when it did nothing at all.
+    expect(output).toMatch(/review, revision/);
+  });
+
+  it("estimates more than plan alone, because it makes a second call", async () => {
+    await runCli(base(), deps({ llm: new FakeLlm([draft]) }));
+    const planOnly = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+
+    lines = [];
+    await runCli(create(), deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }));
+    const both = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+
+    expect(both).toBeGreaterThan(planOnly);
+  });
+
+  it("writes a playable episode, its script, its plan, and a complete manifest", async () => {
+    const llm = await creating(await realIds());
+    const tts = new FakeWavTts();
+
+    const code = await runCli(create(["--run"]), deps({ llm, tts }));
+
+    expect(code).toBe(0);
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    expect((await readdir(dir)).sort()).toEqual([
+      "episode.wav",
+      "manifest.json",
+      "plan.json",
+      "script.json",
+    ]);
+
+    // Playable means a real container of the expected length, not a file that
+    // exists: 86 characters of speech at 16 chars/s is 5.375 seconds.
+    const audio = await readFile(join(dir, "episode.wav"));
+    expect(wavDurationSeconds(new Uint8Array(audio))).toBeCloseTo(86 / 16, 2);
+  });
+
+  it("casts the two speakers to the two configured voices", async () => {
+    const tts = new FakeWavTts();
+
+    await runCli(create(["--run"]), deps({ llm: await creating(await realIds()), tts }));
+
+    expect(tts.requests.map((request) => request.voice)).toEqual(["af_heart", "am_michael"]);
+  });
+
+  it("records both calls' tokens and the speech characters in one manifest", async () => {
+    await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: new FakeWavTts() }),
+    );
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+
+    expect(manifest.command).toBe("create");
+    expect(manifest.status).toBe("complete");
+    expect(manifest.usage.speechCharacters).toBe(86);
+    expect(manifest.artifacts).toEqual([
+      "plan.json",
+      "script.json",
+      "episode.wav",
+      "manifest.json",
+    ]);
+    // Two calls, so more than the single-call plan run spends.
+    expect(manifest.usage.outputTokens).toBeGreaterThan(0);
+    expect(manifest.cost.measured).toBeGreaterThan(0);
+  });
+
+  it("keeps the plan and script when synthesis fails, and bills what was spent", async () => {
+    // The expensive half of a create run is synthesis. Losing the two model
+    // calls' output because the voice died would make the failure cost double
+    // to retry.
+    const broken: TtsPort = {
+      name: "broken-tts",
+      synthesise: () => Promise.reject(new Error("runner exited 1")),
+    };
+
+    const code = await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: broken }),
+    );
+
+    expect(code).toBe(1);
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    expect((await readdir(dir)).sort()).toEqual(["manifest.json", "plan.json", "script.json"]);
+
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+    expect(manifest.status).toBe("failed");
+    expect(manifest.failure.stage).toBe("synthesis");
+    expect(manifest.usage.outputTokens).toBeGreaterThan(0);
+    expect(manifest.cost.measured).toBeGreaterThan(0);
+    expect(lines.join("\n")).toMatch(/failed in synthesis/);
+  });
+
+  it("names the dialogue stage when the script is the thing that fails", async () => {
+    const ids = await realIds();
+    const llm = new FakeLlm([
+      { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] },
+      // Two turns, one speaker: a monologue that satisfies the schema.
+      {
+        turns: [
+          { speaker: "host", text: "One." },
+          { speaker: "host", text: "Two." },
+        ],
+      },
+    ]);
+
+    const code = await runCli(create(["--run"]), deps({ llm, tts: new FakeWavTts() }));
+
+    expect(code).toBe(1);
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+    expect(manifest.failure.stage).toBe("dialogue");
+    expect(manifest.usage.outputTokens).toBeGreaterThan(0);
   });
 });
 

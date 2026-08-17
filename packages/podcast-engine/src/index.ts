@@ -12,6 +12,10 @@ export type { ApportionResult } from "./apportion.ts";
 
 export * from "./plan.ts";
 
+export * from "./dialogue.ts";
+export * from "./episode.ts";
+export * from "./create.ts";
+
 export * from "./config.ts";
 export * from "./run.ts";
 export * from "./manifest.ts";
