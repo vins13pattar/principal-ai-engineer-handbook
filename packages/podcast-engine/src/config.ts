@@ -97,7 +97,7 @@ export const PodcastConfigSchema = z
 export type PodcastConfig = z.infer<typeof PodcastConfigSchema>;
 
 export const CONFIG_TEMPLATE = `{
-  "llm": { "provider": "anthropic", "modelId": "claude-...", "maxOutputTokens": 4000 },
+  "llm": { "provider": "anthropic", "modelId": "claude-...", "maxOutputTokens": 8000 },
   "prices": {
     "inputPerMillionTokens": 3.0,
     "outputPerMillionTokens": 15.0,

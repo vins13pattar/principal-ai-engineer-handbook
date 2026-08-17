@@ -52,12 +52,33 @@ const SYSTEM = [
   "says anything the excerpts do not support.",
   "Write only what is spoken. No speaker labels inside `text`, no markdown,",
   "no bracketed sound cues, no URLs read aloud.",
-  "Cover the beats in the order given and keep each beat within about ten",
-  "percent of its character budget. Both directions are failures the operator",
-  "sees: over budget produces an episode longer than the one they asked for,",
-  "under budget produces a shorter one. The budgets are measured, not",
-  "decorative.",
+  "Cover the beats in the order given, and write the number of turns each beat",
+  "asks for -- no more. Keep every turn to two or three sentences; if a point",
+  "needs more room, cut the point rather than extending the turn.",
+  "Length is a requirement, not a suggestion: the operator asked for an episode",
+  "of a particular duration, and turns are how it is measured.",
 ].join(" ");
+
+/**
+ * Characters one turn of two-or-three sentences actually comes to.
+ *
+ * Measured, not assumed: two real episodes came back at 301 and 326 characters
+ * per turn across 44 turns. 300 is the round number inside that range.
+ */
+export const CHARACTERS_PER_TURN = 300;
+
+/**
+ * Converts a character budget into a turn count.
+ *
+ * This exists because character budgets do not work. Two runs were given one
+ * and overran it by 48% and 57%; the second run was even told to stay within
+ * ten percent. A model cannot count the characters it is emitting, so a
+ * character budget is a number it can read and not a constraint it can apply.
+ * Turns and sentences it can count while writing.
+ */
+export function turnsForCharacters(characters: number): number {
+  return Math.max(1, Math.round(characters / CHARACTERS_PER_TURN));
+}
 
 /**
  * Four characters per token, matching `estimateTokens`, plus a third again for
@@ -123,11 +144,17 @@ export function renderDialoguePrompt(
   sources: ReadonlyMap<string, SourceExcerpt>,
   charsPerSecond: number,
 ): string {
+  const totalTurns = plan.beats.reduce(
+    (total, beat) => total + turnsForCharacters(Math.round(beat.targetSeconds * charsPerSecond)),
+    0,
+  );
+
   const lines = [
     `Episode title: ${plan.title}`,
     `Through-line: ${plan.throughLine}`,
-    `Total length: about ${Math.round(plan.plannedSeconds)} seconds of speech, ` +
-      `roughly ${Math.round(plan.plannedSeconds * charsPerSecond)} characters.`,
+    `Total length: ${totalTurns} turns, alternating host and guest, ` +
+      `which comes to about ${Math.round(plan.plannedSeconds)} seconds of speech. ` +
+      "Two or three sentences per turn.",
     "",
     "Beats, in order:",
     "",
@@ -135,10 +162,11 @@ export function renderDialoguePrompt(
 
   plan.beats.forEach((beat, index) => {
     const characters = Math.round(beat.targetSeconds * charsPerSecond);
+    const turns = turnsForCharacters(characters);
     lines.push(
       `Beat ${index + 1}: ${beat.title}`,
       `  Intent: ${beat.intent}`,
-      `  Budget: ~${Math.round(beat.targetSeconds)}s, about ${characters} characters of speech.`,
+      `  Write ${turns} turn${turns === 1 ? "" : "s"} for this beat (~${Math.round(beat.targetSeconds)}s).`,
       "  Source material:",
     );
 

@@ -64,19 +64,35 @@ export function llmFromModel(name: string, model: LanguageModel): LlmPort {
         // failure would send debugging to the wrong layer.
         if (!NoObjectGeneratedError.isInstance(error)) throw error;
 
-        throw new ModelResponseError("the model did not return a value matching the schema", {
-          ...(error.text === undefined ? {} : { rawText: error.text }),
-          ...(error.finishReason === undefined ? {} : { finishReason: error.finishReason }),
-          ...(error.usage === undefined
-            ? {}
-            : {
-                usage: {
-                  inputTokens: error.usage.inputTokens ?? 0,
-                  outputTokens: error.usage.outputTokens ?? 0,
-                  speechCharacters: 0,
-                },
-              }),
-        });
+        // `finishReason: "length"` is not a schema problem wearing a schema
+        // error's clothes -- it is the output cap cutting the JSON off
+        // mid-structure, and the fix is a bigger cap or a shorter request. It
+        // arrived in the diagnostics file from the first day and went unread
+        // because the message said "did not match the schema", which sent a
+        // real truncation to the wrong layer entirely.
+        const truncated = error.finishReason === "length";
+
+        throw new ModelResponseError(
+          truncated
+            ? `the model hit its output cap${
+                request.maxOutputTokens === undefined ? "" : ` of ${request.maxOutputTokens} tokens`
+              } and its response was cut off mid-structure. ` +
+                "Raise llm.maxOutputTokens, or ask for less."
+            : "the model did not return a value matching the schema",
+          {
+            ...(error.text === undefined ? {} : { rawText: error.text }),
+            ...(error.finishReason === undefined ? {} : { finishReason: error.finishReason }),
+            ...(error.usage === undefined
+              ? {}
+              : {
+                  usage: {
+                    inputTokens: error.usage.inputTokens ?? 0,
+                    outputTokens: error.usage.outputTokens ?? 0,
+                    speechCharacters: 0,
+                  },
+                }),
+          },
+        );
       }
     },
   };

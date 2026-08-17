@@ -5,6 +5,7 @@ import {
   assertDialogueFits,
   buildDialogueRequest,
   projectOutputTokens,
+  turnsForCharacters,
   scriptCharacters,
   validateSpeakers,
   writeDialogue,
@@ -89,17 +90,29 @@ const goodScript: DialogueScript = {
 };
 
 describe("renderDialoguePrompt", () => {
-  it("gives every beat a character budget derived from its seconds", () => {
+  it("budgets each beat in turns, which the model can count", () => {
     const { prompt } = buildDialogueRequest(plan(), sources, {
       charsPerSecond: 16,
       maxOutputTokens: 4000,
     });
 
-    // 60s at 16 chars/s. Without this the model has seconds it cannot convert
-    // and writes whatever length it feels like.
-    expect(prompt).toContain("960 characters");
+    // 60s at 16 chars/s is 960 characters, which is 3 turns of ~300. Character
+    // budgets were tried first and overrun by 48% and 57% on real runs: a model
+    // cannot count the characters it is emitting, so the number was readable
+    // and not applicable.
+    expect(prompt).toContain("Write 3 turns for this beat");
+    expect(prompt).toContain("6 turns, alternating host and guest");
+    expect(prompt).toContain("Two or three sentences per turn");
     expect(prompt).toContain("Setup");
     expect(prompt).toContain("Payoff");
+  });
+
+  it("never asks for zero turns, however thin the beat", () => {
+    // A beat allocated almost no time still has to be spoken or not exist.
+    // "Write 0 turns" is an instruction with no correct execution.
+    expect(turnsForCharacters(1)).toBe(1);
+    expect(turnsForCharacters(0)).toBe(1);
+    expect(turnsForCharacters(450)).toBe(2);
   });
 
   it("includes the body of every cited excerpt", () => {
