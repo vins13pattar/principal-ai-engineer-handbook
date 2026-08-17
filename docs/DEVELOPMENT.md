@@ -9,8 +9,9 @@ packages/components/ Reusable MDX doc components (EngineeringNote, TradeOff, ADR
 packages/diagrams/   The client-side Mermaid.astro component
 packages/shared/     Content-type Zod schemas, versioning types, the heading-lint used in CI
 labs/                Production-quality labs (Python, independent of the pnpm workspace)
+packages/podcast-*/  The podcast engine: planner, dialogue, local speech (see docs/PODCAST.md)
 scripts/             Repo-level Node scripts (content structure lint)
-docs/                This guide and the content authoring guide
+docs/                This guide, the content authoring guide, and the podcast engine guide
 ```
 
 `apps/*` and `packages/*` are a pnpm workspace (`pnpm-workspace.yaml`); `labs/*` is intentionally

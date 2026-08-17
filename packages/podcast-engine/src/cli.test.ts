@@ -72,12 +72,16 @@ describe("runCli — dry plan", () => {
     expect(lines.join("\n")).toMatch(/estimated at max output/i);
   });
 
-  it("names what it excludes", async () => {
+  it("names what it excludes, and does not call those stages missing", async () => {
+    // `plan` skips dialogue and synthesis; it does not lack them. Saying "not
+    // implemented" here -- which it did until `create` shipped -- tells an
+    // operator the pipeline cannot make an episode when it can.
     await runCli(base(), deps({ llm: new FakeLlm([draft]) }));
 
     const output = lines.join("\n");
-    expect(output).toMatch(/dialogue/);
-    expect(output).toMatch(/not implemented/);
+    expect(output).toMatch(/excludes\s+dialogue, synthesis, assembly/);
+    expect(output).toMatch(/run `create` for those/);
+    expect(output).not.toMatch(/not implemented/);
   });
 
   it("runs without a credential", async () => {

@@ -213,8 +213,14 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   }
 
   deps.log(`  covers          ${isCreate ? "plan, dialogue, synthesis, assembly" : "plan only"}`);
+  // Two different claims, and conflating them was wrong once already: what
+  // `plan` skips exists and is one command away, while what `create` skips does
+  // not exist at all. Printing "not implemented" for both told operators the
+  // pipeline could not make an episode when it could.
   deps.log(
-    `  excludes        ${isCreate ? CREATE_EXCLUDES : PLAN_EXCLUDES} — these stages are not implemented`,
+    isCreate
+      ? `  excludes        ${CREATE_EXCLUDES} — these stages are not implemented`
+      : `  excludes        ${PLAN_EXCLUDES} — run \`create\` for those`,
   );
 
   if (!wantsRun) {
