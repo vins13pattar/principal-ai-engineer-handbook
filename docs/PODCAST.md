@@ -3,16 +3,18 @@
 Turns one handbook page into a two-voice podcast episode. The model plans the arc and writes the
 dialogue; a local text-to-speech model speaks it; the pipeline joins the segments into one file.
 
-Speech is local and therefore free. The only money this spends is on the language model — **$0.21
-for a five-minute episode** on the current per-beat design, measured on two consecutive runs at
-Claude Sonnet pricing. Input dominates: the plan call sends the whole page.
+Speech is local and therefore free. The only money this spends is on the language model — **$0.46
+for a five-minute episode** at Claude Sonnet pricing, or **$0.21 with `--skip-review`**. Input
+dominates: the plan call sends the whole page, and review reads each beat's excerpts a second time.
+
+Six stages: plan, dialogue, review, revision, synthesis, assembly.
 
 ## Layout
 
 ```text
 packages/handbook-content/     Loads pages, builds the SourcePack an episode is sourced from
 packages/podcast-providers/    LlmPort and TtsPort, the adapters behind them, WAV assembly
-packages/podcast-engine/       Planner, dialogue stage, trim, synthesis, manifests, the CLI
+packages/podcast-engine/       Planner, dialogue, review, trim, synthesis, manifests, the CLI
 ```
 
 The engine never imports `ai` or `@ai-sdk/*`. It imports `LlmPort` and `TtsPort`, and everything
@@ -85,16 +87,17 @@ spending unless you pass `--run`.
 # What a plan call would cost, and whether the page supports an episode at all.
 node --experimental-strip-types packages/podcast-engine/src/cli.ts plan module:06-mcp --duration 300
 
-# The whole pipeline: plan, dialogue, synthesis, assembly.
+# The whole pipeline: plan, dialogue, review, revision, synthesis, assembly.
 node --env-file=... --experimental-strip-types packages/podcast-engine/src/cli.ts create module:06-mcp --duration 300 --run
 ```
 
-| Flag         | Default               | Meaning                                                 |
-| ------------ | --------------------- | ------------------------------------------------------- |
-| `--duration` | required              | Seconds of speech to aim for                            |
-| `--run`      | off                   | Actually call the model. Without it, nothing is written |
-| `--config`   | `podcast.config.json` | Configuration path                                      |
-| `--out`      | `.podcast`            | Where run directories are created                       |
+| Flag            | Default               | Meaning                                                    |
+| --------------- | --------------------- | ---------------------------------------------------------- |
+| `--duration`    | required              | Seconds of speech to aim for                               |
+| `--run`         | off                   | Actually call the model. Without it, nothing is written    |
+| `--config`      | `podcast.config.json` | Configuration path                                         |
+| `--out`         | `.podcast`            | Where run directories are created                          |
+| `--skip-review` | off                   | Skip the groundedness check. Halves the cost and the calls |
 
 `plan` exists separately because it is the cheap half — one model call, no synthesis — and the half
 worth running when the question is whether the source material supports an episode.
@@ -104,13 +107,17 @@ worth running when the question is whether the source material supports an episo
 Each run gets its own directory, `.podcast/<document>/<timestamp>-<suffix>/`, reserved atomically so
 two runs can never share one:
 
-| File            | Contents                                                                     |
-| --------------- | ---------------------------------------------------------------------------- |
-| `plan.json`     | The arc: beats, citations, per-beat seconds, what the model could not source |
-| `script.json`   | Every turn the model wrote, including the ones the trim did not render       |
-| `episode.wav`   | The episode                                                                  |
-| `manifest.json` | Status, model, usage, measured cost, and which turn indices were cut         |
-| `failure.json`  | Only on failure: the model's raw text and finish reason                      |
+| File            | Contents                                                                        |
+| --------------- | ------------------------------------------------------------------------------- |
+| `plan.json`     | The arc: beats, citations, per-beat seconds, what the model could not source    |
+| `script.json`   | Every turn the model wrote, including the ones the trim did not render          |
+| `episode.wav`   | The episode                                                                     |
+| `manifest.json` | Status, model, usage, measured cost, which turns were cut, every review finding |
+| `failure.json`  | Only on failure: the model's raw text and finish reason                         |
+
+`script.json` holds what the model wrote **after revision but before trimming**, and the manifest
+names the turn indices that were not spoken — so both edits the pipeline makes to its own output are
+auditable rather than invisible.
 
 A failed run still writes a manifest with everything spent up to the failure. A run that dies in
 synthesis has already paid for its model calls, and a manifest reporting zero for them would
@@ -151,12 +158,39 @@ Dialogue is generated one call per beat for the same reason. A single whole-epis
 be bounded, and it was more expensive: a beat needs the excerpts it cites, not the whole
 24,500-token pack, so five small calls send less than one large one.
 
+## What review is for
+
+Groundedness is the promise the closed-set design makes, and until review existed the only stage
+checking it was the planner. `validateCitations` proves a beat cites real excerpt ids; nothing
+proved the dialogue written from those excerpts stayed inside them. A confident sentence the sources
+do not support is indistinguishable from a correct one at every later stage, and it is spoken in the
+same voice.
+
+Each beat is checked against its own excerpts, and revised only if something was found — so a clean
+beat costs one extra call and a clean episode costs nothing to fix. Three problems are looked for,
+and they are the three this pipeline actually produces:
+
+- **`unsupported`** — the closed-set promise, broken. On the first reviewed run the guest said a
+  compromised server affects "not the other nine you've got open", inventing a number that appears
+  nowhere in the sources.
+- **`repeats`** — per-beat generation's own failure mode. No call sees another call's text, so the
+  same explanation can arrive twice, and a later beat can refer back to something never said. The
+  same run had a host recall "a third trap earlier, with credentials" that no earlier turn mentioned.
+- **`unspeakable`** — `tools/call`, `_meta`, `create_pull_request`, `ttlMs`. Harmless on a page and
+  gibberish in an ear.
+
+That first reviewed run found six problems across five beats with no false positives, and roughly
+doubled the cost: **$0.46 against $0.21**. `--skip-review` turns it off; the manifest records
+`ran: false` rather than an empty finding list, because "nobody checked" and "checked and clean" are
+different claims.
+
 ## Known limits
 
 - **Length lands within about 10%, not exactly.** Trimming can only cut on turn boundaries, and the
   speaking rate varies ±5% by content.
-- **No review or revision pass.** What comes out is a first draft that goes straight to voice. The
-  design has both stages; neither is built.
+- **Review checks groundedness, not accuracy.** It can tell you a claim is absent from the excerpts.
+  It cannot tell you the excerpts are right, and it will not catch a claim that is wrong in the same
+  way the source is wrong.
 - **English only, local speech only.** `tts.provider` accepts `local` and the language must be one
   the local profile covers, because a provider handed text it cannot pronounce usually returns
   confident audio rather than an error.
