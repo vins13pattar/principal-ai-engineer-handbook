@@ -128,11 +128,17 @@ understate the bill.
 Three configuration values are measurements, not preferences. Re-measure them on different hardware
 or a different voice.
 
-**`tts.charsPerSecond: 14.47`** — the speaking rate, and the number that decides whether "five
-minutes" means five minutes. Pooled over five real episodes and 22,349 characters, with per-episode
-rates from 13.96 to 15.28. Measure it on dialogue rather than prose: an early benchmark read one
-paragraph straight through and got 16.2, and using that figure made a 300-second request produce 513
-seconds of audio. The ±5% spread is why a request lands _near_ its duration rather than on it.
+**`tts.charsPerSecond: 14.77`** — the speaking rate, and the number that decides whether "five
+minutes" means five minutes. Pooled over eight real episodes and 34,978 characters across two
+documents, with per-episode rates from 13.96 to 15.89. Measure it on dialogue rather than prose: an
+early benchmark read one paragraph straight through and got 16.2, and using that figure made a
+300-second request produce 513 seconds of audio.
+
+The spread is content, not noise — a protocol-heavy page speaks slower than a narrative one, which
+has fewer identifiers to enunciate — and it is now the whole residual error. Trimming lands within a
+few characters of budget, so an episode comes out short precisely when its content speaks faster
+than this number says. Both documents tried so far land about 9% under. Re-measure from a run's
+manifest (`charactersRendered` over the audio's duration) if a kind of page is consistently off.
 
 **`tts.synthesisCost: { fixedSeconds: 3.16, marginalRtf: 0.073 }`** — render time is
 `fixed + marginal × audioSeconds`, **per call**. The fixed term is model load, and it is paid per
@@ -179,8 +185,16 @@ and they are the three this pipeline actually produces:
 - **`unspeakable`** — `tools/call`, `_meta`, `create_pull_request`, `ttlMs`. Harmless on a page and
   gibberish in an ear.
 
-That first reviewed run found six problems across five beats with no false positives, and roughly
-doubled the cost: **$0.46 against $0.21**. `--skip-review` turns it off; the manifest records
+Across two documents review has found twelve problems with no false positives, and it roughly
+doubles the cost: **$0.46 against $0.21**. What it finds depends heavily on the page. The
+protocol-heavy module produced four `unspeakable` findings and two `unsupported`; the narrative
+interview page produced zero `unspeakable`, five `unsupported`, and the first `repeats`.
+
+The `unsupported` findings share a shape worth knowing: **invented specificity**. A number ("the
+other nine you've got open"), an example ("build-versus-buy", where the sources discuss three other
+trade-offs), an enumeration ("all four levels"), a callback to something never said. Each one sounds
+exactly like the kind of detail the source would contain, which is what makes them hard to catch by
+reading and worth a stage of their own. `--skip-review` turns it off; the manifest records
 `ran: false` rather than an empty finding list, because "nobody checked" and "checked and clean" are
 different claims.
 

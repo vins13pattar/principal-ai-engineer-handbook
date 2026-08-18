@@ -75,10 +75,17 @@ export const PodcastConfigSchema = z
          * more sentence breaks and more punctuation. Using the prose figure
          * made a 300-second request produce 513 seconds of audio.
          *
-         * 14.47 is pooled over five real episodes and 22,349 characters. The
-         * per-episode rates ranged 13.96 to 15.28, so treat this as a mean
-         * with about 5% spread rather than a constant -- it is why a request
-         * lands near its duration rather than on it.
+         * 14.77 is pooled over eight real episodes and 34,978 characters,
+         * across two documents. It is a mean, not a constant: the per-episode
+         * rates run 13.96 to 15.89, and the spread is content, not noise --
+         * the protocol-heavy page speaks slower than the narrative one, which
+         * has fewer identifiers to enunciate.
+         *
+         * That spread is the whole residual error. Trimming now lands within a
+         * few characters of budget, so an episode ends up short precisely when
+         * its content speaks faster than this number says. Re-measure from a
+         * run's manifest -- `charactersRendered` over the audio's duration --
+         * if a particular kind of page is consistently off.
          */
         charsPerSecond: positive,
         synthesisCost: z.object({ fixedSeconds: positive, marginalRtf: nonNegative }).strict(),
@@ -113,7 +120,7 @@ export const CONFIG_TEMPLATE = `{
     "voices": { "host": "af_heart", "guest": "am_michael" },
     "language": "en-US",
     "measuredOn": "Apple M4, 24 GB",
-    "charsPerSecond": 14.47,
+    "charsPerSecond": 14.77,
     "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
     "runner": {
       "name": "kokoro-82m",

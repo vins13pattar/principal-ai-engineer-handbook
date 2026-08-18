@@ -15,7 +15,7 @@ function valid(): Record<string, unknown> {
       voices: { host: "af_heart", guest: "am_michael" },
       language: "en-US",
       measuredOn: "Apple M4, 24 GB",
-      charsPerSecond: 14.0,
+      charsPerSecond: 14.77,
       synthesisCost: { fixedSeconds: 3.16, marginalRtf: 0.073 },
       runner: {
         name: "kokoro-82m",
