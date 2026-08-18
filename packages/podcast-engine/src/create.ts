@@ -99,10 +99,13 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
     maxOutputTokens: config.llm.maxOutputTokens,
     review: options.review,
     onReview: (review) => {
+      const problems = review.findings.map((finding) => finding.problem).join(", ");
       const summary =
         review.findings.length === 0
           ? "clean"
-          : `${review.findings.map((finding) => finding.problem).join(", ")} — revised`;
+          : review.revised
+            ? `${problems} — revised`
+            : `${problems} — NOT fixed (${review.revisionRejected})`;
       options.log(`  reviewed        beat ${review.beat}: ${summary}`);
     },
   });

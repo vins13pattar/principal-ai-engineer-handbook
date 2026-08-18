@@ -67,6 +67,8 @@ const ReviewSchema = z.object({
   ran: z.boolean(),
   beatsReviewed: z.number(),
   beatsRevised: z.number(),
+  /** Beats where review found problems and the fix did not land. */
+  beatsLeftUnfixed: z.number(),
   findings: z.array(
     z.object({
       beat: z.number(),

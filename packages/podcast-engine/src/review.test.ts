@@ -3,6 +3,7 @@ import { FakeLlm } from "@handbook/podcast-providers";
 import type { SourceExcerpt } from "@handbook/content";
 import { buildReviewRequest, buildRevisionRequest, reviewBeat } from "./review.ts";
 import type { Finding } from "./review.ts";
+import type { LlmPort } from "@handbook/podcast-providers";
 import type { PlannedBeat } from "./schema.ts";
 
 const beat: PlannedBeat = {
@@ -116,6 +117,49 @@ describe("reviewBeat", () => {
 
     expect(result.usage.outputTokens).toBeGreaterThan(0);
     expect(result.usage.speechCharacters).toBe(0);
+  });
+
+  it("keeps the beat when the revision call fails", async () => {
+    // Review is an improvement on a beat that already exists and is paid for.
+    // Losing the fix costs one flaw in one segment; throwing here would cost
+    // the plan call, every beat written so far, and every review of them.
+    const llm: LlmPort = {
+      name: "half-broken",
+      generate: (async (request: { system: string }) =>
+        request.system.startsWith("You check")
+          ? {
+              value: { findings: [{ turn: 0, problem: "unsupported", detail: "invented" }] },
+              modelId: "x",
+              usage: { inputTokens: 1, outputTokens: 1, speechCharacters: 0 },
+            }
+          : Promise.reject(new Error("revision exploded"))) as LlmPort["generate"],
+    };
+
+    const result = await reviewBeat(beat, turns, sources, [], llm, 2000);
+
+    expect(result.turns).toEqual(turns);
+    expect(result.revised).toBe(false);
+    expect(result.findings).toHaveLength(1);
+    expect(result.revisionRejected).toMatch(/revision exploded/);
+  });
+
+  it("refuses a revision that changes the turn count", async () => {
+    // The prompt asks for the same turns with only the named problems fixed.
+    // A different count means it merged, dropped, or invented turns -- which
+    // silently changes what the episode says and how long it runs.
+    const llm = new FakeLlm([
+      { findings: [{ turn: 1, problem: "unsupported", detail: "invented" }] },
+      { turns: [{ speaker: "host", text: "Just the one now." }] },
+    ]);
+
+    const result = await reviewBeat(beat, turns, sources, [], llm, 2000);
+
+    expect(result.turns).toEqual(turns);
+    expect(result.revised).toBe(false);
+    expect(result.revisionRejected).toMatch(/returned 1 turns for a 2-turn segment/);
+    // Both calls are still billed: the tokens were spent whether or not the
+    // answer was usable.
+    expect(result.usage.outputTokens).toBeGreaterThan(0);
   });
 
   it("drops a finding pointing at a turn that does not exist", async () => {

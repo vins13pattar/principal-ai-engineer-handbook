@@ -373,6 +373,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
           ran: review,
           beatsReviewed: result.reviews.length,
           beatsRevised: result.reviews.filter((entry) => entry.revised).length,
+          // Beats with known problems still in them. A count of findings alone
+          // would imply they were all fixed.
+          beatsLeftUnfixed: result.reviews.filter(
+            (entry) => entry.findings.length > 0 && !entry.revised,
+          ).length,
           // Kept in full rather than counted: "two unsupported claims" is a
           // statistic, and the sentences they were is the thing worth reading.
           findings: result.reviews.flatMap((entry) =>

@@ -315,6 +315,9 @@ export async function writeDialogue(
           beat: position + 1,
           findings: reviewed.findings,
           revised: reviewed.revised,
+          ...(reviewed.revisionRejected === undefined
+            ? {}
+            : { revisionRejected: reviewed.revisionRejected }),
         };
         reviews.push(record);
         options.onReview?.(record);

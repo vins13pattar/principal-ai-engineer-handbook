@@ -53,6 +53,15 @@ export interface BeatReview {
   beat: number;
   findings: Finding[];
   revised: boolean;
+  /**
+   * Why a revision was not applied, when findings existed but the fix failed.
+   *
+   * Distinct from a clean beat and from a revised one: this beat has known
+   * problems that are still in it. Without this the manifest would show
+   * findings and `revised: false`, which reads exactly like the reviewer having
+   * changed its mind.
+   */
+  revisionRejected?: string;
 }
 
 const REVIEW_SYSTEM = [
@@ -165,16 +174,23 @@ export interface ReviewResult {
   turns: BeatScript["turns"];
   findings: Finding[];
   revised: boolean;
+  /** Set when a revision was attempted and rejected, with the reason. */
+  revisionRejected?: string;
   usage: Usage;
 }
 
 /**
  * Reviews one beat, and revises it only if the review found something.
  *
- * A finding pointing at a turn that does not exist is dropped rather than
- * failing the run: a reviewer that miscounts has made a bookkeeping error, and
- * discarding an episode over it costs far more than ignoring one finding. The
- * same reasoning as clamping a beat tag in `trimToBudget`.
+ * Every failure here degrades to the unrevised beat rather than to a dead run,
+ * and that is the whole disposition of this stage: review is an improvement on
+ * a beat that already exists and is already paid for. Losing a fix costs one
+ * flaw in one segment; losing the run costs the plan call, every beat written
+ * so far, and every review of them.
+ *
+ * So a finding pointing at a turn that does not exist is dropped, a revision
+ * call that throws is swallowed, and a revision that comes back the wrong shape
+ * is refused -- each of them keeping the original turns and saying so.
  */
 export async function reviewBeat(
   beat: PlannedBeat,
@@ -194,9 +210,39 @@ export async function reviewBeat(
     return { turns, findings: [], revised: false, usage: review.usage };
   }
 
-  const revision = await llm.generate<BeatScript>(
-    buildRevisionRequest(beat, turns, findings, sources, maxOutputTokens),
-  );
+  const unrevised = (reason: string, usage = review.usage): ReviewResult => ({
+    turns,
+    findings,
+    revised: false,
+    revisionRejected: reason,
+    usage,
+  });
+
+  let revision;
+  try {
+    revision = await llm.generate<BeatScript>(
+      buildRevisionRequest(beat, turns, findings, sources, maxOutputTokens),
+    );
+  } catch (error) {
+    // The beat is usable; only the fix was lost. Killing the run here would
+    // discard everything spent before it over a call that was optional.
+    return unrevised(error instanceof Error ? error.message : String(error));
+  }
+
+  // The revision prompt asks for the same turns with only the named problems
+  // fixed. A different count means it did something other than the constrained
+  // edit -- merged turns, dropped them, invented them -- and accepting that
+  // silently changes what the episode says and how long it runs.
+  if (revision.value.turns.length !== turns.length) {
+    return unrevised(
+      `returned ${revision.value.turns.length} turns for a ${turns.length}-turn segment`,
+      {
+        inputTokens: review.usage.inputTokens + revision.usage.inputTokens,
+        outputTokens: review.usage.outputTokens + revision.usage.outputTokens,
+        speechCharacters: 0,
+      },
+    );
+  }
 
   return {
     turns: revision.value.turns,
