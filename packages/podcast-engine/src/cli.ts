@@ -23,9 +23,9 @@ import { CONFIG_TEMPLATE, parseConfig } from "./config.ts";
 import type { PodcastConfig } from "./config.ts";
 import { createEpisode } from "./create.ts";
 import type { CreateStage } from "./create.ts";
-import { estimatePlanCost } from "./estimate.ts";
+import { estimateCreateCost, estimatePlanCost } from "./estimate.ts";
 import { writeManifest } from "./manifest.ts";
-import { buildPlanRequest, planEpisode } from "./plan.ts";
+import { beatsForSeconds, buildPlanRequest, planEpisode } from "./plan.ts";
 import { makeRunId, reserveRunDirectory, sanitiseSegment } from "./run.ts";
 
 export interface CliDeps {
@@ -167,26 +167,19 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   });
   const planCost = estimatePlanCost(request, config.prices, config.llm.maxOutputTokens);
 
-  // The dialogue prompt is the plan's excerpt material minus whatever the plan
-  // did not cite, plus a few hundred characters of beat scaffolding. Pricing it
-  // as if it carried the whole pack is therefore an over-estimate, and saying
-  // so is better than quoting a number that looks measured. It cannot be
-  // computed exactly here: the plan it summarises does not exist yet.
-  const dialogueCost = isCreate
-    ? estimatePlanCost(request, config.prices, config.llm.maxOutputTokens)
+  const createCost = isCreate
+    ? estimateCreateCost(request, config.prices, {
+        beats: beatsForSeconds(durationSeconds),
+        characterBudget: Math.round(durationSeconds * config.tts.charsPerSecond),
+        review,
+      })
     : null;
 
-  // Review reads the same excerpts a second time and answers with a short list,
-  // so its input is dialogue's and its output is nowhere near the cap. Priced
-  // at the same ceiling anyway: this whole figure is a ceiling, and a review
-  // line quietly cheaper than the truth would be the one number here that is
-  // optimistic.
-  const reviewCost = isCreate && review ? dialogueCost : null;
-
-  const estimatedAtMaxOutput =
-    planCost.estimatedAtMaxOutput +
-    (dialogueCost?.estimatedAtMaxOutput ?? 0) +
-    (reviewCost?.estimatedAtMaxOutput ?? 0);
+  // `plan` still quotes a ceiling because for one call a ceiling is a real
+  // bound. `create` quotes an expectation, because summing eleven generous
+  // per-call caps produces a number nothing approaches -- see
+  // `estimateCreateCost`.
+  const estimated = createCost ? createCost.expected : planCost.estimatedAtMaxOutput;
 
   deps.log(
     `  pack            ${pack.excerpts.length} excerpts, ~${planCost.inputTokens} est. input tokens`,
@@ -198,31 +191,33 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     );
   }
   deps.log("");
-  deps.log(
-    `  plan input      ${planCost.inputTokens} tok   $${planCost.inputCost.toFixed(4)}   estimated, NOT capped`,
-  );
-  deps.log(
-    `  plan output     ${planCost.maxOutputTokens} tok   $${planCost.maxOutputCost.toFixed(4)}   enforced via maxOutputTokens`,
-  );
 
-  if (dialogueCost) {
+  if (createCost) {
     deps.log(
-      `  dialogue input  ${dialogueCost.inputTokens} tok   $${dialogueCost.inputCost.toFixed(4)}   over-estimate: prices the whole pack, not just cited excerpts`,
+      `  calls           ${createCost.calls}: 1 plan + ${createCost.beats} dialogue${review ? ` + ${createCost.beats} review` : ""}`,
     );
     deps.log(
-      `  dialogue output ${dialogueCost.maxOutputTokens} tok   $${dialogueCost.maxOutputCost.toFixed(4)}   enforced via maxOutputTokens`,
+      `  input (est.)    ${createCost.inputTokens} tok   $${createCost.inputCost.toFixed(4)}   the pack reaches each stage`,
     );
+    deps.log(
+      `  output (exp.)   ${createCost.expectedOutputTokens} tok   $${createCost.expectedOutputCost.toFixed(4)}   ${review ? "the script, the overrun, and the beats review rewrites" : "the script and the overrun past its budget"}`,
+    );
+    deps.log(`  expected        $${createCost.expected.toFixed(4)}`);
+    deps.log("");
+    deps.log("  an expectation, not a ceiling: per-call caps exist to stop a runaway, not to");
+    deps.log("  price the run. Models overrun the character budget, reliably and by a lot —");
+    deps.log("  that costs output tokens, and the trim keeps it from lengthening the episode.");
+  } else {
+    deps.log(
+      `  plan input      ${planCost.inputTokens} tok   $${planCost.inputCost.toFixed(4)}   estimated, NOT capped`,
+    );
+    deps.log(
+      `  plan output     ${planCost.maxOutputTokens} tok   $${planCost.maxOutputCost.toFixed(4)}   enforced via maxOutputTokens`,
+    );
+    deps.log(`  estimated at max output       $${estimated.toFixed(4)}`);
+    deps.log("");
+    deps.log("  input is an approximation and can exceed this; only output is capped");
   }
-
-  if (reviewCost) {
-    deps.log(
-      `  review          ${reviewCost.inputTokens} tok in   $${reviewCost.estimatedAtMaxOutput.toFixed(4)}   checks each beat against its sources (--skip-review to omit)`,
-    );
-  }
-
-  deps.log(`  estimated at max output       $${estimatedAtMaxOutput.toFixed(4)}`);
-  deps.log("");
-  deps.log("  input is an approximation and can exceed this; only output is capped");
 
   if (isCreate) {
     const characters = Math.round(durationSeconds * config.tts.charsPerSecond);
@@ -366,7 +361,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         source,
         model: { modelId },
         usage,
-        cost: { estimatedAtMaxOutput, measured },
+        cost: { estimatedAtMaxOutput: estimated, measured },
         dialogue: {
           turnsWritten: result.script.turns.length,
           turnsRendered: result.rendered.script.turns.length,
@@ -399,7 +394,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         `  measured        ${usage.inputTokens} in / ${usage.outputTokens} out tok, ${usage.speechCharacters} chars   $${measured.toFixed(4)}`,
       );
       deps.log(
-        `  estimated at max output       $${estimatedAtMaxOutput.toFixed(4)}   (vs. measured $${measured.toFixed(4)})`,
+        `  estimated       $${estimated.toFixed(4)}   (vs. measured $${measured.toFixed(4)})`,
       );
       deps.log("");
       deps.log(`  wrote ${join(directory, "episode.wav")}`);
@@ -431,7 +426,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       source,
       model: { modelId },
       usage,
-      cost: { estimatedAtMaxOutput, measured },
+      cost: { estimatedAtMaxOutput: estimated, measured },
       artifacts: ["plan.json", "manifest.json"],
     });
 
@@ -442,9 +437,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     deps.log(
       `  measured        ${usage.inputTokens} in / ${usage.outputTokens} out tok   $${measured.toFixed(4)}`,
     );
-    deps.log(
-      `  estimated at max output       $${estimatedAtMaxOutput.toFixed(4)}   (vs. measured $${measured.toFixed(4)})`,
-    );
+    deps.log(`  estimated       $${estimated.toFixed(4)}   (vs. measured $${measured.toFixed(4)})`);
     deps.log("");
     deps.log(`  wrote ${directory}`);
     return 0;
@@ -479,7 +472,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       source,
       model: { modelId },
       ...(usageKnown ? { usage } : {}),
-      cost: { estimatedAtMaxOutput, measured },
+      cost: { estimatedAtMaxOutput: estimated, measured },
       artifacts: failed,
     });
 

@@ -232,7 +232,7 @@ describe("runCli — create", () => {
 
   const create = (extra: string[] = []) => ["create", ...base(extra).slice(1)];
 
-  it("estimates both model calls and writes nothing without --run", async () => {
+  it("estimates every call it will make, and writes nothing without --run", async () => {
     const llm = new FakeLlm([draft, script]);
 
     const code = await runCli(create(), deps({ llm, tts: new FakeWavTts() }));
@@ -241,23 +241,15 @@ describe("runCli — create", () => {
     expect(llm.calls).toHaveLength(0);
     await expect(readdir(join(outRoot, "runs"))).rejects.toThrow();
 
+    // 2400 seconds is 12 beats after the cap, so 1 + 12 + 12.
     const output = lines.join("\n");
-    expect(output).toMatch(/dialogue input/);
-    expect(output).toMatch(/dialogue output/);
-    // The quality passes are what `create` still does not do. Saying so is the
-    // same discipline that made `create` refuse when it did nothing at all.
-    expect(output).toMatch(/review, revision/);
-  });
-
-  it("estimates more than plan alone, because it makes a second call", async () => {
-    await runCli(base(), deps({ llm: new FakeLlm([draft]) }));
-    const planOnly = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
-
-    lines = [];
-    await runCli(create(), deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }));
-    const both = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
-
-    expect(both).toBeGreaterThan(planOnly);
+    expect(output).toMatch(/calls\s+25: 1 plan \+ 12 dialogue \+ 12 review/);
+    expect(output).toMatch(/expected\s+\$\d/);
+    // The word matters. Summing 25 generous per-call caps produces a number
+    // nothing approaches, and quoting it as a ceiling made the estimate 2.2x
+    // the real cost -- a figure always wrong by half is a figure ignored.
+    expect(output).toMatch(/an expectation, not a ceiling/);
+    expect(output).not.toMatch(/estimated at max output/);
   });
 
   it("writes a playable episode, its script, its plan, and a complete manifest", async () => {
@@ -331,18 +323,20 @@ describe("runCli — create", () => {
   });
 
   it("prices review into the estimate, and drops it when skipped", async () => {
+    const expected = () => Number(/expected\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+
     await runCli(create(), deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }));
-    const withReview = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+    const withReview = expected();
 
     lines = [];
     await runCli(
       create(["--skip-review"]),
       deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }),
     );
-    const without = Number(/estimated at max output\s+\$([\d.]+)/.exec(lines.join("\n"))?.[1]);
+    const without = expected();
 
     expect(withReview).toBeGreaterThan(without);
-    expect(lines.join("\n")).not.toMatch(/^\s+review\s/m);
+    expect(lines.join("\n")).toMatch(/calls\s+13: 1 plan \+ 12 dialogue$/m);
   });
 
   it("casts the two speakers to the two configured voices", async () => {

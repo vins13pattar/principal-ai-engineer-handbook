@@ -1,49 +1,74 @@
 import { describe, expect, it } from "vitest";
-import type { PriceList } from "@handbook/podcast-providers";
-import { estimatePlanCost } from "./estimate.ts";
+import { estimateCreateCost, estimatePlanCost } from "./estimate.ts";
 
-const prices: PriceList = {
+const prices = {
   inputPerMillionTokens: 3,
   outputPerMillionTokens: 15,
-  speechPerMillionCharacters: 100,
+  speechPerMillionCharacters: 0,
 };
 
+const request = { system: "x".repeat(400), prompt: "y".repeat(98_000) };
+
 describe("estimatePlanCost", () => {
-  it("prices input from the request and output from the cap", () => {
-    const request = { system: "s".repeat(400), prompt: "p".repeat(3600) };
+  it("prices one call at its ceiling, which for one call is a real bound", () => {
+    const cost = estimatePlanCost(request, prices, 16_000);
 
-    const breakdown = estimatePlanCost(request, prices, 4000);
+    expect(cost.inputTokens).toBe(24_600);
+    expect(cost.estimatedAtMaxOutput).toBeCloseTo(cost.inputCost + cost.maxOutputCost, 10);
+  });
+});
 
-    // 4000 characters at four per token is 1000 tokens.
-    expect(breakdown.inputTokens).toBe(1000);
-    expect(breakdown.inputCost).toBeCloseTo(0.003, 6);
-    expect(breakdown.maxOutputTokens).toBe(4000);
-    expect(breakdown.maxOutputCost).toBeCloseTo(0.06, 6);
-    expect(breakdown.estimatedAtMaxOutput).toBeCloseTo(0.063, 6);
+describe("estimateCreateCost", () => {
+  const options = { beats: 5, characterBudget: 4300, review: true };
+
+  it("counts every call the pipeline will make", () => {
+    const cost = estimateCreateCost(request, prices, options);
+
+    expect(cost.calls).toBe(11);
+    expect(estimateCreateCost(request, prices, { ...options, review: false }).calls).toBe(6);
   });
 
-  it("excludes speech entirely, even when speech is priced", () => {
-    // `plan` does not synthesise. Pricing synthesis into its total would put
-    // dollars on work the command never performs -- visibly wrong the moment a
-    // hosted TTS profile is configured, which is why this uses a non-zero
-    // speech price rather than the local zero.
-    const request = { system: "s".repeat(400), prompt: "p".repeat(3600) };
+  it("sends the pack to each stage", () => {
+    // Planner, then dialogue beat by beat, then review over the same material.
+    const withReview = estimateCreateCost(request, prices, options);
+    const without = estimateCreateCost(request, prices, { ...options, review: false });
 
-    const breakdown = estimatePlanCost(request, prices, 4000);
-
-    expect(breakdown.estimatedAtMaxOutput).toBeCloseTo(
-      breakdown.inputCost + breakdown.maxOutputCost,
-      10,
-    );
-    expect(Object.keys(breakdown)).not.toContain("speechCost");
+    expect(withReview.inputTokens).toBe(24_600 * 3);
+    expect(without.inputTokens).toBe(24_600 * 2);
   });
 
-  it("counts the system prompt, not only the prompt", () => {
-    // The estimator prices the exact request that will be sent. Omitting the
-    // system text prices something the model never receives.
-    const withSystem = estimatePlanCost({ system: "s".repeat(400), prompt: "p" }, prices, 100);
-    const withoutSystem = estimatePlanCost({ system: "", prompt: "p" }, prices, 100);
+  it("lands near what real runs actually cost", () => {
+    // The point of the change. Two measured runs at this budget cost $0.4188
+    // and $0.4590; the ceiling this replaced quoted $0.93.
+    const cost = estimateCreateCost(request, prices, options);
 
-    expect(withSystem.inputTokens).toBeGreaterThan(withoutSystem.inputTokens);
+    expect(cost.expected).toBeGreaterThan(0.38);
+    expect(cost.expected).toBeLessThan(0.5);
+  });
+
+  it("lands near a real run with review off", () => {
+    // Measured: $0.2073 and $0.2079.
+    const cost = estimateCreateCost(request, prices, { ...options, review: false });
+
+    expect(cost.expected).toBeGreaterThan(0.17);
+    expect(cost.expected).toBeLessThan(0.25);
+  });
+
+  it("prices review as a large addition, not a rounding error", () => {
+    // Revision returns a whole rewritten beat whenever review finds anything,
+    // and it found something in nine of ten beats across two documents. The
+    // first attempt at this modelled review as a short list and predicted a
+    // quarter of the real cost.
+    const withReview = estimateCreateCost(request, prices, options);
+    const without = estimateCreateCost(request, prices, { ...options, review: false });
+
+    expect(withReview.expectedOutputTokens / without.expectedOutputTokens).toBeGreaterThan(3);
+  });
+
+  it("scales with the duration's character budget", () => {
+    const short = estimateCreateCost(request, prices, { ...options, characterBudget: 2000 });
+    const long = estimateCreateCost(request, prices, { ...options, characterBudget: 8000 });
+
+    expect(long.expectedOutputTokens).toBeGreaterThan(short.expectedOutputTokens * 3);
   });
 });
