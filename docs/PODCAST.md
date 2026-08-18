@@ -83,6 +83,12 @@ node --env-file=~/.config/handbook/podcast.env --experimental-strip-types packag
 Both take a document id and a duration in seconds, and both print an estimate and exit without
 spending unless you pass `--run`.
 
+The two estimates mean different things. `plan` quotes a ceiling, which for a single call is a real
+bound. `create` quotes an **expectation**, because summing eleven generous per-call caps produces a
+number nothing approaches — quoting that as a ceiling made the estimate 2.2× the real cost, and a
+figure always wrong by half is a figure you learn to ignore. The expectation is fitted to measured
+runs and predicts within about 7%.
+
 ```bash
 # What a plan call would cost, and whether the page supports an episode at all.
 node --experimental-strip-types packages/podcast-engine/src/cli.ts plan module:06-mcp --duration 300
@@ -184,6 +190,14 @@ and they are the three this pipeline actually produces:
   same run had a host recall "a third trap earlier, with credentials" that no earlier turn mentioned.
 - **`unspeakable`** — `tools/call`, `_meta`, `create_pull_request`, `ttlMs`. Harmless on a page and
   gibberish in an ear.
+
+Every failure inside this stage degrades to the unrevised beat rather than to a dead run, because a
+review is an improvement on a beat that already exists and is already paid for. A finding pointing
+at a turn that does not exist is dropped; a revision call that throws is swallowed; a revision that
+comes back with a different number of turns is refused, since that means it merged, dropped, or
+invented turns rather than making the constrained edit. Each of those keeps the original turns and
+records why — the run prints `NOT fixed`, and the manifest counts `beatsLeftUnfixed`, which is the
+number of beats carrying problems somebody knows about.
 
 Across two documents review has found twelve problems with no false positives, and it roughly
 doubles the cost: **$0.46 against $0.21**. What it finds depends heavily on the page. The
