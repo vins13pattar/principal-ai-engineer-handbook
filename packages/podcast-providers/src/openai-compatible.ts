@@ -29,16 +29,46 @@ export interface OpenAiCompatibleOptions {
   /** Sent as a bearer token. Local servers often accept anything. */
   apiKey?: string;
   timeoutSeconds?: number;
+  /**
+   * Injected for tests.
+   *
+   * `patientFetch` calls undici directly rather than `globalThis.fetch`, so
+   * stubbing the global does not reach it — the first version of this adapter's
+   * tests silently talked to a real model on localhost and asserted against
+   * whatever it happened to say.
+   */
+  fetch?: typeof globalThis.fetch;
 }
 
 interface ChatCompletion {
-  choices?: Array<{ message?: { content?: string }; finish_reason?: string }>;
+  choices?: Array<{
+    message?: { content?: string; reasoning_content?: string };
+    finish_reason?: string;
+  }>;
   usage?: { prompt_tokens?: number; completion_tokens?: number };
+}
+
+/**
+ * The answer, wherever the server decided to put it.
+ *
+ * A reasoning model behind LM Studio returns constrained JSON in
+ * `reasoning_content` with `content` empty — the schema was enforced correctly
+ * and the output filed as thinking, because everything the model emitted before
+ * an answer it never separately produced looks like thinking. Reading only
+ * `content` reports a perfectly good response as "not JSON".
+ *
+ * `content` still wins when both are present: a model that produced a real
+ * answer alongside its reasoning meant the answer.
+ */
+function answerText(message: { content?: string; reasoning_content?: string } | undefined): string {
+  const content = message?.content?.trim();
+  if (content) return content;
+  return message?.reasoning_content?.trim() ?? "";
 }
 
 export function createOpenAiCompatibleLlm(options: OpenAiCompatibleOptions): LlmPort {
   const baseUrl = options.baseUrl.replace(/\/+$/, "");
-  const fetchImpl = patientFetch(options.timeoutSeconds ?? 3600);
+  const fetchImpl = options.fetch ?? patientFetch(options.timeoutSeconds ?? 3600);
 
   return {
     name: `local:${options.modelId}`,
@@ -90,7 +120,7 @@ export function createOpenAiCompatibleLlm(options: OpenAiCompatibleOptions): Llm
 
       const body = (await response.json()) as ChatCompletion;
       const choice = body.choices?.[0];
-      const text = choice?.message?.content ?? "";
+      const text = answerText(choice?.message);
       const finishReason = choice?.finish_reason;
 
       const usage = {
