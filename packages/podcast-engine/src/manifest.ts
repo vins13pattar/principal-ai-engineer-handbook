@@ -65,6 +65,14 @@ const RenderedSchema = z.object({
  */
 const ReviewSchema = z.object({
   ran: z.boolean(),
+  /**
+   * Beats whose review call succeeded.
+   *
+   * Not the number of beats in the episode: `beatsReviewed + beatsNotChecked`
+   * is what was attempted. The two are separate because a beat nobody managed
+   * to check is not a beat that passed, and one number covering both would say
+   * it was.
+   */
   beatsReviewed: z.number(),
   beatsRevised: z.number(),
   /** Beats where review found problems and the fix did not land. */

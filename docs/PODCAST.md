@@ -192,12 +192,23 @@ and they are the three this pipeline actually produces:
   gibberish in an ear.
 
 Every failure inside this stage degrades to the unrevised beat rather than to a dead run, because a
-review is an improvement on a beat that already exists and is already paid for. A finding pointing
-at a turn that does not exist is dropped; a revision call that throws is swallowed; a revision that
-comes back with a different number of turns is refused, since that means it merged, dropped, or
-invented turns rather than making the constrained edit. Each of those keeps the original turns and
-records why — the run prints `NOT fixed`, and the manifest counts `beatsLeftUnfixed`, which is the
-number of beats carrying problems somebody knows about.
+review is an improvement on a beat that already exists and is already paid for. The review call
+throwing, the revision call throwing, a revision coming back with a different number of turns, a
+finding naming a turn the beat does not have — none of them end the run, and each records what
+happened rather than passing as success:
+
+| Manifest field     | Means                                                             | Run prints                  |
+| ------------------ | ----------------------------------------------------------------- | --------------------------- |
+| `beatsReviewed`    | Checks that succeeded. With `beatsNotChecked`, what was attempted | `clean` or the findings     |
+| `beatsRevised`     | Findings were fixed                                               | `… — revised`               |
+| `beatsLeftUnfixed` | Findings exist and the fix did not land                           | `… — NOT fixed (why)`       |
+| `beatsNotChecked`  | The review call failed; this beat went unchecked                  | `NOT CHECKED (why)`         |
+| `droppedFindings`  | Findings naming a turn the beat does not have                     | `discarded as out of range` |
+
+`beatsReviewed` counts successful checks, not beats — a beat nobody managed to check is not a beat
+that passed, and `droppedFindings` above zero on a beat with no findings means the same thing.
+Watch that one: if a reviewer's turn numbering is systematically off, every beat would otherwise
+report clean while nothing was actually checked.
 
 Across two documents review has found twelve problems with no false positives, and it roughly
 doubles the cost: **$0.46 against $0.21**. What it finds depends heavily on the page. The

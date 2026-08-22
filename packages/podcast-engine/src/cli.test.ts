@@ -397,6 +397,23 @@ describe("runCli — create", () => {
     expect(manifest.review.findings[0].detail).toBe("invented a number");
   });
 
+  it("accounts for every beat it attempted to review", async () => {
+    // The invariant that keeps `beatsReviewed` honest: it counts checks that
+    // succeeded, so on its own it would quietly under-report a run where some
+    // reviews failed. Attempted is the sum.
+    await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: new FakeWavTts() }),
+    );
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const { review: recorded } = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+
+    expect(recorded.beatsReviewed + recorded.beatsNotChecked).toBe(1);
+    expect(recorded.beatsNotChecked).toBe(0);
+    expect(recorded.droppedFindings).toBe(0);
+  });
+
   it("says which kind of number the estimate is", async () => {
     // `plan` quotes a ceiling and `create` an expectation, and they differ
     // about two-fold. Comparing them across runs without this averages two
