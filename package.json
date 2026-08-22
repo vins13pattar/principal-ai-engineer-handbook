@@ -31,6 +31,8 @@
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@handbook/podcast-engine": "workspace:*",
+    "@handbook/podcast-providers": "workspace:*",
     "@handbook/shared": "workspace:*",
     "@typescript-eslint/eslint-plugin": "8.66.0",
     "@typescript-eslint/parser": "8.66.0",

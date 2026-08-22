@@ -40,20 +40,15 @@ const CommonSchema = {
 };
 
 /**
- * What the model wrote against what was spoken.
+ * The script, all of which is spoken.
  *
- * Present only for `create`. `script.json` holds the full script and the audio
- * holds the cut one; without this block the difference between them is
- * invisible, and a listener wondering why a point stops mid-argument has
- * nowhere to look.
+ * There used to be a written-versus-rendered distinction here, back when a trim
+ * cut the script to a duration budget. It is gone: `script.json` and the audio
+ * are the same conversation, so one count of each is the whole story.
  */
 const RenderedSchema = z.object({
-  turnsWritten: z.number(),
-  turnsRendered: z.number(),
-  charactersWritten: z.number(),
-  charactersRendered: z.number(),
-  /** Indices into `script.json`'s turns that were not spoken. */
-  droppedTurns: z.array(z.number()),
+  turns: z.number(),
+  characters: z.number(),
 });
 
 /**

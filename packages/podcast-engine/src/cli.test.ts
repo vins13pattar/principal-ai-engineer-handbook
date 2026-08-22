@@ -341,6 +341,24 @@ describe("runCli — create", () => {
     expect(lines.join("\n")).toMatch(/calls\s+~13: 1 plan \+ 12 dialogue,/);
   });
 
+  it("speaks every turn the model wrote, including the last one", async () => {
+    // The defect this guards: a trim cut the script back to a duration budget
+    // by dropping turns from each beat, which takes the last turns of the last
+    // beat -- the close. One episode ended on the host asking "so where's the
+    // cost hiding?" with the guest's answer amputated.
+    const tts = new FakeWavTts();
+    await runCli(create(["--run"]), deps({ llm: await creating(await realIds()), tts }));
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const written = JSON.parse(await readFile(join(dir, "script.json"), "utf8"));
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+
+    expect(tts.requests).toHaveLength(written.turns.length);
+    expect(manifest.dialogue.turns).toBe(written.turns.length);
+    // The final spoken turn is the final written turn, not whatever survived.
+    expect(tts.requests.at(-1)!.text).toBe(written.turns.at(-1)!.text);
+  });
+
   it("casts the two speakers to the two configured voices", async () => {
     const tts = new FakeWavTts();
 

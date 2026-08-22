@@ -25,8 +25,6 @@ import type { BeatReview } from "./review.ts";
 import type { EpisodeAudio } from "./episode.ts";
 import { planEpisode } from "./plan.ts";
 import type { EpisodePlan } from "./schema.ts";
-import { trimToBudget } from "./trim.ts";
-import type { TrimResult } from "./trim.ts";
 
 export type CreateStage = "plan" | "dialogue" | "synthesis";
 
@@ -64,10 +62,8 @@ export interface CreateOptions {
 
 export interface CreateResult {
   plan: EpisodePlan;
-  /** What the model wrote, before any cut. */
+  /** The script, every turn of which is spoken. */
   script: DialogueScript;
-  /** What was spoken, and which turns of `script` were left out. */
-  rendered: TrimResult;
   /** One entry per reviewed beat. Empty when review was skipped. */
   reviews: BeatReview[];
   episode: EpisodeAudio;
@@ -144,19 +140,17 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
       `(${overBy >= 0 ? "+" : ""}${overBy}%)`,
   );
 
-  // `script.json` above is what the model wrote; this is what gets spoken. The
-  // two are kept separate so a trim is auditable rather than invisible -- the
-  // dropped turns are named in the manifest, not quietly absent.
-  const trimmed = trimToBudget(written.script, planned.plan, config.tts.charsPerSecond);
-  if (trimmed.dropped.length > 0) {
-    options.log(
-      `  trimmed         ${trimmed.dropped.length} turn(s) cut, ${trimmed.charactersAfter} chars rendered ` +
-        `(asked for ${budgeted})`,
-    );
-  }
-
+  // Every turn is spoken. There was a trim here that cut the script back to the
+  // duration budget, and it ended an episode on the host asking "so where's the
+  // cost hiding?" with the guest's answer amputated -- because cutting per beat
+  // takes the last turns of the last beat, which is the close.
+  //
+  // The budget is guidance for the writer, not a blade for the renderer. A
+  // conversation that ends mid-exchange is broken in a way no duration target
+  // is worth; the beats already carry turn counts, so length is shaped where it
+  // can be shaped well.
   options.onStageStart("synthesis");
-  const episode = await renderEpisode(trimmed.script, options.tts, {
+  const episode = await renderEpisode(written.script, options.tts, {
     voices: config.tts.voices,
     language: config.tts.language,
     onTurn: (index, total, speaker) => {
@@ -170,7 +164,6 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   return {
     plan: planned.plan,
     script: written.script,
-    rendered: trimmed,
     reviews: written.reviews,
     episode,
   };

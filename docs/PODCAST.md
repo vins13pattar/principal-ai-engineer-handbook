@@ -14,7 +14,7 @@ Six stages: plan, dialogue, review, revision, synthesis, assembly.
 ```text
 packages/handbook-content/     Loads pages, builds the SourcePack an episode is sourced from
 packages/podcast-providers/    LlmPort and TtsPort, the adapters behind them, WAV assembly
-packages/podcast-engine/       Planner, dialogue, review, trim, synthesis, manifests, the CLI
+packages/podcast-engine/       Planner, dialogue, review, synthesis, manifests, the CLI
 ```
 
 The engine never imports `ai` or `@ai-sdk/*`. It imports `LlmPort` and `TtsPort`, and everything
@@ -116,14 +116,14 @@ two runs can never share one:
 | File            | Contents                                                                        |
 | --------------- | ------------------------------------------------------------------------------- |
 | `plan.json`     | The arc: beats, citations, per-beat seconds, what the model could not source    |
-| `script.json`   | Every turn the model wrote, including the ones the trim did not render          |
+| `script.json`   | Every turn of the conversation, all of which is spoken                          |
 | `episode.wav`   | The episode                                                                     |
-| `manifest.json` | Status, model, usage, measured cost, which turns were cut, every review finding |
+| `manifest.json` | Status, model, usage, measured cost, turn and character counts, review findings |
 | `failure.json`  | Only on failure: the model's raw text and finish reason                         |
 
-`script.json` holds what the model wrote **after revision but before trimming**, and the manifest
-names the turn indices that were not spoken — so both edits the pipeline makes to its own output are
-auditable rather than invisible.
+`script.json` holds the conversation **after revision**, and every turn in it is spoken — the audio
+and the script are the same thing. Revision is the only edit the pipeline makes to its own output,
+and the manifest names every finding behind it.
 
 A failed run still writes a manifest with everything spent up to the failure. A run that dies in
 synthesis has already paid for its model calls, and a manifest reporting zero for them would
@@ -146,8 +146,8 @@ scripts/publish-episode.sh .podcast/module-06-mcp/<run>/episode.wav module-06-mc
 ```
 
 That writes `apps/handbook/public/podcast/<slug>.m4a` at 32 kbps mono AAC —
-1.1 MB for the same five minutes, indistinguishable through the speakers anyone
-will use — and prints the `<EpisodePlayer>` line with the measured duration
+about a megabyte for five minutes, indistinguishable through the speakers
+anyone will use — and prints the `<EpisodePlayer>` line with the measured duration
 already filled in. Take the duration from the script rather than typing it: a
 player labelled with a length it does not have is a small lie the reader catches
 in the first ten seconds.
@@ -257,21 +257,30 @@ detail. A five-minute episode renders in about a minute on an M4.
 **`llm.maxOutputTokens: 16000`** — a ceiling, and ceilings only cost when hit. Two early runs died on
 truncation at 4000 and 8000, each wasting a full pair of calls.
 
-## Why length is enforced rather than requested
+## Why length is guidance, not a rule
 
-The model will not hit a length target by instruction. Asked three different ways — a character
-budget, that budget with an explicit ten-percent tolerance, and a turn count — it overran by 48%,
-57% and 96%. The overrun got _worse_ as the instruction got more precise, because a model cannot
-count the characters it is emitting.
+The model will not hit a length target by instruction. Asked three different
+ways — a character budget, that budget with an explicit ten-percent tolerance,
+and a turn count — it overran by 48%, 57% and 96%. The overrun got _worse_ as
+the instruction got more precise, because a model cannot count the characters it
+is emitting.
 
-So the model decides what the episode says and in what order, and `trimToBudget` decides how much
-gets spoken. It cuts beat by beat rather than over the flat list, since a flat trim takes the ending
-off — the close is the last thing written and the first thing a length cut reaches. Every beat keeps
-its first turn, so no beat the planner asked for vanishes silently.
+There was a trim here that solved that by cutting the script back to budget. It
+is gone, and the reason is worth keeping. Cutting per beat takes the last turns
+of the last beat, which is the close — so one episode ended on the host asking
+"so where's the cost hiding?" with the guest's answer amputated. The duration was
+correct to within nine percent and the episode was broken.
 
-Dialogue is generated one call per beat for the same reason. A single whole-episode call could not
-be bounded, and it was more expensive: a beat needs the excerpts it cites, not the whole
-24,500-token pack, so five small calls send less than one large one.
+Length is shaped where it can be shaped well: each beat asks for a number of
+turns, derived from its seconds. Whatever comes back is spoken in full. An
+episode runs as long as the conversation runs, and a five-minute request that
+produces nine minutes of coherent dialogue is a better outcome than five minutes
+that stop mid-exchange.
+
+Dialogue is generated one call per beat for a separate reason. A single
+whole-episode call could not be bounded, and it was more expensive: a beat needs
+the excerpts it cites, not the whole 24,500-token pack, so five small calls send
+less than one large one.
 
 ## What review is for
 

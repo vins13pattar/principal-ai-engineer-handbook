@@ -21,6 +21,7 @@ import { ModelResponseError } from "@handbook/podcast-providers";
 import type { LlmPort, PriceList, TtsPort, Usage } from "@handbook/podcast-providers";
 import { CONFIG_TEMPLATE, parseConfig } from "./config.ts";
 import type { PodcastConfig } from "./config.ts";
+import { scriptCharacters } from "./dialogue.ts";
 import { createEpisode } from "./create.ts";
 import type { CreateStage } from "./create.ts";
 import type { BeatReview } from "./review.ts";
@@ -211,7 +212,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     deps.log("");
     deps.log("  an expectation, not a ceiling: per-call caps exist to stop a runaway, not to");
     deps.log("  price the run. Models overrun the character budget, reliably and by a lot —");
-    deps.log("  that costs output tokens, and the trim keeps it from lengthening the episode.");
+    deps.log("  that costs output tokens, and makes the episode longer than requested.");
   } else {
     deps.log(
       `  plan input      ${planCost.inputTokens} tok   $${planCost.inputCost.toFixed(4)}   estimated, NOT capped`,
@@ -385,11 +386,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         usage,
         cost: { estimatedAtMaxOutput: estimated, basis, measured },
         dialogue: {
-          turnsWritten: result.script.turns.length,
-          turnsRendered: result.rendered.script.turns.length,
-          charactersWritten: result.rendered.charactersBefore,
-          charactersRendered: result.rendered.charactersAfter,
-          droppedTurns: result.rendered.dropped,
+          turns: result.script.turns.length,
+          characters: scriptCharacters(result.script),
         },
         review: reviewSummary(),
         artifacts,
@@ -397,7 +395,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
       deps.log("");
       deps.log(
-        `  episode         ${seconds(result.episode.audioSeconds)} of audio from ${result.rendered.script.turns.length} turns`,
+        `  episode         ${seconds(result.episode.audioSeconds)} of audio from ${result.script.turns.length} turns`,
       );
       deps.log(
         `  asked for       ${Math.round(durationSeconds)}s, planned ${Math.round(result.plan.plannedSeconds)}s`,
