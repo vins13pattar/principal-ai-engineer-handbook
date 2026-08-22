@@ -50,6 +50,15 @@ export interface CreateOptions {
   onStageStart: (stage: CreateStage) => void;
   /** Called when a stage finishes, with what it spent and what it wrote. */
   onStageDone: (stage: CreateStage, report: StageReport) => void;
+  /**
+   * Called as each beat is reviewed.
+   *
+   * The caller needs these as they happen, not in the return value: a run that
+   * dies in synthesis has already paid for every review before it, and a
+   * failure manifest built from a result that never arrived would record none
+   * of them.
+   */
+  onReview?: (review: BeatReview) => void;
   log: (line: string) => void;
 }
 
@@ -100,13 +109,20 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
     review: options.review,
     onReview: (review) => {
       const problems = review.findings.map((finding) => finding.problem).join(", ");
-      const summary =
-        review.findings.length === 0
-          ? "clean"
+      // "clean" is reserved for a beat that was actually checked and passed.
+      // A review that could not run, or whose findings all pointed at turns
+      // the beat does not have, is not the same claim.
+      const summary = review.reviewFailed
+        ? `NOT CHECKED (${review.reviewFailed})`
+        : review.findings.length === 0
+          ? review.droppedFindings > 0
+            ? `${review.droppedFindings} finding(s) discarded as out of range — not checked`
+            : "clean"
           : review.revised
             ? `${problems} — revised`
             : `${problems} — NOT fixed (${review.revisionRejected})`;
       options.log(`  reviewed        beat ${review.beat}: ${summary}`);
+      options.onReview?.(review);
     },
   });
 

@@ -69,6 +69,10 @@ const ReviewSchema = z.object({
   beatsRevised: z.number(),
   /** Beats where review found problems and the fix did not land. */
   beatsLeftUnfixed: z.number(),
+  /** Beats whose review call failed, leaving them unchecked. */
+  beatsNotChecked: z.number(),
+  /** Findings discarded for naming a turn the beat does not have. */
+  droppedFindings: z.number(),
   findings: z.array(
     z.object({
       beat: z.number(),
@@ -79,6 +83,16 @@ const ReviewSchema = z.object({
   ),
 });
 
+/**
+ * Which kind of number `estimatedAtMaxOutput` holds.
+ *
+ * `plan` quotes a ceiling and `create` an expectation, and they differ by
+ * roughly two-fold. Without this, comparing estimate against measured across a
+ * run history averages two incomparable quantities and reports the estimator
+ * as far better than it is.
+ */
+const CostBasis = z.enum(["ceiling", "expected"]);
+
 const CompleteSchema = z.object({
   ...CommonSchema,
   status: z.literal("complete"),
@@ -87,7 +101,7 @@ const CompleteSchema = z.object({
   source: SourceSchema,
   model: z.object({ modelId: z.string() }),
   usage: UsageSchema,
-  cost: z.object({ estimatedAtMaxOutput: z.number(), measured: z.number() }),
+  cost: z.object({ estimatedAtMaxOutput: z.number(), basis: CostBasis, measured: z.number() }),
   // A plain (non-`.strict()`) member of a `discriminatedUnion` does not reject
   // extra keys on the matched branch: `safeParse` on a "complete" object that
   // also carries a `failure` field succeeds unless something explicitly closes
@@ -105,7 +119,14 @@ const FailedSchema = z.object({
   source: SourceSchema.optional(),
   model: z.object({ modelId: z.string() }).optional(),
   usage: UsageSchema.optional(),
-  cost: z.object({ estimatedAtMaxOutput: z.number(), measured: z.number().nullable() }).optional(),
+  review: ReviewSchema.optional(),
+  cost: z
+    .object({
+      estimatedAtMaxOutput: z.number(),
+      basis: CostBasis,
+      measured: z.number().nullable(),
+    })
+    .optional(),
 });
 
 export const ManifestSchema = z.discriminatedUnion("status", [CompleteSchema, FailedSchema]);

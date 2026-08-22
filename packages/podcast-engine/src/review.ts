@@ -25,6 +25,7 @@
  */
 
 import type { SourceExcerpt } from "@handbook/content";
+import { ZERO_USAGE } from "@handbook/podcast-providers";
 import type { LlmPort, StructuredRequest, Usage } from "@handbook/podcast-providers";
 import { z } from "zod";
 import { BeatScriptSchema } from "./dialogue.ts";
@@ -53,6 +54,10 @@ export interface BeatReview {
   beat: number;
   findings: Finding[];
   revised: boolean;
+  /** Set when the review call failed and the beat went unchecked. */
+  reviewFailed?: string;
+  /** Findings discarded for pointing at a turn the beat does not have. */
+  droppedFindings: number;
   /**
    * Why a revision was not applied, when findings existed but the fix failed.
    *
@@ -176,6 +181,16 @@ export interface ReviewResult {
   revised: boolean;
   /** Set when a revision was attempted and rejected, with the reason. */
   revisionRejected?: string;
+  /** Set when the review call itself failed, so this beat went unchecked. */
+  reviewFailed?: string;
+  /**
+   * Findings discarded for pointing past the end of the beat.
+   *
+   * Counted rather than silently dropped: a reviewer whose indexing is
+   * systematically off would otherwise report every beat as clean while
+   * flagging problems in all of them.
+   */
+  droppedFindings: number;
   usage: Usage;
 }
 
@@ -200,14 +215,29 @@ export async function reviewBeat(
   llm: LlmPort,
   maxOutputTokens: number,
 ): Promise<ReviewResult> {
-  const review = await llm.generate<Review>(
-    buildReviewRequest(beat, turns, sources, covered, maxOutputTokens),
-  );
+  let review;
+  try {
+    review = await llm.generate<Review>(
+      buildReviewRequest(beat, turns, sources, covered, maxOutputTokens),
+    );
+  } catch (error) {
+    // Same reasoning as a failed revision: the beat is written and paid for,
+    // and a check that could not run is a lost improvement, not a lost run.
+    return {
+      turns,
+      findings: [],
+      revised: false,
+      reviewFailed: error instanceof Error ? error.message : String(error),
+      droppedFindings: 0,
+      usage: ZERO_USAGE,
+    };
+  }
 
   const findings = review.value.findings.filter((finding) => finding.turn < turns.length);
+  const droppedFindings = review.value.findings.length - findings.length;
 
   if (findings.length === 0) {
-    return { turns, findings: [], revised: false, usage: review.usage };
+    return { turns, findings: [], revised: false, droppedFindings, usage: review.usage };
   }
 
   const unrevised = (reason: string, usage = review.usage): ReviewResult => ({
@@ -215,6 +245,7 @@ export async function reviewBeat(
     findings,
     revised: false,
     revisionRejected: reason,
+    droppedFindings,
     usage,
   });
 
@@ -248,6 +279,7 @@ export async function reviewBeat(
     turns: revision.value.turns,
     findings,
     revised: true,
+    droppedFindings,
     usage: {
       inputTokens: review.usage.inputTokens + revision.usage.inputTokens,
       outputTokens: review.usage.outputTokens + revision.usage.outputTokens,

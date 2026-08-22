@@ -119,6 +119,45 @@ describe("reviewBeat", () => {
     expect(result.usage.speechCharacters).toBe(0);
   });
 
+  it("keeps the beat when the review call itself fails", async () => {
+    // A check that could not run is a lost improvement, not a lost run. Before
+    // this, a transient failure on beat 4 discarded the plan call and every
+    // beat written before it.
+    const llm: LlmPort = {
+      name: "broken",
+      generate: () => Promise.reject(new Error("rate limited")),
+    };
+
+    const result = await reviewBeat(beat, turns, sources, [], llm, 2000);
+
+    expect(result.turns).toEqual(turns);
+    expect(result.revised).toBe(false);
+    expect(result.findings).toEqual([]);
+    expect(result.reviewFailed).toMatch(/rate limited/);
+    // Nothing was returned, so nothing is billed.
+    expect(result.usage.outputTokens).toBe(0);
+  });
+
+  it("counts findings discarded as out of range", async () => {
+    // Zero findings and zero discards is a beat that passed. Zero findings
+    // after discarding two is a beat nobody actually checked, and reporting
+    // both as "clean" would hide a reviewer whose indexing is systematically
+    // off.
+    const llm = new FakeLlm([
+      {
+        findings: [
+          { turn: 5, problem: "repeats", detail: "out of range" },
+          { turn: 7, problem: "unsupported", detail: "also out of range" },
+        ],
+      },
+    ]);
+
+    const result = await reviewBeat(beat, turns, sources, [], llm, 2000);
+
+    expect(result.findings).toEqual([]);
+    expect(result.droppedFindings).toBe(2);
+  });
+
   it("keeps the beat when the revision call fails", async () => {
     // Review is an improvement on a beat that already exists and is paid for.
     // Losing the fix costs one flaw in one segment; throwing here would cost

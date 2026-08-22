@@ -243,7 +243,9 @@ describe("runCli — create", () => {
 
     // 2400 seconds is 12 beats after the cap, so 1 + 12 + 12.
     const output = lines.join("\n");
-    expect(output).toMatch(/calls\s+25: 1 plan \+ 12 dialogue \+ 12 review/);
+    expect(output).toMatch(/calls\s+~25: 1 plan \+ 12 dialogue \+ 12 review/);
+    // The beat count is what the planner is asked for, not what it returns.
+    expect(output).toMatch(/if the planner returns 12 beats/);
     expect(output).toMatch(/expected\s+\$\d/);
     // The word matters. Summing 25 generous per-call caps produces a number
     // nothing approaches, and quoting it as a ceiling made the estimate 2.2x
@@ -336,7 +338,7 @@ describe("runCli — create", () => {
     const without = expected();
 
     expect(withReview).toBeGreaterThan(without);
-    expect(lines.join("\n")).toMatch(/calls\s+13: 1 plan \+ 12 dialogue$/m);
+    expect(lines.join("\n")).toMatch(/calls\s+~13: 1 plan \+ 12 dialogue,/);
   });
 
   it("casts the two speakers to the two configured voices", async () => {
@@ -368,6 +370,45 @@ describe("runCli — create", () => {
     // Two calls, so more than the single-call plan run spends.
     expect(manifest.usage.outputTokens).toBeGreaterThan(0);
     expect(manifest.cost.measured).toBeGreaterThan(0);
+  });
+
+  it("records the reviews it paid for even when the run then fails", async () => {
+    // The reviews before a synthesis failure were billed, and their findings
+    // exist nowhere else once the run is over.
+    const broken: TtsPort = {
+      name: "broken-tts",
+      synthesise: () => Promise.reject(new Error("runner exited 1")),
+    };
+    const ids = await realIds();
+    const llm = new FakeLlm([
+      { ...draft, beats: [{ ...draft.beats[0]!, excerptIds: [ids[0]!] }] },
+      script,
+      { findings: [{ turn: 0, problem: "unsupported", detail: "invented a number" }] },
+      script,
+    ]);
+
+    await runCli(create(["--run"]), deps({ llm, tts: broken }));
+
+    const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
+
+    expect(manifest.status).toBe("failed");
+    expect(manifest.review.beatsReviewed).toBe(1);
+    expect(manifest.review.findings[0].detail).toBe("invented a number");
+  });
+
+  it("says which kind of number the estimate is", async () => {
+    // `plan` quotes a ceiling and `create` an expectation, and they differ
+    // about two-fold. Comparing them across runs without this averages two
+    // incomparable quantities.
+    await runCli(
+      create(["--run"]),
+      deps({ llm: await creating(await realIds()), tts: new FakeWavTts() }),
+    );
+    const createDir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
+    const created = JSON.parse(await readFile(join(createDir, "manifest.json"), "utf8"));
+
+    expect(created.cost.basis).toBe("expected");
   });
 
   it("keeps the plan and script when synthesis fails, and bills what was spent", async () => {

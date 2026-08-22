@@ -23,6 +23,7 @@ import { CONFIG_TEMPLATE, parseConfig } from "./config.ts";
 import type { PodcastConfig } from "./config.ts";
 import { createEpisode } from "./create.ts";
 import type { CreateStage } from "./create.ts";
+import type { BeatReview } from "./review.ts";
 import { estimateCreateCost, estimatePlanCost } from "./estimate.ts";
 import { writeManifest } from "./manifest.ts";
 import { beatsForSeconds, buildPlanRequest, planEpisode } from "./plan.ts";
@@ -194,7 +195,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   if (createCost) {
     deps.log(
-      `  calls           ${createCost.calls}: 1 plan + ${createCost.beats} dialogue${review ? ` + ${createCost.beats} review` : ""}`,
+      // "if" rather than a flat count: the beat number is what the planner is
+      // asked for, not what it returns, and nothing validates the answer. A
+      // model that returns eight beats for a five-beat request makes half as
+      // many calls again as this line promises.
+      `  calls           ~${createCost.calls}: 1 plan + ${createCost.beats} dialogue${review ? ` + ${createCost.beats} review` : ""}, if the planner returns ${createCost.beats} beats`,
     );
     deps.log(
       `  input (est.)    ${createCost.inputTokens} tok   $${createCost.inputCost.toFixed(4)}   the pack reaches each stage`,
@@ -324,6 +329,22 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   let modelId = config.llm.modelId;
   let stage: CreateStage = "plan";
   const artifacts: string[] = [];
+  // Collected as reviews happen rather than from the result, so a run that
+  // dies after them still records what they found and what they cost.
+  const reviews: BeatReview[] = [];
+
+  const basis = createCost ? ("expected" as const) : ("ceiling" as const);
+  const reviewSummary = () => ({
+    ran: review,
+    beatsReviewed: reviews.filter((entry) => entry.reviewFailed === undefined).length,
+    beatsRevised: reviews.filter((entry) => entry.revised).length,
+    beatsLeftUnfixed: reviews.filter((entry) => entry.findings.length > 0 && !entry.revised).length,
+    beatsNotChecked: reviews.filter((entry) => entry.reviewFailed !== undefined).length,
+    droppedFindings: reviews.reduce((total, entry) => total + entry.droppedFindings, 0),
+    findings: reviews.flatMap((entry) =>
+      entry.findings.map((finding) => ({ beat: entry.beat, ...finding })),
+    ),
+  });
 
   try {
     if (isCreate) {
@@ -348,6 +369,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
           if (report.modelId) modelId = report.modelId;
           if (report.artifact) artifacts.push(report.artifact);
         },
+        onReview: (entry) => reviews.push(entry),
         log: deps.log,
       });
 
@@ -361,7 +383,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         source,
         model: { modelId },
         usage,
-        cost: { estimatedAtMaxOutput: estimated, measured },
+        cost: { estimatedAtMaxOutput: estimated, basis, measured },
         dialogue: {
           turnsWritten: result.script.turns.length,
           turnsRendered: result.rendered.script.turns.length,
@@ -369,21 +391,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
           charactersRendered: result.rendered.charactersAfter,
           droppedTurns: result.rendered.dropped,
         },
-        review: {
-          ran: review,
-          beatsReviewed: result.reviews.length,
-          beatsRevised: result.reviews.filter((entry) => entry.revised).length,
-          // Beats with known problems still in them. A count of findings alone
-          // would imply they were all fixed.
-          beatsLeftUnfixed: result.reviews.filter(
-            (entry) => entry.findings.length > 0 && !entry.revised,
-          ).length,
-          // Kept in full rather than counted: "two unsupported claims" is a
-          // statistic, and the sentences they were is the thing worth reading.
-          findings: result.reviews.flatMap((entry) =>
-            entry.findings.map((finding) => ({ beat: entry.beat, ...finding })),
-          ),
-        },
+        review: reviewSummary(),
         artifacts,
       });
 
@@ -431,7 +439,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       source,
       model: { modelId },
       usage,
-      cost: { estimatedAtMaxOutput: estimated, measured },
+      cost: { estimatedAtMaxOutput: estimated, basis, measured },
       artifacts: ["plan.json", "manifest.json"],
     });
 
@@ -477,7 +485,10 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
       source,
       model: { modelId },
       ...(usageKnown ? { usage } : {}),
-      cost: { estimatedAtMaxOutput: estimated, measured },
+      cost: { estimatedAtMaxOutput: estimated, basis, measured },
+      // Recorded here too: the reviews before the failure were billed, and
+      // their findings exist nowhere else once the run is over.
+      ...(reviews.length > 0 ? { review: reviewSummary() } : {}),
       artifacts: failed,
     });
 

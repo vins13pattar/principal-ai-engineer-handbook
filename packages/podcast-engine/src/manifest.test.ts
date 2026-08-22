@@ -24,7 +24,7 @@ function completeManifest(overrides: Record<string, unknown> = {}) {
     source: { sourceHash: "abc", excerptCount: 24, droppedForBudget: [] },
     model: { modelId: "claude-x" },
     usage: { inputTokens: 100, outputTokens: 20, speechCharacters: 0 },
-    cost: { estimatedAtMaxOutput: 0.115, measured: 0.06 },
+    cost: { estimatedAtMaxOutput: 0.115, basis: "ceiling" as const, measured: 0.06 },
     ...overrides,
   };
 }
