@@ -1,65 +1,94 @@
 #!/usr/bin/env bash
 #
-# Encode a generated episode and put it where the site expects it.
+# Take a generated run to published: encode, upload, and place the transcript.
 #
 # The pipeline writes `episode.wav` because assembly needs a container it can
 # join sample-accurately. That file is 13 MB for five minutes, which is fine on
 # disk and absurd over a reader's connection: the same audio as 32 kbps mono AAC
-# is 1.1 MB, and speech at this bitrate is indistinguishable from the original
-# through the laptop speakers anyone will actually use.
+# is a fifth of a megabyte per minute, and speech at this bitrate is
+# indistinguishable through the laptop speakers anyone will actually use.
+#
+# Everything after encoding used to be three commands and a hand edit, and the
+# hand edit is where the mistakes happened -- a duration typed from memory that
+# was a second off, and a transcript dropped into `content/docs/` where Astro
+# validates it as a documentation page and the build dies. Both are now
+# mechanical.
 #
 # Usage:
-#   scripts/publish-episode.sh .podcast/module-06-mcp/<run>/episode.wav module-06-mcp
+#   scripts/publish-episode.sh .podcast/module-07-langgraph/<run> module-07-langgraph
 #
-# Writes apps/handbook/public/podcast/<slug>.m4a for local development, and
-# prints the wrangler command to upload the same file to R2 for production.
+# Pass --no-upload to skip R2 (encode and place the transcript only).
 set -euo pipefail
 
-if [ $# -ne 2 ]; then
-  echo "usage: $0 <episode.wav> <slug>" >&2
-  echo "  e.g. $0 .podcast/module-06-mcp/2026-08-17T22-06-38Z-9bdb69/episode.wav module-06-mcp" >&2
+if [ $# -lt 2 ]; then
+  echo "usage: $0 <run-directory> <slug> [--no-upload]" >&2
+  echo "  e.g. $0 .podcast/module-07-langgraph/2026-08-22T13-00-00Z-abc123 module-07-langgraph" >&2
   exit 2
 fi
 
-source_wav="$1"
+run_dir="$1"
 slug="$2"
+upload=1
+[ "${3:-}" = "--no-upload" ] && upload=0
+
 root="$(cd "$(dirname "$0")/.." && pwd)"
+source_wav="$run_dir/episode.wav"
+source_md="$run_dir/transcript.md"
 out_dir="$root/apps/handbook/public/podcast"
 out="$out_dir/$slug.m4a"
+transcript_out="$root/apps/handbook/src/transcripts/$slug.md"
 
-if [ ! -f "$source_wav" ]; then
-  echo "no such file: $source_wav" >&2
-  exit 1
-fi
+for required in "$source_wav" "$source_md"; do
+  if [ ! -f "$required" ]; then
+    echo "no such file: $required" >&2
+    exit 1
+  fi
+done
 
-mkdir -p "$out_dir"
+mkdir -p "$out_dir" "$(dirname "$transcript_out")"
 
 # afconvert ships with macOS, which is already required for the local synthesis
 # runner (mlx-audio is Apple silicon only), so this adds no new dependency.
 afconvert -f m4af -d aac -b 32000 "$source_wav" "$out"
 
-# The duration the page must claim. A player labelled with a length it does not
-# have is a small lie the reader catches immediately.
-#
 # Rounded, not truncated: 273.7 seconds is 4:34 to every player that will show
-# it, and `%d` in awk truncates, which is how the hand-written first label and
-# this script came to disagree by a second.
+# it, and awk's `%d` truncates -- which is how a hand-written label and this
+# script once disagreed by a second.
 seconds=$(afinfo "$out" | awk '/estimated duration/ { printf "%.0f", $3 }')
 printf -v runtime '%d:%02d' $((seconds / 60)) $((seconds % 60))
 
+# The page copy drops the transcript's own header -- the player states all of it
+# already -- and demotes headings one level so the page keeps a single H1 and
+# its own outline.
+awk '
+  /^---$/ && !body { body = 1; next }        # skip everything down to the first rule
+  !body { next }
+  /^---$/ { next }                            # beat separators; the headings already separate
+  /^## / { sub(/^## /, "### ") }
+  { print }
+' "$source_md" | awk 'NF || prev { print; prev = NF }' > "$transcript_out"
+
+if [ "$upload" -eq 1 ]; then
+  npx wrangler r2 object put "handbook-podcast/$slug.m4a" \
+    --file "$out" \
+    --content-type audio/mp4 --cache-control 'public, max-age=3600' --remote >/dev/null
+  uploaded="uploaded to R2"
+else
+  uploaded="not uploaded (--no-upload)"
+fi
+
+model=$(awk -F'\\*\\*' '/Written by:/ { print $2 }' "$source_md" | sed 's/Written by: *//;s/ on .*//')
+generated=$(awk '/Written by:/ { print $NF }' "$source_md")
+
 echo
-echo "  wrote     $out ($(du -h "$out" | cut -f1))"
-echo "  duration  $runtime"
+echo "  audio       $out ($(du -h "$out" | cut -f1)) — $uploaded"
+echo "  transcript  $transcript_out"
+echo "  duration    $runtime"
 echo
-echo "  Page usage:"
-echo "    <EpisodePlayer file=\"$slug.m4a\" duration=\"$runtime\" model=\"...\" generated=\"$(date +%F)\" />"
+echo "  Add to the page:"
 echo
-echo "  Upload to R2 for production:"
-echo "    npx wrangler r2 object put handbook-podcast/$slug.m4a \\"
-echo "      --file $out \\"
-echo "      --content-type audio/mp4 --cache-control 'public, max-age=3600' --remote"
+echo "    import { Content as Transcript } from \"../../../../transcripts/$slug.md\";"
 echo
-# An hour, not a year: the filename is stable across regenerations, so an
-# immutable cache would pin a corrected episode out of reach for as long as it
-# lived at the edge.
-echo "  (max-age is an hour because regenerating an episode reuses this filename)"
+echo "    <EpisodePlayer file=\"$slug.m4a\" duration=\"$runtime\" model=\"${model:-Claude Sonnet 5}\" generated=\"${generated:-$(date +%F)}\">"
+echo "      <Transcript slot=\"transcript\" />"
+echo "    </EpisodePlayer>"
