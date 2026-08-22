@@ -27,16 +27,18 @@ const { file, duration, model, generated } = Astro.props;
 /**
  * Where episodes are served from.
  *
- * A page names the episode, never its host. Audio is too large to belong in
- * git at any real episode count, so production serves it from an R2 bucket on
- * its own domain — but a contributor with no bucket, no credentials, and no
- * network still needs the page to work, so the default is the local `public/`
- * copy. Moving hosts is then one environment variable rather than an edit to
- * every page that has an episode.
+ * A page names the episode, never its host. Audio does not belong in git at any
+ * real episode count — 63 documents at a megabyte each is 63 MB every clone
+ * pays for forever — so episodes live in an R2 bucket, and this is its public
+ * domain.
  *
- * Set `PUBLIC_PODCAST_BASE_URL` (no trailing slash) to the bucket's domain.
+ * Defaulting to production rather than to a local path is deliberate: the
+ * common case is someone editing prose who wants the page to look right, and
+ * they should not have to hold a bucket, a credential, or an environment
+ * variable to get there. Set `PUBLIC_PODCAST_BASE_URL=/podcast` (no trailing
+ * slash) to preview an episode you have generated locally into `public/`.
  */
-const base = import.meta.env["PUBLIC_PODCAST_BASE_URL"] ?? "/podcast";
+const base = import.meta.env["PUBLIC_PODCAST_BASE_URL"] ?? "https://podcast.vinodspattar.in";
 const src = `${base}/${file}`;
 ---
 

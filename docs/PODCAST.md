@@ -165,14 +165,20 @@ silently got a hardcoded fallback. `pnpm build` was green throughout.
 
 ### Where episodes are served from
 
-A page names its episode file; it never names a host. `EpisodePlayer` resolves
-the URL against `PUBLIC_PODCAST_BASE_URL`, defaulting to the local `public/`
-copy so a contributor with no bucket and no credentials still sees a working
-page.
+Episodes live in the **`handbook-podcast`** R2 bucket, served publicly from
+`https://podcast.vinodspattar.in`. They are not in git and should not be: 63
+documents at 1.1 MB is 69 MB of binaries every clone would pay for forever, for
+bytes the CDN already serves.
 
-Production serves them from an R2 bucket, because audio does not belong in git
-at any real episode count — 63 documents at 1.1 MB is 69 MB of binaries that
-every clone pays for forever.
+A page names its episode file and never names a host. `EpisodePlayer` resolves
+the URL against `PUBLIC_PODCAST_BASE_URL`, **defaulting to production** — so
+someone editing prose gets a working page without holding a bucket, a
+credential, or an environment variable. To preview an episode you generated
+locally into `public/podcast/`, point the base at it:
+
+```bash
+PUBLIC_PODCAST_BASE_URL=/podcast pnpm dev
+```
 
 ```bash
 npx wrangler r2 bucket create handbook-podcast
@@ -204,10 +210,17 @@ npx wrangler r2 bucket domain add handbook-podcast \
   --domain podcast.<your-domain> --zone-id <ZONE_ID> --min-tls 1.2
 ```
 
-Then set `PUBLIC_PODCAST_BASE_URL` to `https://podcast.<your-domain>` in the
-Workers Builds environment variables. The r2.dev URL
+Because the component defaults to that domain, no Workers Builds environment
+variable is needed — the deploy has nothing to configure. The r2.dev URL
 (`wrangler r2 bucket dev-url enable`) is the quick alternative, but Cloudflare
 rate-limits it and says not to use it in production.
+
+Confirm a newly attached domain actually serves before relying on it, and check
+more than the status code — without `accept-ranges` the player cannot seek:
+
+```bash
+curl -sSI https://podcast.<your-domain>/module-06-mcp.m4a | grep -E 'HTTP|content-type|accept-ranges'
+```
 
 Deliberately **not** an R2 binding on the Worker. This site deploys as a Worker
 with no `main` — static assets only, per
@@ -216,9 +229,8 @@ Serving R2 through it would mean adding a script and a binding, reversing that
 decision to save nothing: a public bucket on its own domain serves the same
 bytes from the same edge.
 
-Until the bucket exists, committed episodes under `public/podcast/` are what
-ships. Once it does, delete them and gitignore the directory — the local default
-keeps working for anyone who runs the script themselves.
+`apps/handbook/public/podcast/` is gitignored. Anything you put there is for
+your own preview only and will not ship; the bucket is what ships.
 
 ## The measured numbers
 

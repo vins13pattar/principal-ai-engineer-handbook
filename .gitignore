@@ -60,3 +60,8 @@ __pycache__/
 # Operator configuration and generated episode runs.
 podcast.config.json
 .podcast/
+
+# Generated podcast episodes. These live in the handbook-podcast R2 bucket;
+# see docs/PODCAST.md. Committing them puts a megabyte per episode into every
+# clone forever, for bytes the CDN already serves.
+apps/handbook/public/podcast/
