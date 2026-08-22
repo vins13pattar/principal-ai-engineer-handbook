@@ -129,6 +129,73 @@ A failed run still writes a manifest with everything spent up to the failure. A 
 synthesis has already paid for its model calls, and a manifest reporting zero for them would
 understate the bill.
 
+## Listening to an episode, and publishing it
+
+The pipeline writes `episode.wav`, which is what assembly needs and not what a
+reader should download — 13 MB for five minutes. Play it straight from the run
+directory first:
+
+```bash
+afplay .podcast/module-06-mcp/<run>/episode.wav
+```
+
+When it is worth publishing, one script encodes it and tells you what to write:
+
+```bash
+scripts/publish-episode.sh .podcast/module-06-mcp/<run>/episode.wav module-06-mcp
+```
+
+That writes `apps/handbook/public/podcast/<slug>.m4a` at 32 kbps mono AAC —
+1.1 MB for the same five minutes, indistinguishable through the speakers anyone
+will use — and prints the `<EpisodePlayer>` line with the measured duration
+already filled in. Take the duration from the script rather than typing it: a
+player labelled with a length it does not have is a small lie the reader catches
+in the first ten seconds.
+
+Then see it in the page:
+
+```bash
+pnpm dev   # http://localhost:4321/learn/modules/06-mcp/
+```
+
+Check it in **both** colour schemes. The first version of the player looked
+correct in light mode and put light grey text on a near-white card in dark,
+because it asked for a `--sl-color-gray-7` that Starlight does not define and
+silently got a hardcoded fallback. `pnpm build` was green throughout.
+
+### Where episodes are served from
+
+A page names its episode file; it never names a host. `EpisodePlayer` resolves
+the URL against `PUBLIC_PODCAST_BASE_URL`, defaulting to the local `public/`
+copy so a contributor with no bucket and no credentials still sees a working
+page.
+
+Production serves them from an R2 bucket, because audio does not belong in git
+at any real episode count — 63 documents at 1.1 MB is 69 MB of binaries that
+every clone pays for forever.
+
+```bash
+npx wrangler r2 bucket create handbook-podcast
+npx wrangler r2 object put handbook-podcast/module-06-mcp.m4a \
+  --file apps/handbook/public/podcast/module-06-mcp.m4a \
+  --content-type audio/mp4 --remote
+```
+
+Then connect a custom domain to the bucket in the Cloudflare dashboard
+(**R2 → handbook-podcast → Settings → Custom Domains**) and set
+`PUBLIC_PODCAST_BASE_URL` to it in the Workers Builds environment variables.
+
+Deliberately **not** an R2 binding on the Worker. This site deploys as a Worker
+with no `main` — static assets only, per
+[ADR-0007](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/apps/handbook/src/content/docs/adr/decisions/0007-workers-static-assets-deployment.mdx).
+Serving R2 through it would mean adding a script and a binding, reversing that
+decision to save nothing: a public bucket on its own domain serves the same
+bytes from the same edge.
+
+Until the bucket exists, committed episodes under `public/podcast/` are what
+ships. Once it does, delete them and gitignore the directory — the local default
+keeps working for anyone who runs the script themselves.
+
 ## The measured numbers
 
 Three configuration values are measurements, not preferences. Re-measure them on different hardware

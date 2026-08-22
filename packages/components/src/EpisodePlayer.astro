@@ -12,8 +12,8 @@
  * should spend a reader's bandwidth on audio they did not ask to hear.
  */
 interface Props {
-  /** Path under `public/`, e.g. `/podcast/module-06-mcp.m4a`. */
-  src: string;
+  /** Filename only, e.g. `module-06-mcp.m4a`. The host is configuration. */
+  file: string;
   /** Runtime as `M:SS`, so the reader can judge before loading anything. */
   duration: string;
   /** The model that planned and wrote it. */
@@ -22,7 +22,22 @@ interface Props {
   generated: string;
 }
 
-const { src, duration, model, generated } = Astro.props;
+const { file, duration, model, generated } = Astro.props;
+
+/**
+ * Where episodes are served from.
+ *
+ * A page names the episode, never its host. Audio is too large to belong in
+ * git at any real episode count, so production serves it from an R2 bucket on
+ * its own domain — but a contributor with no bucket, no credentials, and no
+ * network still needs the page to work, so the default is the local `public/`
+ * copy. Moving hosts is then one environment variable rather than an edit to
+ * every page that has an episode.
+ *
+ * Set `PUBLIC_PODCAST_BASE_URL` (no trailing slash) to the bucket's domain.
+ */
+const base = import.meta.env["PUBLIC_PODCAST_BASE_URL"] ?? "/podcast";
+const src = `${base}/${file}`;
 ---
 
 <figure class="handbook-episode">
