@@ -13,10 +13,16 @@ import { createElevenLabs } from "@ai-sdk/elevenlabs";
 import { createOpenAI } from "@ai-sdk/openai";
 import { llmFromModel, ttsFromModel } from "./ai-sdk.ts";
 import { type GatewayConfig, gatewayBaseUrl } from "./gateway.ts";
+import { createOllamaLlm } from "./ollama.ts";
 import type { LlmPort, TtsPort } from "./ports.ts";
 
 /** Text providers this package knows how to build. */
-export const TEXT_PROVIDERS = ["openai", "anthropic"] as const;
+/**
+ * `ollama` is the local one, and it is deliberately in the same list rather
+ * than a separate concept: to the engine it is a model that answers, and the
+ * only thing that distinguishes it is that the answer is free and slower.
+ */
+export const TEXT_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
 export type TextProvider = (typeof TEXT_PROVIDERS)[number];
 
 /** Speech providers this package knows how to build. */
@@ -28,17 +34,27 @@ export interface ProviderOptions {
   modelId: string;
   /** When present, requests route through Cloudflare AI Gateway. */
   gateway?: GatewayConfig;
+  /**
+   * Send requests here instead of the vendor's endpoint.
+   *
+   * How a local model reaches the pipeline without a new adapter: LM Studio,
+   * vLLM and llama.cpp all serve the OpenAI API, so `openai` plus a localhost
+   * base URL is a local run. Also moves `ollama` off localhost.
+   */
+  baseUrl?: string;
 }
 
 /** Cloudflare's provider id for a vendor, which is not always the vendor's own name. */
-const GATEWAY_IDS: Record<TextProvider | SpeechProvider, string> = {
+// `ollama` is absent on purpose: a local daemon has no gateway route, and
+// `baseUrlFor` is never reached for it.
+const GATEWAY_IDS: Record<Exclude<TextProvider, "ollama"> | SpeechProvider, string> = {
   openai: "openai",
   anthropic: "anthropic",
   elevenlabs: "elevenlabs",
 };
 
 function baseUrlFor(
-  provider: TextProvider | SpeechProvider,
+  provider: Exclude<TextProvider, "ollama"> | SpeechProvider,
   gateway: GatewayConfig | undefined,
 ): string | undefined {
   if (!gateway) return undefined;
@@ -46,7 +62,20 @@ function baseUrlFor(
 }
 
 export function createLlm(provider: TextProvider, options: ProviderOptions): LlmPort {
-  const baseURL = baseUrlFor(provider, options.gateway);
+  // Before the key check below, because a local model has no key to check --
+  // and routing it through an AI Gateway would be routing localhost through
+  // the internet.
+  if (provider === "ollama") {
+    return createOllamaLlm({
+      modelId: options.modelId,
+      ...(options.baseUrl === undefined ? {} : { baseUrl: options.baseUrl }),
+    });
+  }
+
+  // An explicit base URL wins over the gateway's, because it is the more
+  // specific instruction: someone who named an endpoint meant that endpoint.
+  const baseURL =
+    options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
   const settings = { apiKey: options.apiKey, ...(baseURL === undefined ? {} : { baseURL }) };
   const name = `${provider}:${options.modelId}${options.gateway ? " (via AI Gateway)" : ""}`;
 
@@ -57,7 +86,10 @@ export function createLlm(provider: TextProvider, options: ProviderOptions): Llm
 }
 
 export function createTts(provider: SpeechProvider, options: ProviderOptions): TtsPort {
-  const baseURL = baseUrlFor(provider, options.gateway);
+  // An explicit base URL wins over the gateway's, because it is the more
+  // specific instruction: someone who named an endpoint meant that endpoint.
+  const baseURL =
+    options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
   const settings = { apiKey: options.apiKey, ...(baseURL === undefined ? {} : { baseURL }) };
   const name = `${provider}:${options.modelId}${options.gateway ? " (via AI Gateway)" : ""}`;
 

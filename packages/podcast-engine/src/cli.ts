@@ -147,8 +147,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   // design exists to protect, and a check nobody remembers to enable protects
   // nothing.
   const review = !argv.includes("--skip-review");
+  // A local model has no key to require. Demanding one would make the free
+  // path need a credential to spend nothing.
+  const isLocalLlm = config.llm.provider === "ollama";
   const apiKey = deps.env["PODCAST_LLM_API_KEY"];
-  if (wantsRun && (apiKey === undefined || apiKey === "")) {
+  if (wantsRun && !isLocalLlm && (apiKey === undefined || apiKey === "")) {
     deps.log("PODCAST_LLM_API_KEY is required with --run");
     return 2;
   }

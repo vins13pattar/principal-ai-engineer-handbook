@@ -39,6 +39,17 @@ export const PodcastConfigSchema = z
       .object({
         provider: z.enum(TEXT_PROVIDERS),
         modelId: identifier,
+        /**
+         * Where to send the request, when it is not the vendor's own endpoint.
+         *
+         * This is what makes a local model a configuration change rather than a
+         * code change: LM Studio, vLLM and llama.cpp all serve the OpenAI API,
+         * so `provider: "openai"` with a `baseUrl` of `http://127.0.0.1:1234/v1`
+         * is a local run through the adapter that already exists. Leave it
+         * unset for the hosted endpoint; it is ignored when a gateway is
+         * configured, which has its own base URL.
+         */
+        baseUrl: identifier.optional(),
         maxOutputTokens: z.number().int().positive(),
       })
       .strict(),

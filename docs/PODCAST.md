@@ -275,6 +275,43 @@ bytes from the same edge.
 `apps/handbook/public/podcast/` is gitignored. Anything you put there is for
 your own preview only and will not ship; the bucket is what ships.
 
+## Running it for free, on a local model
+
+Speech has always been local. The language model is the only thing that costs
+anything, and it does not have to.
+
+LM Studio, vLLM and llama.cpp all serve the vendor APIs, so a local model needs
+no new adapter — point the provider you already have at localhost:
+
+```json
+"llm": {
+  "provider": "openai",
+  "baseUrl": "http://127.0.0.1:1234/v1",
+  "modelId": "<the id the server reports>",
+  "maxOutputTokens": 16000
+}
+```
+
+LM Studio serves an Anthropic-compatible endpoint too, so `"provider":
+"anthropic"` against the same base URL works; pick whichever the model behaves
+better under. If the server requires a token, put it in `PODCAST_LLM_API_KEY`
+like any other — it never leaves the machine. `"provider": "ollama"` is also
+built in, talking to Ollama's own API at `http://localhost:11434`.
+
+Structured output is what makes this viable rather than a science project. Every
+stage of the pipeline demands schema-valid JSON, and these servers constrain
+decoding to a JSON Schema — so the model _cannot_ emit a shape the schema
+rejects, which is the same guarantee the hosted path has. A local model that
+merely tries to write JSON would fail at the first beat.
+
+Set `prices` to zero when you do this, or the manifest will bill you for
+electricity at Anthropic's rates.
+
+What it costs instead is time and memory: minutes per beat rather than seconds,
+and a model large enough to write decent dialogue competing with Kokoro for the
+same RAM. Whether the conversation is worth listening to is the open question,
+and the cheapest way to answer it is to generate one page both ways and compare.
+
 ## The measured numbers
 
 Three configuration values are measurements, not preferences. Re-measure them on different hardware

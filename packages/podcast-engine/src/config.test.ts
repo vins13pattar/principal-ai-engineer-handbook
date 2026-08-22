@@ -108,6 +108,22 @@ describe("parseConfig", () => {
     ).toThrow();
   });
 
+  it("accepts a local endpoint, which is how a free run is configured", () => {
+    // LM Studio, vLLM and llama.cpp all serve the vendor APIs, so pointing a
+    // provider at localhost is a local model with no new adapter and no key
+    // leaving the machine.
+    expect(() =>
+      parseConfig(withField(["llm", "baseUrl"], "http://127.0.0.1:1234/v1")),
+    ).not.toThrow();
+    expect(() => parseConfig(withField(["llm", "baseUrl"], "  "))).toThrow();
+    // Absent is the hosted endpoint, and must stay valid.
+    expect(() => parseConfig(valid())).not.toThrow();
+  });
+
+  it("accepts a local provider", () => {
+    expect(() => parseConfig(withField(["llm", "provider"], "ollama"))).not.toThrow();
+  });
+
   it("does not touch the filesystem", () => {
     // The runner command need not exist to plan an episode. An eager check
     // here would kill `plan` on any machine without the synthesis venv.
