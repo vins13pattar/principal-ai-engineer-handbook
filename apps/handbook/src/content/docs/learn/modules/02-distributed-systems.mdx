@@ -23,6 +23,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -33,6 +34,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import idempotentRetry from "./02-distributed-systems.idempotent-retry.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-02-distributed-systems.md";
+
+<EpisodePlayer
+  file="module-02-distributed-systems.m4a"
+  duration="17:30"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -156,17 +167,14 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
-
 class TaskState(StrEnum):
     PENDING = "pending"
     COMPLETE = "complete"
-
 
 @dataclass
 class TaskRecord:
     state: TaskState
     result: Any | None = None
-
 
 class IdempotentTaskStore:
     """Illustrative reference implementation, not a load-tested production store.
@@ -192,7 +200,6 @@ class IdempotentTaskStore:
     async def complete(self, idempotency_key: str, result: Any) -> None:
         async with self._lock:
             self._records[idempotency_key] = TaskRecord(state=TaskState.COMPLETE, result=result)
-
 
 async def submit_task(store: IdempotentTaskStore, idempotency_key: str, work: Any) -> Any:
     existing = await store.claim(idempotency_key)

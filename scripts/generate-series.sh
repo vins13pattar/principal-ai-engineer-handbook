@@ -113,7 +113,11 @@ for entry in "${queue[@]}"; do
     continue
   fi
 
-  runtime=$(echo "$published" | awk '/duration/ { print $2 }')
+  # Anchored, and stops at the first hit: publish-episode prints "duration" twice
+  # -- once in its summary, once inside the `<EpisodePlayer duration="...">` tag
+  # it suggests -- and an unanchored match returned both lines, so the tag's own
+  # `file="..."` ended up inside the duration attribute and broke the MDX parse.
+  runtime=$(echo "$published" | awk '/^ *duration / { print $2; exit }')
   model=$(echo "$published" | sed -n 's/.*model="\([^"]*\)".*/\1/p' | head -1)
   generated=$(echo "$published" | sed -n 's/.*generated="\([^"]*\)".*/\1/p' | head -1)
 
