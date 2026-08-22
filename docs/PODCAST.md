@@ -176,14 +176,38 @@ every clone pays for forever.
 
 ```bash
 npx wrangler r2 bucket create handbook-podcast
+
 npx wrangler r2 object put handbook-podcast/module-06-mcp.m4a \
   --file apps/handbook/public/podcast/module-06-mcp.m4a \
-  --content-type audio/mp4 --remote
+  --content-type audio/mp4 --cache-control 'public, max-age=3600' --remote
 ```
 
-Then connect a custom domain to the bucket in the Cloudflare dashboard
-(**R2 → handbook-podcast → Settings → Custom Domains**) and set
-`PUBLIC_PODCAST_BASE_URL` to it in the Workers Builds environment variables.
+An hour, not a year: regenerating an episode reuses the same filename, so an
+immutable cache would pin a corrected episode out of reach for as long as it
+survived at the edge.
+
+Do not trust `wrangler r2 bucket info` to confirm an upload — its `object_count`
+is periodic and read `0` immediately after a verified upload. Round-trip the
+object instead, which proves both that it arrived and that it arrived intact:
+
+```bash
+npx wrangler r2 object get handbook-podcast/module-06-mcp.m4a --remote --file /tmp/check.m4a
+shasum -a 256 apps/handbook/public/podcast/module-06-mcp.m4a /tmp/check.m4a
+```
+
+A new bucket is private, so the object is uploaded but unreachable until a
+custom domain is attached. That needs the zone id, from the Cloudflare
+dashboard's overview page for the domain:
+
+```bash
+npx wrangler r2 bucket domain add handbook-podcast \
+  --domain podcast.<your-domain> --zone-id <ZONE_ID> --min-tls 1.2
+```
+
+Then set `PUBLIC_PODCAST_BASE_URL` to `https://podcast.<your-domain>` in the
+Workers Builds environment variables. The r2.dev URL
+(`wrangler r2 bucket dev-url enable`) is the quick alternative, but Cloudflare
+rate-limits it and says not to use it in production.
 
 Deliberately **not** an R2 binding on the Worker. This site deploys as a Worker
 with no `main` — static assets only, per

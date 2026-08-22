@@ -55,4 +55,11 @@ echo "  Page usage:"
 echo "    <EpisodePlayer file=\"$slug.m4a\" duration=\"$runtime\" model=\"...\" generated=\"$(date +%F)\" />"
 echo
 echo "  Upload to R2 for production:"
-echo "    npx wrangler r2 object put handbook-podcast/$slug.m4a --file $out --content-type audio/mp4 --remote"
+echo "    npx wrangler r2 object put handbook-podcast/$slug.m4a \\"
+echo "      --file $out \\"
+echo "      --content-type audio/mp4 --cache-control 'public, max-age=3600' --remote"
+echo
+# An hour, not a year: the filename is stable across regenerations, so an
+# immutable cache would pin a corrected episode out of reach for as long as it
+# lived at the edge.
+echo "  (max-age is an hour because regenerating an episode reuses this filename)"
