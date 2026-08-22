@@ -15,15 +15,17 @@ import { llmFromModel, ttsFromModel } from "./ai-sdk.ts";
 import { type GatewayConfig, gatewayBaseUrl } from "./gateway.ts";
 import { patientFetch } from "./http.ts";
 import { createOllamaLlm } from "./ollama.ts";
+import { createOpenAiCompatibleLlm } from "./openai-compatible.ts";
 import type { LlmPort, TtsPort } from "./ports.ts";
 
-/** Text providers this package knows how to build. */
 /**
- * `ollama` is the local one, and it is deliberately in the same list rather
- * than a separate concept: to the engine it is a model that answers, and the
- * only thing that distinguishes it is that the answer is free and slower.
+ * Text providers this package knows how to build.
+ *
+ * `local` and `ollama` are in the same list rather than a separate concept: to
+ * the engine they are models that answer, and the only thing that
+ * distinguishes them is that the answer is free and slower.
  */
-export const TEXT_PROVIDERS = ["openai", "anthropic", "ollama"] as const;
+export const TEXT_PROVIDERS = ["openai", "anthropic", "ollama", "local"] as const;
 export type TextProvider = (typeof TEXT_PROVIDERS)[number];
 
 /** Speech providers this package knows how to build. */
@@ -48,14 +50,14 @@ export interface ProviderOptions {
 /** Cloudflare's provider id for a vendor, which is not always the vendor's own name. */
 // `ollama` is absent on purpose: a local daemon has no gateway route, and
 // `baseUrlFor` is never reached for it.
-const GATEWAY_IDS: Record<Exclude<TextProvider, "ollama"> | SpeechProvider, string> = {
+const GATEWAY_IDS: Record<Exclude<TextProvider, "ollama" | "local"> | SpeechProvider, string> = {
   openai: "openai",
   anthropic: "anthropic",
   elevenlabs: "elevenlabs",
 };
 
 function baseUrlFor(
-  provider: Exclude<TextProvider, "ollama"> | SpeechProvider,
+  provider: Exclude<TextProvider, "ollama" | "local"> | SpeechProvider,
   gateway: GatewayConfig | undefined,
 ): string | undefined {
   if (!gateway) return undefined;
@@ -66,6 +68,24 @@ export function createLlm(provider: TextProvider, options: ProviderOptions): Llm
   // Before the key check below, because a local model has no key to check --
   // and routing it through an AI Gateway would be routing localhost through
   // the internet.
+  // A distinct provider rather than `openai` with a base URL, and the
+  // distinction is not cosmetic. The SDK's OpenAI provider decides how to ask
+  // for structured output from the model id it was given, and behind a local
+  // endpoint it is negotiating with something it has never heard of: pointed
+  // at LM Studio it settled on a mode the server did not enforce, and an
+  // eighteen-minute call answered a schema-constrained request with a Markdown
+  // table. This adapter puts the schema on the wire itself.
+  if (provider === "local") {
+    if (options.baseUrl === undefined) {
+      throw new Error('the "local" provider needs llm.baseUrl, e.g. http://127.0.0.1:1234/v1');
+    }
+    return createOpenAiCompatibleLlm({
+      modelId: options.modelId,
+      baseUrl: options.baseUrl,
+      ...(options.apiKey ? { apiKey: options.apiKey } : {}),
+    });
+  }
+
   if (provider === "ollama") {
     return createOllamaLlm({
       modelId: options.modelId,
@@ -76,7 +96,8 @@ export function createLlm(provider: TextProvider, options: ProviderOptions): Llm
   // An explicit base URL wins over the gateway's, because it is the more
   // specific instruction: someone who named an endpoint meant that endpoint.
   const baseURL =
-    options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
+    options.baseUrl ??
+    baseUrlFor(provider as Exclude<TextProvider, "ollama" | "local">, options.gateway);
   const settings = {
     apiKey: options.apiKey,
     ...(baseURL === undefined ? {} : { baseURL }),
@@ -97,7 +118,8 @@ export function createTts(provider: SpeechProvider, options: ProviderOptions): T
   // An explicit base URL wins over the gateway's, because it is the more
   // specific instruction: someone who named an endpoint meant that endpoint.
   const baseURL =
-    options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
+    options.baseUrl ??
+    baseUrlFor(provider as Exclude<TextProvider, "ollama" | "local">, options.gateway);
   const settings = {
     apiKey: options.apiKey,
     ...(baseURL === undefined ? {} : { baseURL }),
