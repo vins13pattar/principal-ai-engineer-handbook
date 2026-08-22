@@ -51,6 +51,18 @@ const src = `${base}/${file}`;
 
   <audio class="handbook-episode__audio" controls preload="none" src={src}></audio>
 
+  {
+    /* Optional, and collapsed. A transcript is the accessible copy of the
+       episode and the skimmable one — but expanded by default it would bury
+       the page it belongs to under twenty minutes of dialogue. */
+    Astro.slots.has("transcript") && (
+      <details class="handbook-episode__transcript">
+        <summary>Read the transcript</summary>
+        <slot name="transcript" />
+      </details>
+    )
+  }
+
   <p class="handbook-episode__provenance">
     Generated from this page by <strong>{model}</strong> on{" "}
     <time datetime={generated}>{generated}</time>, spoken by Kokoro-82M running locally. Two
@@ -93,5 +105,32 @@ const src = `${base}/${file}`;
     font-size: 0.8em;
     line-height: 1.5;
     color: var(--sl-color-gray-3);
+  }
+  .handbook-episode__transcript {
+    margin-top: 0.75rem;
+    border-top: 1px solid var(--sl-color-gray-5);
+    padding-top: 0.75rem;
+  }
+  .handbook-episode__transcript summary {
+    cursor: pointer;
+    font-size: 0.9em;
+    font-weight: 600;
+  }
+  /* Twenty minutes of dialogue expands to about twenty screens, and it is left
+     to expand: a nested scroll region would hide most of the transcript from
+     print, and makes screen-reader navigation worse than the page flow it
+     replaces. Collapsed by default is what keeps it out of the way. */
+  .handbook-episode__transcript[open] summary {
+    margin-bottom: 0.75rem;
+  }
+  .handbook-episode__transcript > :global(*:not(summary)) {
+    font-size: 0.9em;
+  }
+  .handbook-episode__transcript :global(h3) {
+    font-size: 1em;
+    margin-top: 1.25rem;
+  }
+  .handbook-episode__transcript :global(p) {
+    margin: 0.5rem 0;
   }
 </style>

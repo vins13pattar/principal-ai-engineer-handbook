@@ -173,6 +173,28 @@ already filled in. Take the duration from the script rather than typing it: a
 player labelled with a length it does not have is a small lie the reader catches
 in the first ten seconds.
 
+To put the transcript on the page too, copy it into `apps/handbook/src/transcripts/` — **not**
+under `src/content/docs/`, where Astro validates every `.md` against the docs collection schema and
+the build fails — then strip its header and demote `##` to `###` so the page keeps one H1 and its
+own outline:
+
+```mdx
+import { Content as Transcript } from "../../../../transcripts/module-06-mcp.md";
+
+<EpisodePlayer
+  file="module-06-mcp.m4a"
+  duration="22:27"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+```
+
+It renders collapsed. An imported component's headings do not reach Starlight's table of contents —
+verified, the page keeps its own 32 entries — so a twelve-beat transcript does not flood the
+sidebar.
+
 Then see it in the page:
 
 ```bash

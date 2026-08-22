@@ -65,13 +65,16 @@ import {
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import hostClientServer from "./06-mcp.host-client-server.mmd?raw";
 import statelessRouting from "./06-mcp.stateless-routing.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-06-mcp.md";
 
 <EpisodePlayer
   file="module-06-mcp.m4a"
   duration="22:27"
   model="Claude Sonnet 5"
   generated="2026-08-22"
-/>
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
