@@ -59,7 +59,15 @@ __pycache__/
 
 # Operator configuration and generated episode runs.
 podcast.config.json
-.podcast/
+# Podcast run directories. `--out` names one, so match any of them rather
+# than only the default: a run written to `.podcast-local/` is the same
+# throwaway artifact and got committed once by a `git add -A`.
+.podcast*/
+
+# Working podcast configs. Only the example is tracked; a local config carries
+# endpoints, model ids and prices that are the operator's, not the repo's.
+podcast.*.json
+!podcast.config.example.json
 
 # Generated podcast episodes. These live in the handbook-podcast R2 bucket;
 # see docs/PODCAST.md. Committing them puts a megabyte per episode into every
