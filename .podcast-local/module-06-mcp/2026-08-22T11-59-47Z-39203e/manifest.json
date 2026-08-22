@@ -1,0 +1,86 @@
+{
+  "manifestVersion": 1,
+  "command": "plan",
+  "documentId": "module:06-mcp",
+  "runId": "2026-08-22T11-59-47Z-39203e",
+  "startedAt": "2026-08-22T11:59:47.867Z",
+  "finishedAt": "2026-08-22T11:59:49.265Z",
+  "request": {
+    "durationSeconds": 1069
+  },
+  "resolvedConfig": {
+    "llm": {
+      "provider": "openai",
+      "modelId": "qwen/qwen3.5-9b",
+      "baseUrl": "http://127.0.0.1:1234/v1",
+      "maxOutputTokens": 16000
+    },
+    "prices": {
+      "inputPerMillionTokens": 0,
+      "outputPerMillionTokens": 0,
+      "speechPerMillionCharacters": 0
+    },
+    "tts": {
+      "provider": "local",
+      "modelId": "mlx-community/Kokoro-82M-bf16",
+      "voices": {
+        "host": "af_heart",
+        "guest": "am_michael"
+      },
+      "language": "en-US",
+      "measuredOn": "Apple M4, 24 GB",
+      "charsPerSecond": 14.77,
+      "synthesisCost": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      },
+      "runner": {
+        "name": "kokoro-82m",
+        "cwd": "packages/podcast-providers",
+        "command": ".venv/bin/python",
+        "args": [
+          "-u",
+          "runners/kokoro_mlx.py",
+          "--text",
+          "{text}",
+          "--out",
+          "{out}",
+          "--voice",
+          "{voice}",
+          "--lang",
+          "{language}"
+        ],
+        "mediaType": "audio/wav",
+        "timeoutSeconds": 600
+      }
+    },
+    "plan": {
+      "expansionFactor": 3,
+      "maxRenderSeconds": 300
+    }
+  },
+  "artifacts": [
+    "manifest.json"
+  ],
+  "status": "failed",
+  "failure": {
+    "stage": "plan",
+    "message": "Incorrect API key provided: lm-studio. You can find your API key at https://platform.openai.com/account/api-keys."
+  },
+  "source": {
+    "sourceHash": "2d749b019aa0829387697399f17fbbaefd0e0aee134dfc0baadb7478ff114edb",
+    "excerptCount": 73,
+    "droppedForBudget": [
+      "module:03-networking",
+      "module:01-production-python"
+    ]
+  },
+  "model": {
+    "modelId": "qwen/qwen3.5-9b"
+  },
+  "cost": {
+    "estimatedAtMaxOutput": 0,
+    "basis": "ceiling",
+    "measured": null
+  }
+}

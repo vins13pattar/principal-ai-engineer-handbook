@@ -281,8 +281,11 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     llm =
       deps.llm ??
       createLlm(config.llm.provider, {
-        apiKey: apiKey as string,
+        // Empty rather than asserted: a local endpoint needs no key, and the
+        // guard above only requires one for the hosted providers.
+        apiKey: apiKey ?? "",
         modelId: config.llm.modelId,
+        ...(config.llm.baseUrl === undefined ? {} : { baseUrl: config.llm.baseUrl }),
       });
 
     if (isCreate) {

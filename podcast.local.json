@@ -1,0 +1,42 @@
+{
+  "llm": {
+    "provider": "openai",
+    "baseUrl": "http://127.0.0.1:1234/v1",
+    "modelId": "qwen/qwen3.5-9b",
+    "maxOutputTokens": 16000
+  },
+  "prices": {
+    "inputPerMillionTokens": 0,
+    "outputPerMillionTokens": 0,
+    "speechPerMillionCharacters": 0
+  },
+  "tts": {
+    "provider": "local",
+    "modelId": "mlx-community/Kokoro-82M-bf16",
+    "voices": { "host": "af_heart", "guest": "am_michael" },
+    "language": "en-US",
+    "measuredOn": "Apple M4, 24 GB",
+    "charsPerSecond": 14.77,
+    "synthesisCost": { "fixedSeconds": 3.16, "marginalRtf": 0.073 },
+    "runner": {
+      "name": "kokoro-82m",
+      "cwd": "packages/podcast-providers",
+      "command": ".venv/bin/python",
+      "args": [
+        "-u",
+        "runners/kokoro_mlx.py",
+        "--text",
+        "{text}",
+        "--out",
+        "{out}",
+        "--voice",
+        "{voice}",
+        "--lang",
+        "{language}"
+      ],
+      "mediaType": "audio/wav",
+      "timeoutSeconds": 600
+    }
+  },
+  "plan": { "expansionFactor": 3, "maxRenderSeconds": 300 }
+}
