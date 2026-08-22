@@ -13,6 +13,7 @@ import { createElevenLabs } from "@ai-sdk/elevenlabs";
 import { createOpenAI } from "@ai-sdk/openai";
 import { llmFromModel, ttsFromModel } from "./ai-sdk.ts";
 import { type GatewayConfig, gatewayBaseUrl } from "./gateway.ts";
+import { patientFetch } from "./http.ts";
 import { createOllamaLlm } from "./ollama.ts";
 import type { LlmPort, TtsPort } from "./ports.ts";
 
@@ -76,7 +77,14 @@ export function createLlm(provider: TextProvider, options: ProviderOptions): Llm
   // specific instruction: someone who named an endpoint meant that endpoint.
   const baseURL =
     options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
-  const settings = { apiKey: options.apiKey, ...(baseURL === undefined ? {} : { baseURL }) };
+  const settings = {
+    apiKey: options.apiKey,
+    ...(baseURL === undefined ? {} : { baseURL }),
+    // Only where an endpoint was named. A hosted API answering in seconds
+    // should keep the default timeout; a local one needs minutes, and the
+    // 300-second built-in limit is not reachable from request options.
+    ...(options.baseUrl === undefined ? {} : { fetch: patientFetch() }),
+  };
   const name = `${provider}:${options.modelId}${options.gateway ? " (via AI Gateway)" : ""}`;
 
   if (provider === "anthropic") {
@@ -90,7 +98,14 @@ export function createTts(provider: SpeechProvider, options: ProviderOptions): T
   // specific instruction: someone who named an endpoint meant that endpoint.
   const baseURL =
     options.baseUrl ?? baseUrlFor(provider as Exclude<TextProvider, "ollama">, options.gateway);
-  const settings = { apiKey: options.apiKey, ...(baseURL === undefined ? {} : { baseURL }) };
+  const settings = {
+    apiKey: options.apiKey,
+    ...(baseURL === undefined ? {} : { baseURL }),
+    // Only where an endpoint was named. A hosted API answering in seconds
+    // should keep the default timeout; a local one needs minutes, and the
+    // 300-second built-in limit is not reachable from request options.
+    ...(options.baseUrl === undefined ? {} : { fetch: patientFetch() }),
+  };
   const name = `${provider}:${options.modelId}${options.gateway ? " (via AI Gateway)" : ""}`;
 
   if (provider === "elevenlabs") {

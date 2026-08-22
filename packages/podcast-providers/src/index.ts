@@ -1,6 +1,7 @@
 export * from "./ports.ts";
 export * from "./language.ts";
 export * from "./gateway.ts";
+export * from "./http.ts";
 export * from "./cost.ts";
 export * from "./ai-sdk.ts";
 export * from "./registry.ts";

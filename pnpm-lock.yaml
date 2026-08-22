@@ -176,6 +176,9 @@ importers:
       ai:
         specifier: 7.0.66
         version: 7.0.66(zod@4.4.3)
+      undici:
+        specifier: 7.28.0
+        version: 7.28.0
       workers-ai-provider:
         specifier: 4.0.0
         version: 4.0.0(@ai-sdk/anthropic@4.0.39(zod@4.4.3))(@ai-sdk/openai@4.0.42(zod@4.4.3))(@ai-sdk/provider@4.0.7)(ai@7.0.66(zod@4.4.3))

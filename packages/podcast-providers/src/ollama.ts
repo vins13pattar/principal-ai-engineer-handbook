@@ -21,6 +21,7 @@
 
 import { z } from "zod";
 import { ModelResponseError } from "./errors.ts";
+import { patientFetch } from "./http.ts";
 import type { LlmPort, LlmResult, StructuredRequest } from "./ports.ts";
 
 export interface OllamaOptions {
@@ -48,6 +49,9 @@ interface OllamaChatResponse {
 export function createOllamaLlm(options: OllamaOptions): LlmPort {
   const baseUrl = (options.baseUrl ?? "http://localhost:11434").replace(/\/+$/, "");
   const timeoutSeconds = options.timeoutSeconds ?? 900;
+  // Node's fetch abandons a request 300 seconds after sending it if no headers
+  // have arrived, whatever the AbortController below says.
+  const fetchImpl = patientFetch(timeoutSeconds);
 
   return {
     name: `ollama:${options.modelId}`,
@@ -67,7 +71,7 @@ export function createOllamaLlm(options: OllamaOptions): LlmPort {
 
       let response: Response;
       try {
-        response = await fetch(`${baseUrl}/api/chat`, {
+        response = await fetchImpl(`${baseUrl}/api/chat`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
