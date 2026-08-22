@@ -1,0 +1,80 @@
+---
+/**
+ * A generated audio episode for the page it sits on.
+ *
+ * The provenance line is not decoration. This audio was planned and written by
+ * a language model from this page's own text, then spoken by a local
+ * text-to-speech model — a reader who mistakes it for a recorded conversation
+ * will trust it differently than they should, so the component says what it is
+ * every time rather than leaving it to a paragraph somebody might not read.
+ *
+ * `preload="none"` on purpose: an episode is about a megabyte, and no page
+ * should spend a reader's bandwidth on audio they did not ask to hear.
+ */
+interface Props {
+  /** Path under `public/`, e.g. `/podcast/module-06-mcp.m4a`. */
+  src: string;
+  /** Runtime as `M:SS`, so the reader can judge before loading anything. */
+  duration: string;
+  /** The model that planned and wrote it. */
+  model: string;
+  /** The date the episode was generated, ISO. */
+  generated: string;
+}
+
+const { src, duration, model, generated } = Astro.props;
+---
+
+<figure class="handbook-episode">
+  <figcaption class="handbook-episode__header">
+    <span class="handbook-episode__glyph" aria-hidden="true">🎧</span>
+    <span class="handbook-episode__label">Listen to this page</span>
+    <span class="handbook-episode__duration">{duration}</span>
+  </figcaption>
+
+  <audio class="handbook-episode__audio" controls preload="none" src={src}></audio>
+
+  <p class="handbook-episode__provenance">
+    Generated from this page by <strong>{model}</strong> on{" "}
+    <time datetime={generated}>{generated}</time>, spoken by Kokoro-82M running locally. Two
+    synthetic voices, not a recorded conversation. Every claim is drawn from this page — where it
+    differs from the text above, the text is correct.
+  </p>
+</figure>
+
+<style>
+  /* Starlight's gray scale runs 1-6 and inverts per theme, so `gray-6` is the
+     subtle panel in both. There is no `gray-7`: asking for one silently fell
+     through to a hardcoded near-white, which in dark mode put light grey text
+     on an almost white card. */
+  .handbook-episode {
+    margin: 1.5rem 0;
+    padding: 1rem 1.25rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    background: var(--sl-color-gray-6);
+  }
+  .handbook-episode__header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+  }
+  .handbook-episode__duration {
+    margin-left: auto;
+    font-weight: 400;
+    font-size: 0.85em;
+    color: var(--sl-color-gray-3);
+    font-variant-numeric: tabular-nums;
+  }
+  .handbook-episode__audio {
+    width: 100%;
+    margin-top: 0.75rem;
+  }
+  .handbook-episode__provenance {
+    margin: 0.75rem 0 0;
+    font-size: 0.8em;
+    line-height: 1.5;
+    color: var(--sl-color-gray-3);
+  }
+</style>
