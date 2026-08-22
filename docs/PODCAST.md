@@ -130,9 +130,17 @@ two runs can never share one:
 | --------------- | ------------------------------------------------------------------------------- |
 | `plan.json`     | The arc: beats, citations, per-beat seconds, what the model could not source    |
 | `script.json`   | Every turn of the conversation, all of which is spoken                          |
+| `transcript.md` | The conversation as readable text, for a person or another voice provider       |
 | `episode.wav`   | The episode                                                                     |
 | `manifest.json` | Status, model, usage, measured cost, turn and character counts, review findings |
 | `failure.json`  | Only on failure: the model's raw text and finish reason                         |
+
+`transcript.md` is the portable artifact: `**Host:**` and `**Guest:**` start a line and appear
+nowhere else, so `grep '^\*\*Guest:\*\*' transcript.md` is the guest's script — ready to hand to
+ElevenLabs, Sarvam, or a human reader. Its header records the source page, the model, the voices and
+the runtime, because a transcript outlives the run directory it was written in. It is written
+**before** synthesis and rewritten after: the words cost money and the audio does not, so a run that
+dies rendering still leaves something another provider can speak.
 
 `script.json` holds the conversation **after revision**, and every turn in it is spoken — the audio
 and the script are the same thing. Revision is the only edit the pipeline makes to its own output,

@@ -24,6 +24,7 @@ import { renderEpisode } from "./episode.ts";
 import type { BeatReview } from "./review.ts";
 import type { EpisodeAudio } from "./episode.ts";
 import { planEpisode } from "./plan.ts";
+import { renderTranscript } from "./transcript.ts";
 import type { EpisodePlan } from "./schema.ts";
 
 export type CreateStage = "plan" | "dialogue" | "synthesis";
@@ -41,6 +42,8 @@ export interface CreateOptions {
   durationSeconds: number;
   /** Check each beat against its sources. On unless the operator opts out. */
   review: boolean;
+  /** ISO date, for the transcript header. Injected so the run stays testable. */
+  generated: string;
   llm: LlmPort;
   tts: TtsPort;
   directory: string;
@@ -70,6 +73,8 @@ export interface CreateResult {
 }
 
 export const EPISODE_FILE = "episode.wav";
+/** The episode as readable text, for a person or another voice provider. */
+export const TRANSCRIPT_FILE = "transcript.md";
 
 export async function createEpisode(options: CreateOptions): Promise<CreateResult> {
   const { config, directory } = options;
@@ -123,11 +128,30 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   });
 
   await writeFile(join(directory, "script.json"), `${JSON.stringify(written.script, null, 2)}\n`);
+
+  // Written here as well as after synthesis, and the duplication is the point.
+  // The words are the expensive half; synthesis is free and repeatable. A run
+  // that dies rendering audio should still leave a transcript somebody can hand
+  // to another voice provider, so the readable artifact exists as soon as the
+  // conversation does. The second write only fills in the measured runtime.
+  const transcript = (audioSeconds: number | null) =>
+    renderTranscript(planned.plan, written.script, {
+      documentId: options.pack.primary.documentId,
+      url: options.pack.primary.url,
+      modelId: written.modelId,
+      generated: options.generated,
+      voices: config.tts.voices,
+      audioSeconds,
+    });
+
+  await writeFile(join(directory, TRANSCRIPT_FILE), transcript(null));
+
   options.onStageDone("dialogue", {
     usage: written.usage,
     modelId: written.modelId,
     artifact: "script.json",
   });
+  options.onStageDone("dialogue", { artifact: TRANSCRIPT_FILE });
   // Printed as a comparison rather than a count. The first real run came back
   // 48% over budget, and nothing said so until the finished audio turned out
   // to be eight and a half minutes against a five-minute request -- by which
@@ -159,6 +183,8 @@ export async function createEpisode(options: CreateOptions): Promise<CreateResul
   });
 
   await writeFile(join(directory, EPISODE_FILE), episode.audio);
+  // Rewritten now that the runtime is measured rather than guessed.
+  await writeFile(join(directory, TRANSCRIPT_FILE), transcript(episode.audioSeconds));
   options.onStageDone("synthesis", { usage: episode.usage, artifact: EPISODE_FILE });
 
   return {

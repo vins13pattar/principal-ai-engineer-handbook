@@ -370,6 +370,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
         pack,
         config,
         durationSeconds,
+        generated: deps.now().toISOString().slice(0, 10),
         review,
         llm,
         tts,

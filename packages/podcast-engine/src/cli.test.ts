@@ -267,6 +267,7 @@ describe("runCli — create", () => {
       "manifest.json",
       "plan.json",
       "script.json",
+      "transcript.md",
     ]);
 
     // Playable means a real container of the expected length, not a file that
@@ -402,6 +403,7 @@ describe("runCli — create", () => {
     expect(manifest.artifacts).toEqual([
       "plan.json",
       "script.json",
+      "transcript.md",
       "episode.wav",
       "manifest.json",
     ]);
@@ -482,7 +484,15 @@ describe("runCli — create", () => {
 
     expect(code).toBe(1);
     const dir = join(outRoot, "runs", "module-06-mcp", "2026-08-16T13-42-07Z-a3f9c1");
-    expect((await readdir(dir)).sort()).toEqual(["manifest.json", "plan.json", "script.json"]);
+    // The transcript survives too, which is why it is written before synthesis
+    // rather than after: the words cost money and the audio does not.
+    expect((await readdir(dir)).sort()).toEqual([
+      "manifest.json",
+      "plan.json",
+      "script.json",
+      "transcript.md",
+    ]);
+    expect(await readFile(join(dir, "transcript.md"), "utf8")).toContain("**Guest:**");
 
     const manifest = JSON.parse(await readFile(join(dir, "manifest.json"), "utf8"));
     expect(manifest.status).toBe("failed");
