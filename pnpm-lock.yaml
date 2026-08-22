@@ -11,6 +11,9 @@ importers:
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.8.0(jiti@2.7.0))
+      '@handbook/content':
+        specifier: workspace:*
+        version: link:packages/handbook-content
       '@handbook/podcast-engine':
         specifier: workspace:*
         version: link:packages/podcast-engine

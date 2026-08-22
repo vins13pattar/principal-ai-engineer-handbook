@@ -33,6 +33,7 @@ function pack(sections: Array<[string, string]>): SourcePack {
     })),
     sourceHash: "hash-abc",
     estimatedTokens: 100,
+    readingSeconds: 600,
     droppedForBudget: [],
   };
 }

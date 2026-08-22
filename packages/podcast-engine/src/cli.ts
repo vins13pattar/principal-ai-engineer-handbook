@@ -76,7 +76,7 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
   const documentId = argv[1];
 
   if (command !== "plan" && command !== "create") {
-    deps.log("usage: cli.ts plan|create <documentId> --duration <seconds> [--run]");
+    deps.log("usage: cli.ts plan|create <documentId> [--duration <seconds>] [--run]");
     return 2;
   }
   if (documentId === undefined || documentId.startsWith("--")) {
@@ -84,9 +84,16 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return 2;
   }
 
+  // Optional, and defaulted from the page rather than from a number somebody
+  // has to pick. The episode exists so a reader can listen instead of reading,
+  // so the page's own reading time is the target; `--duration` is the override
+  // for when you want something other than the whole page.
   const durationRaw = flag(argv, "duration");
-  const durationSeconds = Number(durationRaw);
-  if (durationRaw === undefined || !Number.isFinite(durationSeconds) || durationSeconds <= 0) {
+  const requestedDuration = durationRaw === undefined ? undefined : Number(durationRaw);
+  if (
+    requestedDuration !== undefined &&
+    (!Number.isFinite(requestedDuration) || requestedDuration <= 0)
+  ) {
     deps.log("--duration must be a number of seconds greater than zero");
     return 2;
   }
@@ -163,6 +170,8 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
     return 1;
   }
 
+  const durationSeconds = requestedDuration ?? pack.readingSeconds;
+
   const { request } = buildPlanRequest(pack, {
     maxOutputTokens: config.llm.maxOutputTokens,
     requestedSeconds: durationSeconds,
@@ -185,6 +194,12 @@ export async function runCli(argv: readonly string[], deps: CliDeps): Promise<nu
 
   deps.log(
     `  pack            ${pack.excerpts.length} excerpts, ~${planCost.inputTokens} est. input tokens`,
+  );
+  deps.log(
+    `  target          ${Math.round(durationSeconds / 60)} min` +
+      (requestedDuration === undefined
+        ? `   the page's reading time`
+        : `   requested (the page reads in ${Math.round(pack.readingSeconds / 60)} min)`),
   );
   deps.log(`  model           ${config.llm.provider}:${config.llm.modelId}`);
   if (isCreate) {

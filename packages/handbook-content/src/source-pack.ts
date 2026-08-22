@@ -51,6 +51,17 @@ export interface SourcePack {
   /** Rough token count, for the context budget. See `estimateTokens`. */
   estimatedTokens: number;
   /**
+   * How long the primary page takes to read, in seconds.
+   *
+   * The number an episode aims at, because the episode exists so somebody can
+   * hear the page instead of reading it. Measured from the prose rather than
+   * taken from `estimatedMinutes`, which is study time: module 6 declares 50
+   * minutes and is 17.8 minutes of reading, the difference being code, exercises
+   * and the lab. It also works for the collections that declare no minutes at
+   * all, which is most of them.
+   */
+  readingSeconds: number;
+  /**
    * Documents dropped to stay inside the budget, in the order they were cut.
    *
    * Recorded rather than silently omitted: an episode generated from a
@@ -78,6 +89,25 @@ const DEFAULT_MAX_TOKENS = 25_000;
  */
 export function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+/**
+ * Adult reading speed for technical prose, in words per minute.
+ *
+ * 220 is mid-range for careful reading of unfamiliar material; casual prose
+ * runs faster and code slower. The episode target inherits whatever error is
+ * here, so it is one number in one place rather than a constant per caller.
+ */
+const WORDS_PER_MINUTE = 220;
+
+export function readingSeconds(document: HandbookDocument): number {
+  const words = document.sections
+    .map((section) => section.body)
+    .join(" ")
+    .split(/\s+/)
+    .filter(Boolean).length;
+
+  return Math.round((words / WORDS_PER_MINUTE) * 60);
 }
 
 function toPackDocument(document: HandbookDocument): SourcePackDocument {
@@ -202,6 +232,7 @@ export function buildSourcePack(
     excerpts: included.flatMap(excerptsFor),
     sourceHash: hash.digest("hex"),
     estimatedTokens: total,
+    readingSeconds: readingSeconds(primary),
     droppedForBudget: dropped,
   };
 }

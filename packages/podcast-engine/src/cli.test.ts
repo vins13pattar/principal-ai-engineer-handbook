@@ -341,6 +341,26 @@ describe("runCli — create", () => {
     expect(lines.join("\n")).toMatch(/calls\s+~13: 1 plan \+ 12 dialogue,/);
   });
 
+  it("aims at the page's reading time when no duration is given", async () => {
+    // The episode exists so somebody can hear the page instead of reading it,
+    // so the page decides how long it is. `estimatedMinutes` in a module's
+    // frontmatter is study time and would be wrong: module 6 declares 50
+    // minutes and is 17.8 minutes of prose.
+    await runCli(
+      ["create", "module:06-mcp", "--config", configPath, "--out", join(outRoot, "runs")],
+      deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }),
+    );
+
+    expect(lines.join("\n")).toMatch(/target\s+18 min\s+the page's reading time/);
+  });
+
+  it("lets --duration override the page", async () => {
+    await runCli(create(), deps({ llm: new FakeLlm([draft]), tts: new FakeWavTts() }));
+
+    // `base` asks for 2400 seconds, which is 40 minutes.
+    expect(lines.join("\n")).toMatch(/target\s+40 min\s+requested \(the page reads in 18 min\)/);
+  });
+
   it("speaks every turn the model wrote, including the last one", async () => {
     // The defect this guards: a trim cut the script back to a duration budget
     // by dropping turns from each beat, which takes the last turns of the last

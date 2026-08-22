@@ -1,11 +1,16 @@
 # Podcast engine
 
-Turns one handbook page into a two-voice podcast episode. The model plans the arc and writes the
-dialogue; a local text-to-speech model speaks it; the pipeline joins the segments into one file.
+Turns one handbook page into a two-voice podcast episode, so a reader can hear the page instead of
+reading it. The model plans the arc and writes the dialogue; a local text-to-speech model speaks it;
+the pipeline joins the segments into one file.
 
-Speech is local and therefore free. The only money this spends is on the language model — **$0.46
-for a five-minute episode** at Claude Sonnet pricing, or **$0.21 with `--skip-review`**. Input
-dominates: the plan call sends the whole page, and review reads each beat's excerpts a second time.
+An episode covers the whole page by default, aiming at the page's own reading time — 18 minutes for
+module 6, which is 3,918 words. Across all 63 documents the handbook is **414 minutes of prose**, so
+the complete series is about seven hours of audio for roughly **$30**.
+
+Speech is local and therefore free. The only money this spends is on the language model — about
+**$1.04 for an 18-minute episode** at Claude Sonnet pricing, or a third of that with
+`--skip-review`. Input dominates the short episodes and output dominates the long ones.
 
 Six stages: plan, dialogue, review, revision, synthesis, assembly.
 
@@ -80,8 +85,13 @@ node --env-file=~/.config/handbook/podcast.env --experimental-strip-types packag
 
 ## Commands
 
-Both take a document id and a duration in seconds, and both print an estimate and exit without
-spending unless you pass `--run`.
+Both take a document id, and both print an estimate and exit without spending unless you pass
+`--run`. Duration is optional: without it an episode aims at the page's own reading time, measured
+from its prose at 220 words per minute.
+
+Do not reach for the `estimatedMinutes` in a module's frontmatter — that is study time, including
+code and exercises. Module 6 declares 50 minutes and is 17.8 minutes of reading. Most collections
+declare nothing at all, and measuring the prose works for every page.
 
 The two estimates mean different things. `plan` quotes a ceiling, which for a single call is a real
 bound. `create` quotes an **expectation**, because summing eleven generous per-call caps produces a
@@ -91,19 +101,22 @@ runs and predicts within about 7%.
 
 ```bash
 # What a plan call would cost, and whether the page supports an episode at all.
-node --experimental-strip-types packages/podcast-engine/src/cli.ts plan module:06-mcp --duration 300
+node --experimental-strip-types packages/podcast-engine/src/cli.ts plan module:06-mcp
 
 # The whole pipeline: plan, dialogue, review, revision, synthesis, assembly.
+node --env-file=... --experimental-strip-types packages/podcast-engine/src/cli.ts create module:06-mcp --run
+
+# A shorter episode than the page, when you want a summary rather than a substitute.
 node --env-file=... --experimental-strip-types packages/podcast-engine/src/cli.ts create module:06-mcp --duration 300 --run
 ```
 
-| Flag            | Default               | Meaning                                                    |
-| --------------- | --------------------- | ---------------------------------------------------------- |
-| `--duration`    | required              | Seconds of speech to aim for                               |
-| `--run`         | off                   | Actually call the model. Without it, nothing is written    |
-| `--config`      | `podcast.config.json` | Configuration path                                         |
-| `--out`         | `.podcast`            | Where run directories are created                          |
-| `--skip-review` | off                   | Skip the groundedness check. Halves the cost and the calls |
+| Flag            | Default                 | Meaning                                                    |
+| --------------- | ----------------------- | ---------------------------------------------------------- |
+| `--duration`    | the page's reading time | Seconds of speech to aim for                               |
+| `--run`         | off                     | Actually call the model. Without it, nothing is written    |
+| `--config`      | `podcast.config.json`   | Configuration path                                         |
+| `--out`         | `.podcast`              | Where run directories are created                          |
+| `--skip-review` | off                     | Skip the groundedness check. Halves the cost and the calls |
 
 `plan` exists separately because it is the cheap half — one model call, no synthesis — and the half
 worth running when the question is whether the source material supports an episode.
