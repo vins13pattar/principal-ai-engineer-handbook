@@ -22,6 +22,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -32,6 +33,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import decisionFlow from "./00-principal-engineer-mindset.decision-flow.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-00-principal-engineer-mindset.md";
+
+<EpisodePlayer
+  file="module-00-principal-engineer-mindset.m4a"
+  duration="18:30"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 

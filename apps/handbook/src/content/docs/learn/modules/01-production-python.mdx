@@ -24,6 +24,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -35,6 +36,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import requestLifecycle from "./01-production-python.request-lifecycle.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-01-production-python.md";
+
+<EpisodePlayer
+  file="module-01-production-python.m4a"
+  duration="20:28"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 

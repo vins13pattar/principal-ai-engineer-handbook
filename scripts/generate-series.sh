@@ -92,7 +92,11 @@ for entry in "${queue[@]}"; do
     continue
   fi
 
-  run_dir=$(echo "$out" | awk '/wrote .*episode\.wav/ { print $2 }' | sed 's|/episode.wav$||')
+  # Everything after "wrote ", not field 2: this repository lives under a path
+  # containing a space ("Open Source"), so awk's field splitting truncated it to
+  # `/Users/vinod/Projects/Open` and two perfectly good episodes were reported
+  # as missing their own output.
+  run_dir=$(echo "$out" | sed -n 's|^ *wrote \(.*\)/episode\.wav$|\1|p' | tail -1)
   measured=$(echo "$out" | awk '/measured/ { print $NF }' | tail -1)
   echo "$out" | grep -E "^  (episode|script|reviewed)" | sed 's/^/  /'
 
