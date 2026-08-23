@@ -24,6 +24,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -35,6 +36,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import multiRegion from "./11-cloud.multi-region-architecture.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-11-cloud.md";
+
+<EpisodePlayer
+  file="module-11-cloud.m4a"
+  duration="11:07"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -157,12 +168,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
-
 @dataclass
 class HealthCheck:
     timestamp: datetime
     healthy: bool
-
 
 @dataclass
 class FailoverController:

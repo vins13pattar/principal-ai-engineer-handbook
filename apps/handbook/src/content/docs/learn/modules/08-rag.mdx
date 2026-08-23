@@ -27,6 +27,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -38,6 +39,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import pipelines from "./08-rag.pipelines.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-08-rag.md";
+
+<EpisodePlayer
+  file="module-08-rag.m4a"
+  duration="12:46"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -132,14 +143,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
-
 @dataclass
 class Chunk:
     id: str
     text: str
     tenant_id: str
     source_document: str
-
 
 class VectorIndex(Protocol):
     async def search(
@@ -149,11 +158,9 @@ class VectorIndex(Protocol):
         never fetch candidates first and filter afterward in application code."""
         ...
 
-
 class Reranker(Protocol):
     async def rerank(self, query: str, candidates: list[Chunk]) -> list[Chunk]:
         ...
-
 
 async def retrieve(
     query: str,

@@ -26,6 +26,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -37,6 +38,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import designMethod from "./13-system-design.design-method.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-13-system-design.md";
+
+<EpisodePlayer
+  file="module-13-system-design.m4a"
+  duration="20:32"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -150,7 +161,6 @@ of estimated in a meeting:
 ```python
 from dataclasses import dataclass
 
-
 @dataclass(frozen=True)
 class Workload:
     """Constraints, stated as numbers so the design can be checked against them."""
@@ -163,14 +173,12 @@ class Workload:
     input_cost_per_1k: float
     output_cost_per_1k: float
 
-
 @dataclass(frozen=True)
 class Capacity:
     concurrent_requests: float
     replicas_needed: int
     cost_per_request: float
     cost_per_day: float
-
 
 def model(workload: Workload, *, concurrency_per_replica: int, headroom: float = 0.3) -> Capacity:
     # Little's Law: everything in flight at a given instant.
@@ -191,7 +199,6 @@ def model(workload: Workload, *, concurrency_per_replica: int, headroom: float =
         cost_per_request=cost,
         cost_per_day=cost * workload.peak_rps * 86_400,
     )
-
 
 def ceil_div(numerator: float, denominator: float) -> int:
     return int(-(-numerator // denominator))

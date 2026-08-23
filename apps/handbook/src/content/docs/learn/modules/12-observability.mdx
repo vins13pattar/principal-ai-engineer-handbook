@@ -25,6 +25,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -36,6 +37,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import signalPipeline from "./12-observability.signal-pipeline.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-12-observability.md";
+
+<EpisodePlayer
+  file="module-12-observability.m4a"
+  duration="14:46"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -141,7 +152,6 @@ from typing import Iterator
 
 REDACTED = "[redacted]"
 
-
 @dataclass
 class Span:
     name: str
@@ -154,7 +164,6 @@ class Span:
 
     def finish(self) -> None:
         self.duration_seconds = time.monotonic() - self.start_time
-
 
 class Tracer:
     def __init__(self) -> None:
@@ -169,16 +178,13 @@ class Tracer:
             span.finish()
             self.finished_spans.append(span)
 
-
 def redact(text: str, sensitive_substrings: list[str]) -> str:
     redacted = text
     for substring in sensitive_substrings:
         redacted = redacted.replace(substring, REDACTED)
     return redacted
 
-
 tracer = Tracer()
-
 
 def call_model(prompt: str, model: str, sensitive_substrings: list[str]) -> str:
     with tracer.start_span("llm.call") as span:

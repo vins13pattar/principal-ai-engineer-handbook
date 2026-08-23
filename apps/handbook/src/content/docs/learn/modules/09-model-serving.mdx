@@ -28,6 +28,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -39,6 +40,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import servingPipeline from "./09-model-serving.serving-pipeline.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-09-model-serving.md";
+
+<EpisodePlayer
+  file="module-09-model-serving.m4a"
+  duration="16:18"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -146,7 +157,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-
 @dataclass
 class Request:
     id: str
@@ -154,7 +164,6 @@ class Request:
     max_new_tokens: int
     generated_tokens: int = 0
     prefilled: bool = False
-
 
 class ContinuousBatchScheduler:
     def __init__(self, kv_cache_token_budget: int):

@@ -24,6 +24,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -35,6 +36,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import streamingPath from "./03-networking.streaming-path.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-03-networking.md";
+
+<EpisodePlayer
+  file="module-03-networking.m4a"
+  duration="17:38"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 

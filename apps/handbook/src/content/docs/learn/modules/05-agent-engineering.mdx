@@ -27,6 +27,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -38,6 +39,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import agentLoop from "./05-agent-engineering.agent-loop.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-05-agent-engineering.md";
+
+<EpisodePlayer
+  file="module-05-agent-engineering.m4a"
+  duration="14:09"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -128,16 +139,13 @@ from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import Any
 
-
 class ToolCallRejected(RuntimeError):
     pass
-
 
 @dataclass
 class ToolCall:
     name: str
     arguments: dict[str, Any]
-
 
 @dataclass
 class AgentStep:
@@ -145,13 +153,11 @@ class AgentStep:
     tool_call: ToolCall | None = None
     final_answer: str | None = None
 
-
 @dataclass
 class Tool:
     name: str
     handler: Callable[[dict[str, Any]], Awaitable[str]]
     allowed_for_task_types: set[str] = field(default_factory=set)
-
 
 class BoundedAgentLoop:
     def __init__(self, tools: dict[str, Tool], max_steps: int = 8) -> None:

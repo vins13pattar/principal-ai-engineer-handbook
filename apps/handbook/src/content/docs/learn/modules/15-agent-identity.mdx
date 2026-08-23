@@ -36,6 +36,7 @@ relatedLabs: ["agent-identity-broker", "policy-gated-tool-runtime"]
 import {
   Checklist,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewQuestion,
@@ -45,6 +46,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import tokenExchange from "./15-agent-identity.token-exchange.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-15-agent-identity.md";
+
+<EpisodePlayer
+  file="module-15-agent-identity.m4a"
+  duration="17:04"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -166,10 +177,8 @@ from dataclasses import dataclass
 
 import jwt  # PyJWT
 
-
 class TokenRejected(Exception):
     """Carries which invariant failed, for the audit log — never for the client."""
-
 
 @dataclass(frozen=True)
 class AgentPrincipal:
@@ -178,7 +187,6 @@ class AgentPrincipal:
     subject: str          # the user
     actor: str | None     # the agent, from the `act` claim
     scopes: frozenset[str]
-
 
 def validate(token: str, *, this_server: str, trusted_issuer: str, jwks) -> AgentPrincipal:
     try:
@@ -206,7 +214,6 @@ def validate(token: str, *, this_server: str, trusted_issuer: str, jwks) -> Agen
         actor=actor,
         scopes=frozenset(claims.get("scope", "").split()),
     )
-
 
 def authorize_tool(principal: AgentPrincipal, tool_name: str, required: str) -> None:
     """Scope check, separate from identity, so the audit log distinguishes the two."""

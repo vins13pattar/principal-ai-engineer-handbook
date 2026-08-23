@@ -25,6 +25,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -36,6 +37,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import schedulingAndScaling from "./10-kubernetes.scheduling-and-scaling.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-10-kubernetes.md";
+
+<EpisodePlayer
+  file="module-10-kubernetes.m4a"
+  duration="17:26"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -201,13 +212,11 @@ from fastapi import FastAPI, Response
 app = FastAPI()
 draining = False
 
-
 @app.get("/readyz")
 async def readyz() -> Response:
     if draining:
         return Response(status_code=503, content="draining")
     return Response(status_code=200, content="ready")
-
 
 @app.on_event("shutdown")
 async def on_shutdown() -> None:

@@ -24,6 +24,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -36,6 +37,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import platformStack from "./04-ai-infrastructure.platform-stack.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-04-ai-infrastructure.md";
+
+<EpisodePlayer
+  file="module-04-ai-infrastructure.m4a"
+  duration="14:31"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
@@ -141,7 +152,6 @@ TOKEN_PRICE_PER_1K = {
     "provider-b/small": {"input": 0.0005, "output": 0.0015},
 }
 
-
 @dataclass
 class UsageRecord:
     tenant_id: str
@@ -159,7 +169,6 @@ class UsageRecord:
             (self.input_tokens / 1000) * price["input"]
             + (self.output_tokens / 1000) * price["output"]
         )
-
 
 async def track_usage(
     tenant_id: str,

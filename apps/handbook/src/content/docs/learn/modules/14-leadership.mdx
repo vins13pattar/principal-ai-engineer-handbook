@@ -24,6 +24,7 @@ import {
   Checklist,
   CodeWalkthrough,
   EngineeringNote,
+  EpisodePlayer,
   Exercise,
   FailureMode,
   InterviewAnswer,
@@ -35,6 +36,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import decisionPath from "./14-leadership.decision-path.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/module-14-leadership.md";
+
+<EpisodePlayer
+  file="module-14-leadership.m4a"
+  duration="16:19"
+  model="Claude Sonnet 5"
+  generated="2026-08-22"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Executive Summary
 
