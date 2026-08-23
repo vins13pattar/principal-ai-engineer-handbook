@@ -77,7 +77,9 @@ for (const [index, line] of lines.entries()) {
   }
 }
 if (frontmatterEnd === -1) {
-  console.error(`${document.sourcePath} has no frontmatter; refusing to guess where the body starts`);
+  console.error(
+    `${document.sourcePath} has no frontmatter; refusing to guess where the body starts`,
+  );
   process.exit(1);
 }
 
@@ -86,19 +88,39 @@ const componentsImport = lines.findIndex((line) => line.includes('} from "@handb
 let out: string[];
 
 if (componentsImport !== -1) {
-  // Add `EpisodePlayer` to the existing named imports, in the alphabetical
-  // order the block is already kept in.
-  const openIndex = lines.findIndex(
-    (line, index) => index <= componentsImport && line.trim() === "import {",
-  );
-  const names = lines
-    .slice(openIndex + 1, componentsImport)
-    .map((line) => line.trim().replace(/,$/, ""))
-    .filter(Boolean);
+  // Two shapes exist in this repo: learn modules import a dozen components
+  // across many lines, ADRs import one on a single line. Reading the second as
+  // if it were the first found no `import {` line, searched back to index -1,
+  // and swept the whole frontmatter into the import list.
+  const singleLine = lines[componentsImport]!.includes("import {");
+  const openIndex = singleLine
+    ? componentsImport
+    : lines.findIndex((line, index) => index <= componentsImport && line.trim() === "import {");
+
+  if (openIndex === -1) {
+    console.error(
+      `${document.sourcePath} imports from @handbook/components in a shape this script does not recognise; refusing to guess`,
+    );
+    process.exit(1);
+  }
+
+  const names = singleLine
+    ? (lines[componentsImport]!.match(/\{([^}]*)\}/)?.[1] ?? "")
+        .split(",")
+        .map((name) => name.trim())
+        .filter(Boolean)
+    : lines
+        .slice(openIndex + 1, componentsImport)
+        .map((line) => line.trim().replace(/,$/, ""))
+        .filter(Boolean);
   if (!names.includes("EpisodePlayer")) names.push("EpisodePlayer");
   names.sort((a, b) => a.localeCompare(b));
 
-  const rebuilt = ["import {", ...names.map((name) => `  ${name},`), '} from "@handbook/components";'];
+  const rebuilt = [
+    "import {",
+    ...names.map((name) => `  ${name},`),
+    '} from "@handbook/components";',
+  ];
 
   // The transcript import goes after the last import line, so it sits with the
   // others rather than orphaned above the prose.
