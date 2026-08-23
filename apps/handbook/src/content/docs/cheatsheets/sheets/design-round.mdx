@@ -14,6 +14,18 @@ category: cheatsheet
 printable: true
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/cheatsheet-design-round.md";
+
+<EpisodePlayer
+  file="cheatsheet-design-round.m4a"
+  duration="4:28"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## Use This When
 
 You have 45 minutes and a prompt. Read it in the ten minutes before the round, not during — the

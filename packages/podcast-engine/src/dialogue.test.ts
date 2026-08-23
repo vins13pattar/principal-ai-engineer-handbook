@@ -275,8 +275,10 @@ describe("beatOutputTokens", () => {
     expect(beatOutputTokens(100_000, 4000)).toBe(4000);
   });
 
-  it("floors well above what any short beat could need", () => {
-    expect(beatOutputTokens(10, 16_000)).toBe(4000);
+  it("floors above what a short beat on a dense page needs", () => {
+    // 4,000 was not enough: a short beat on a dense architecture page hit it
+    // and truncated, destroying the episode after eight beats had been paid for.
+    expect(beatOutputTokens(10, 16_000)).toBe(8000);
   });
 });
 

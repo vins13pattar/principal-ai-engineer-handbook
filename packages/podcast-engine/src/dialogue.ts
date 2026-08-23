@@ -144,12 +144,17 @@ export function projectOutputTokens(characters: number): number {
  * tokens, and it belongs nowhere near the expected size.
  *
  * Six times the projection was not enough: a 60-second beat projected 293
- * tokens, was capped at 1,884, and the model wanted more. Twelve times, floored
- * at 4,000, sits about seven times above the largest beat observed writing
- * normally.
+ * tokens, was capped at 1,884, and the model wanted more. Twelve times fixed
+ * that.
+ *
+ * The floor moved from 4,000 to 8,000 after a short beat on a dense page --
+ * `architecture:policy-gated-tool-execution`, beat 7 of 9 -- hit 4,000 and lost
+ * the whole episode at the last page of a 62-page series. Short beats are
+ * exactly where the floor governs and the projection does not, so the floor has
+ * to clear a dense beat too, not merely a brief one.
  */
 export function beatOutputTokens(characters: number, configured: number): number {
-  return Math.min(configured, Math.max(4000, projectOutputTokens(characters) * 12));
+  return Math.min(configured, Math.max(8000, projectOutputTokens(characters) * 12));
 }
 
 /**

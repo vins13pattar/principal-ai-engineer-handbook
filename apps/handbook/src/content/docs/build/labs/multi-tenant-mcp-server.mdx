@@ -27,6 +27,18 @@ stack:
 labStatus: production-shaped
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-multi-tenant-mcp-server.md";
+
+<EpisodePlayer
+  file="lab-multi-tenant-mcp-server.m4a"
+  duration="5:50"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import requestPath from "./multi-tenant-mcp-server.request-path.mmd?raw";

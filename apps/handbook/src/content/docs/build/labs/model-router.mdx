@@ -16,6 +16,18 @@ stack:
 labStatus: production-shaped
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-model-router.md";
+
+<EpisodePlayer
+  file="lab-model-router.m4a"
+  duration="4:23"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import routingPath from "./model-router.routing-path.mmd?raw";

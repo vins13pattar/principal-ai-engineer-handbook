@@ -13,7 +13,24 @@ revisionHistory:
 category: interview-track
 ---
 
-import { Checklist, EngineeringNote, FailureMode, PrincipalPerspective, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EngineeringNote,
+  EpisodePlayer,
+  FailureMode,
+  PrincipalPerspective,
+  TradeOff,
+} from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/interview-technical-leadership.md";
+
+<EpisodePlayer
+  file="interview-technical-leadership.m4a"
+  duration="11:02"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 This is the round people prepare for last and lose most often. Not because it is soft — because it
 is misread as soft. The interviewer is sampling the same thing as the design round, on a different

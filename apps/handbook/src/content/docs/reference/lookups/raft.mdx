@@ -11,6 +11,18 @@ revisionHistory:
 category: Consensus
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-raft.md";
+
+<EpisodePlayer
+  file="reference-raft.m4a"
+  duration="5:05"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 Raft keeps a replicated log identical across a cluster by electing a single leader and routing every

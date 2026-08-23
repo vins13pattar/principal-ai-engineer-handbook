@@ -14,6 +14,18 @@ category: cheatsheet
 printable: true
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/cheatsheet-incident-response.md";
+
+<EpisodePlayer
+  file="cheatsheet-incident-response.m4a"
+  duration="4:00"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## Use This When
 
 You have just been paged, or you are about to run an incident for the first time. Print it and keep

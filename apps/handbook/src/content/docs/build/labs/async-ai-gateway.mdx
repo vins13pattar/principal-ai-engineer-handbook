@@ -29,6 +29,18 @@ stack:
 labStatus: production-ready
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-async-ai-gateway.md";
+
+<EpisodePlayer
+  file="lab-async-ai-gateway.m4a"
+  duration="5:22"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import requestFlow from "./async-ai-gateway.request-flow.mmd?raw";

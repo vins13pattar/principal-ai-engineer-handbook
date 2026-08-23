@@ -22,6 +22,18 @@ freshness:
 category: Agent orchestration
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-langgraph.md";
+
+<EpisodePlayer
+  file="reference-langgraph.m4a"
+  duration="8:30"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A runtime for **stateful, durable, resumable** workflows expressed as a graph. Nodes are functions

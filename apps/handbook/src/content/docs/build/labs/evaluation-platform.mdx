@@ -16,6 +16,18 @@ stack:
 labStatus: production-shaped
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-evaluation-platform.md";
+
+<EpisodePlayer
+  file="lab-evaluation-platform.m4a"
+  duration="4:59"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import significance from "./evaluation-platform.significance.mmd?raw";

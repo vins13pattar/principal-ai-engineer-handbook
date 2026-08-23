@@ -13,7 +13,24 @@ revisionHistory:
 category: interview-track
 ---
 
-import { Checklist, EngineeringNote, FailureMode, PrincipalPerspective, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EngineeringNote,
+  EpisodePlayer,
+  FailureMode,
+  PrincipalPerspective,
+  TradeOff,
+} from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/interview-ai-systems-coding.md";
+
+<EpisodePlayer
+  file="interview-ai-systems-coding.m4a"
+  duration="11:27"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 The coding round for AI infrastructure roles is rarely a graph algorithm. It is usually a small,
 real concurrency or correctness problem — a limiter, a retry path, a batcher, a queue — that the

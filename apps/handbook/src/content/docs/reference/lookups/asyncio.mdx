@@ -11,6 +11,18 @@ revisionHistory:
 category: Concurrency
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-asyncio.md";
+
+<EpisodePlayer
+  file="reference-asyncio.m4a"
+  duration="4:36"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A single-threaded cooperative scheduler. One event loop runs one coroutine at a time; every `await`

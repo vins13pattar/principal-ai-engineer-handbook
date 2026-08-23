@@ -14,6 +14,18 @@ category: cheatsheet
 printable: true
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/cheatsheet-design-review.md";
+
+<EpisodePlayer
+  file="cheatsheet-design-review.m4a"
+  duration="5:08"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## Use This When
 
 Someone has sent you a design document and you have an hour. This is the reviewing side, not the

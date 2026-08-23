@@ -14,6 +14,18 @@ category: cheatsheet
 printable: true
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/cheatsheet-coding-round.md";
+
+<EpisodePlayer
+  file="cheatsheet-coding-round.m4a"
+  duration="3:24"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## Use This When
 
 You are about to be asked to build a limiter, a retry path, a batcher, or a worker pool in 45–60

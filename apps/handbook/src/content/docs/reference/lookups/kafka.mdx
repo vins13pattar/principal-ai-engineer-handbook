@@ -11,6 +11,18 @@ revisionHistory:
 category: Messaging
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-kafka.md";
+
+<EpisodePlayer
+  file="reference-kafka.m4a"
+  duration="4:42"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A distributed, append-only commit log. Producers append to partitions; consumers read forward at

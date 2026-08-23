@@ -20,9 +20,26 @@ maturity: reference
 relatedAdrs: []
 ---
 
-import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+} from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import enforcementPipeline from "../../build/labs/policy-gated-tool-runtime.enforcement-pipeline.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-policy-gated-tool-execution.md";
+
+<EpisodePlayer
+  file="architecture-policy-gated-tool-execution.m4a"
+  duration="15:11"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

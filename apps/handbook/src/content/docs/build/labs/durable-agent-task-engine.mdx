@@ -17,6 +17,18 @@ stack:
 labStatus: production-shaped
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-durable-agent-task-engine.md";
+
+<EpisodePlayer
+  file="lab-durable-agent-task-engine.m4a"
+  duration="6:17"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import taskLifecycle from "./durable-agent-task-engine.task-lifecycle.mmd?raw";

@@ -11,6 +11,18 @@ revisionHistory:
 category: Data store
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-redis.md";
+
+<EpisodePlayer
+  file="reference-redis.m4a"
+  duration="6:00"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 An in-memory server exposing data structures — strings, hashes, lists, sets, sorted sets, streams —

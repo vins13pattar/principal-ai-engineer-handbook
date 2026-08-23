@@ -11,6 +11,18 @@ revisionHistory:
 category: Runtime
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-docker.md";
+
+<EpisodePlayer
+  file="reference-docker.m4a"
+  duration="5:50"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A container is a process on the host kernel with restricted visibility — namespaces limit what it

@@ -11,6 +11,18 @@ revisionHistory:
 category: Orchestration
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-kubernetes.md";
+
+<EpisodePlayer
+  file="reference-kubernetes.m4a"
+  duration="6:05"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 You declare desired state; controllers reconcile actual state toward it, forever. Nothing is

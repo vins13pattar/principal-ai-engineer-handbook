@@ -15,6 +15,18 @@ freshness:
 category: Data store
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-vector-db.md";
+
+<EpisodePlayer
+  file="reference-vector-db.m4a"
+  duration="7:34"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A search system for high-dimensional vectors: given a query vector, return the nearest ones, fast,

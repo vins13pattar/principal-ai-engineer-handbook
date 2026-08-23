@@ -24,6 +24,18 @@ freshness:
 category: Agent protocol
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-mcp.md";
+
+<EpisodePlayer
+  file="reference-mcp.m4a"
+  duration="9:32"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 ## At a Glance
 
 A JSON-RPC protocol for exposing **tools**, **resources**, and **prompts** to a model host over a
