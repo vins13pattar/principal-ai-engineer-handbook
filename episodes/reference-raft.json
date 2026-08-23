@@ -1,0 +1,139 @@
+{
+  "archiveVersion": 1,
+  "slug": "reference-raft",
+  "meta": {
+    "documentId": "reference:raft",
+    "url": "/reference/lookups/raft/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 305
+  },
+  "plan": {
+    "topic": "Raft",
+    "title": "Raft: Consensus You Can Actually Reason About",
+    "throughLine": "Raft trades throughput and multi-region flexibility for an understandable, provably-safe way to keep a replicated log consistent — and knowing exactly where that trade bites is what separates a textbook answer from a production one.",
+    "beats": [
+      {
+        "title": "One Leader, One Log",
+        "intent": "Introduce Raft's core mechanism — a single elected leader routing all writes, terms preventing split authority, and the leader/follower/candidate roles — plus why it was built (Paxos alternative, understandability) and its blunt CP identity.",
+        "excerptIds": [
+          "reference:raft#at-a-glance",
+          "reference:raft#key-concepts"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 65.67647058823529,
+        "allocatedCharacters": 1475
+      },
+      {
+        "title": "The Numbers That Make It Safe",
+        "intent": "Walk through the concrete mechanics that make the design work in practice: quorum math, why cluster sizes are odd, the election-timeout randomization that prevents endless split votes, and the timing inequality that has to hold for the whole thing to stay stable.",
+        "excerptIds": [
+          "reference:raft#numbers-that-matter"
+        ],
+        "weight": 1,
+        "targetSeconds": 59.70588235294117,
+        "allocatedCharacters": 959
+      },
+      {
+        "title": "Where It Bites You in Production",
+        "intent": "Cover the operational gotchas — stale follower reads, committed-vs-applied confusion, dangerous membership changes, geographic spread breaking the timing model — and close by placing Raft's CP behavior inside the CAP frame and pointing listeners to deeper resources.",
+        "excerptIds": [
+          "reference:raft#common-gotchas",
+          "reference:cap-theorem#at-a-glance",
+          "reference:raft#where-to-go-deeper"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 77.61764705882354,
+        "allocatedCharacters": 2443
+      }
+    ],
+    "requestedSeconds": 203,
+    "plannedSeconds": 203,
+    "unsupported": [
+      "A detailed side-by-side comparison of Raft's mechanics against Paxos",
+      "Byzantine fault-tolerant consensus variants",
+      "Concrete multi-region Raft deployment topologies beyond 'keep it in one region'",
+      "Real-world etcd/Consul/CockroachDB internals beyond the fact that they use Raft"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.21900000000005,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "98519b9fa4fbee186f7b537ef81be28b7268ae500a32a589a628b355cf388349",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So let's start with the shape of the problem. You've got a replicated log, a bunch of nodes, and everyone needs to agree on the same sequence of writes even when machines crash or the network hiccups. Paxos technically solves this, but it's notorious for being nearly impossible to reason about in practice. Raft showed up specifically to fix that understandability problem, right?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly, that was the whole design goal — not new capability, just the same guarantees as Paxos but with a mental model humans can actually hold in their heads. And it worked well enough that it's now sitting underneath etcd, Consul, TiKV, CockroachDB, which means it's quietly running underneath Kubernetes itself. The core trick is brutally simple: elect one leader, and every write in the entire cluster routes through that single node."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "One leader, one log — so walk me through the roles. You've got leader, follower, candidate, and this idea of terms that keep everyone from talking over each other."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, followers just sit passively accepting AppendEntries — which doubles as both replication and a heartbeat — until their election timer fires, at which point they become a candidate and request votes for a new term. Terms are the key safety valve: it's a monotonically increasing epoch number, and any message carrying a higher term forces whoever's holding old authority to step down immediately, so you can never have two leaders both thinking they're in charge for the same term. And that single-leader-per-term design is exactly why Raft is unapologetically CP — if a minority partition gets cut off, it simply stops accepting writes rather than risk two sides of a split diverging."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, let's get concrete then, because 'majority' sounds simple until you're staring at a cluster-sizing decision. Why does everyone land on three or five nodes instead of, say, four or six?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "It comes down to quorum math: you need floor of N over 2 plus 1 nodes to agree, which means failures tolerated is floor of N minus 1 over 2. Run that formula and four nodes only tolerate one failure, exactly the same as three, but every write now has to wait on one more replica. Five gets you to tolerating two failures, so odd sizes are the sweet spot — you're paying for redundancy you actually get, not padding your latency for nothing."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And that randomized election timeout — walk me through why that specific trick, the 150 to 300 millisecond window, actually matters instead of just picking a fixed number."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "If every follower waited the exact same fixed interval, they'd all time out simultaneously, all become candidates at once, split the vote, and do it again forever — that's the classic livelock. Randomizing means one node almost always fires first, grabs votes before anyone else wakes up, and the heartbeat interval sits a full order of magnitude below that timeout, so a healthy leader never gets second-guessed. It all rests on one inequality: broadcast time has to be much less than election timeout, which has to be much less than mean time between failures — break the left side and you get endless elections."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So the theory is solid, the arithmetic checks out — where does this actually go wrong for someone running it in production?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "A few classic traps. First, Raft doesn't scale throughput, it just gives you safety — every write still funnels through one leader, so if you need more capacity you shard into multiple Raft groups rather than expecting one group to get faster. Second, follower reads can be stale, because a follower doesn't necessarily know the latest entry is committed, so strong reads need to go through the leader with a lease or a ReadIndex check. And there's a subtler trap: committed isn't applied — an entry can be durable on a majority but a client only sees its effect once the state machine actually processes it."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And I'd guess geography and membership changes are where people really get burned?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Exactly — stretch a Raft group across regions and cross-region round trips start approaching your election timeout, so you get leaders flapping in and out for no real reason; keep the group in one region and replicate across regions some other way. Membership changes are the other landmine — add or remove several nodes at once and you can briefly create two disjoint majorities, so you always change membership one node at a time. Zooming out, this is all just Raft picking consistency over availability during a partition, the CP side of CAP — if you want the deeper reasoning on that tradeoff, or the original Raft paper, or how etcd's timing constraints shape Kubernetes control-plane topology, those are all worth reading next."
+      }
+    ]
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "archiveVersion": 1,
+  "slug": "adr-0007-workers-static-assets-deployment",
+  "meta": {
+    "documentId": "adr:0007-workers-static-assets-deployment",
+    "url": "/adr/decisions/0007-workers-static-assets-deployment/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 302
+  },
+  "plan": {
+    "topic": "ADR-0007: Deploy as a Worker with static assets instead of a Pages project",
+    "title": "ADR-0007: Deploy as a Worker with Static Assets Instead of a Pages Project",
+    "throughLine": "When Cloudflare quietly moved new git-connected projects from Pages onto Workers Builds, the platform underneath ADR-0005's deployment decision shifted, forcing a re-decision that had to solve three silent failure modes at once while preserving the monorepo and the root-relative link scheme already paid for.",
+    "beats": [
+      {
+        "title": "The ground moved under a settled decision",
+        "intent": "Explain that ADR-0005 wasn't wrong when made — it targeted Cloudflare's git-integration Pages flow — but Cloudflare has since routed new projects into Workers Builds, which asks for a deploy command instead of an output directory and deploys a Worker, not a Pages project.",
+        "excerptIds": [
+          "adr:0007-workers-static-assets-deployment#context",
+          "adr:0005-cloudflare-pages-deployment#status"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 45.049180327868854,
+        "allocatedCharacters": 1256
+      },
+      {
+        "title": "Three silent breakages",
+        "intent": "Walk through what happens if the same repo is pointed at Workers Builds unchanged: wrangler rejects the Pages config, bare wrangler deploy refuses to run at a pnpm workspace root, and CF_PAGES_URL doesn't exist there — so the site would build green but stamp a wrong canonical URL onto every page and sitemap entry, the worst kind of failure because it looks fine.",
+        "excerptIds": [
+          "adr:0007-workers-static-assets-deployment#problem"
+        ],
+        "weight": 1.6,
+        "targetSeconds": 60.06557377049181,
+        "allocatedCharacters": 1001
+      },
+      {
+        "title": "Weighing the way out: legacy flow, split repo, or static-assets Worker",
+        "intent": "Lay out the three options considered — clinging to the legacy Pages creation flow, pulling the site out of the monorepo so wrangler's auto-detection has a single package, or deploying as a static-assets Worker — and why splitting the repo would undo the exact cohesion the monorepo decision was made to protect.",
+        "excerptIds": [
+          "adr:0007-workers-static-assets-deployment#options",
+          "adr:0002-pnpm-monorepo-layout#decision",
+          "adr:0002-pnpm-monorepo-layout#problem"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 56.31147540983607,
+        "allocatedCharacters": 1563
+      },
+      {
+        "title": "The decision and what it costs going forward",
+        "intent": "Describe the accepted shape: an assets block with no main entry point, a deploy command that names the config file to skip workspace auto-detection, and SITE_URL read explicitly ahead of CF_PAGES_URL. Cover the consequences — a load-bearing flag that looks redundant, preview URLs changing shape, easier future server behavior, and that CI still can't verify any of this on its own.",
+        "excerptIds": [
+          "adr:0007-workers-static-assets-deployment#decision",
+          "adr:0007-workers-static-assets-deployment#consequences",
+          "adr:0007-workers-static-assets-deployment#references"
+        ],
+        "weight": 1.8,
+        "targetSeconds": 67.57377049180329,
+        "allocatedCharacters": 2849
+      }
+    ],
+    "requestedSeconds": 229,
+    "plannedSeconds": 229,
+    "unsupported": [
+      "A deeper narrative about the original GitHub Pages era and the base-path link prefixing work (only tangentially referenced here, not the focus of ADR-0007)"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 89,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.957,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "d259a3e80047599517dbd34f8b892b8a8a9a5a72f4428a66c251e4519c77d817",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we've got ADR-0007, and the setup here is a little unusual because this isn't a story about a bad decision getting fixed. ADR-0005 picked Cloudflare Pages via git integration, and by every account that was the right call at the time. So what actually forced a new ADR?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "The platform moved out from under it. ADR-0005 was written against a specific flow — Workers and Pages, Create, Pages, Connect to Git — with build settings tuned for that: build command, output directory, root directory. But if you go create a new git-connected project on Cloudflare today, you don't land in that flow anymore, you land in Workers Builds. That setup form doesn't even ask for an output directory, it asks for a deploy command, and critically, it deploys a Worker, not a Pages project. Same goal, totally different artifact underneath."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, so say you just point the same repo at Workers Builds and don't touch anything else. Walk me through what actually breaks."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Three things, and none of them throw an obvious error at you. First, wrangler deploy just refuses outright, because the config still has pages_build_output_dir in it, which marks the project as Pages, and the Workers deploy command isn't valid against that. Second, even if you strip that out, bare wrangler deploy at the root of a pnpm workspace flat out declines to run — it says application detection has been run at the root of a workspace instead of targeting a specific project, because it won't guess which package you mean, and that's a monorepo-specific failure you won't find in a single-package tutorial."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And the third one — that's the one that doesn't even fail, right? It just quietly does the wrong thing."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Exactly, and it's the worst of the three. CF_PAGES_URL simply doesn't exist on Workers Builds, it's a Pages-only variable, but the site config was reading it to derive the canonical site URL. So on Workers it silently falls through to the hard-coded fallback, the build goes green, the site renders fine to a human — and every one of the fifty pages plus every entry in sitemap-0.xml gets stamped with the wrong canonical URL."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So you're staring at this with three failure modes on the table. What were the actual options for getting out of it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Three paths. First, hunt down the legacy Pages project creation flow and just stay put — it still exists for now, but Cloudflare is visibly steering people away from it, and it doesn't actually solve the monorepo detection problem or the canonical URL problem, it just avoids confronting them. Second, pull the site out of the pnpm workspace into its own repository so wrangler's auto-detection has a single package to find, no ambiguity."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "That second one sounds tempting on the surface — trade a messy detection problem for a clean repo boundary. What's the catch?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "The catch is that it undoes the exact thing ADR-0002 set up on purpose. The monorepo exists so a change to a shared component doesn't need a version bump and publish step, and so the labs and packages sit right next to the site they document. Splitting the site out for a one-line deploy flag would be solving a Workers problem by breaking a cohesion decision we made deliberately, which left the third option — deploy as a Worker with static assets, no server code, no main entry point, just the built directory served from the edge, functionally what Pages was already doing."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So walk me through what actually landed. It's an assets block pointing at the dist folder, no main entry point, and a deploy command that names the config file explicitly — why does that last part matter so much?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Because without naming wrangler.toml, the CLI tries to auto-detect a workspace and gets confused inside a monorepo, and it only breaks here, which is exactly the kind of failure someone simplifies away without noticing. That's why the explanation lives in the config file itself, right next to the flag, instead of in an ADR nobody rereads. Same logic applies to SITE_URL — we set it explicitly now instead of trusting CF_PAGES_URL to be there, because a silent absence is fine but a silently wrong value isn't."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "And the tradeoffs ride along with it — preview URLs look different now, but you've bought yourself an easier path if real server logic ever shows up, and CI still can't confirm any of this actually worked, only that it built. That last part feels like the honest ending to this whole story: the config can be right and you still have to go look. Which is exactly why that post-deploy checklist exists."
+      }
+    ]
+  }
+}

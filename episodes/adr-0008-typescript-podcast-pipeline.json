@@ -1,0 +1,277 @@
+{
+  "archiveVersion": 1,
+  "slug": "adr-0008-typescript-podcast-pipeline",
+  "meta": {
+    "documentId": "adr:0008-typescript-podcast-pipeline",
+    "url": "/adr/decisions/0008-typescript-podcast-pipeline/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 727
+  },
+  "plan": {
+    "topic": "ADR-0008: TypeScript and a plain pipeline for the podcast engine",
+    "title": "ADR-0008: Choosing TypeScript and a Plain Pipeline Over Python and LangGraph",
+    "throughLine": "A podcast-generation pipeline inherited two design assumptions from outside the repo — Python and LangGraph — and this ADR tests both against what the repository actually is: eleven isolated Python labs, a TypeScript content stack that already owns the schemas, and a workflow that turns out to be a single linear loop rather than a graph.",
+    "beats": [
+      {
+        "title": "Assumptions Carried In, Constraints Already Present",
+        "intent": "Introduce what the podcast engine has to do (load content, plan, write dialogue, review, direct, synthesize) and set up the two assumptions in the original design — Python packages and LangGraph — against the repo's real shape: eleven isolated Python labs, an existing TypeScript content stack, and MDX rather than plain Markdown.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#context"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 53.174311926605505,
+        "allocatedCharacters": 1296
+      },
+      {
+        "title": "Two Questions Usually Answered by Habit",
+        "intent": "Frame the actual decision problem: which language, and which orchestration framework — and why AI tooling's default toward Python and the handbook's own LangGraph module make both choices feel obvious enough to skip arguing for.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#problem"
+        ],
+        "weight": 1,
+        "targetSeconds": 44.31192660550459,
+        "allocatedCharacters": 681
+      },
+      {
+        "title": "Weighing a Python Engine Against Plain TypeScript",
+        "intent": "Walk the four options on the table — a Python engine, TypeScript with LangGraph JS, TypeScript with a heavier agent framework, and TypeScript with plain async — and land on why the content loader settles it: importing shared schemas beats restating them in a second language with no mechanism to catch drift.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#options",
+          "adr:0008-typescript-podcast-pipeline#decision"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 66.46788990825688,
+        "allocatedCharacters": 2089
+      },
+      {
+        "title": "Why Not LangGraph: A For-Loop in Disguise",
+        "intent": "Lay out the argument against the graph framework — the pipeline is a linear one-cycle-with-bounded-revision shape, and the properties that justify a graph (branching, dynamic node selection, fan-out, interrupt-and-resume) are mostly absent here, even though per-stage JSON artifacts look like checkpointing under another name.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#decision",
+          "module:07-langgraph#executive-summary",
+          "module:07-langgraph#mental-model",
+          "module:07-langgraph#trade-offs"
+        ],
+        "weight": 1.7,
+        "targetSeconds": 75.3302752293578,
+        "allocatedCharacters": 4455
+      },
+      {
+        "title": "The Real Corpus Finds Two Bugs a Fixture Never Would",
+        "intent": "Tell the two consequences that surfaced once the loader ran against the live content tree instead of fixtures: two collections silently loading empty past a 'more than forty documents' assertion, and a type error in packages/shared that pnpm verify never caught because the check script was never invoked — the same 'a gate that is never run does not report that it is broken' failure the Redis integration job in Async AI Gateway hit the same day.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#consequences",
+          "lab:async-ai-gateway#verify-it"
+        ],
+        "weight": 1.6,
+        "targetSeconds": 70.89908256880734,
+        "allocatedCharacters": 3199
+      },
+      {
+        "title": "Two Ports, One Replaceable SDK",
+        "intent": "Explain the provider layer: LlmPort and TtsPort as the only surface the engine imports, the AI SDK chosen over LangChain JS because it covers speech and text through the same provider shape, and Cloudflare AI Gateway sitting underneath either choice as a reverse proxy rather than a competing abstraction.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#consequences"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 57.60550458715596,
+        "allocatedCharacters": 1313
+      },
+      {
+        "title": "The Cost Test That Failed and Was Right",
+        "intent": "Walk through the cost model surprise — a test asserting eight revision rounds cost more than double one round failed, because at premium voice pricing speech dominates and seven extra rework rounds cost less than one synthesis, flipping the intuitive target of cost control from the revision cap to segment-level regeneration.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#consequences"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 62.036697247706414,
+        "allocatedCharacters": 1414
+      },
+      {
+        "title": "What Would Actually Change the Answer",
+        "intent": "Close on the concrete, measurable conditions that would reverse the decision — interactive Q&A needing interrupt-and-resume, the revision loop becoming real branching, stage-level retry becoming load-bearing — framing reversal as a measurement rather than a mood, and confirm the decision is accepted and implemented.",
+        "excerptIds": [
+          "adr:0008-typescript-podcast-pipeline#consequences",
+          "adr:0008-typescript-podcast-pipeline#status"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 53.174311926605505,
+        "allocatedCharacters": 1419
+      }
+    ],
+    "requestedSeconds": 483,
+    "plannedSeconds": 483,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 83,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.53900000000004,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "6ec5f1f102ee46d02b89aef972b07ef66b46b24847a2d954e8bbef6694b63704",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we're looking at ADR-0008 today, which is about how a podcast-generation pipeline got built inside this repo — the thing that takes a handbook page and turns it into an actual episode. It has to load the source content, plan the episode, write dialogue between two voices, review that dialogue for accuracy, direct the delivery, and then synthesize the audio. But before any of that got built, the design document already made two big calls, and neither of them came from looking at the repo itself."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and that's really the crux of it. The original spec said: use Python packages under packages/, and use LangGraph to orchestrate the steps. Both of those were assumptions carried in from outside, rather than decisions made by looking at what's actually here."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "And what's actually here turns out to matter a lot. So walk me through it — what's the real shape of this repository that those two assumptions are about to collide with?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "So there are really two questions here, and both of them tend to get answered by habit instead of by looking at the evidence. First, which language — AI tooling defaults to Python, and the original design just inherited that default. But the largest piece of Phase 1 is a content loader, and the content, its schemas, and its structural linter are all already written in TypeScript. Second, which orchestration framework — the design specified LangGraph, and the handbook literally teaches LangGraph, so it feels like the obvious choice, which is exactly why it needs a real argument instead of a shrug."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So the very familiarity of Python and LangGraph is what's making people skip the argument entirely. Why does getting either of those two calls wrong end up being so expensive down the line?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Because the language decides what you can reuse versus what you're forced to reimplement from scratch, and the framework decides the shape of every future change to the pipeline."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So lay out the actual menu here. What were the four options on the table before this got decided?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "A Python engine living in labs, TypeScript with LangGraph JS, TypeScript with a heavier agent framework that brings workflow primitives and persistence, and TypeScript with plain async orchestration. The Python option is legible to the audience but the content loader would have to reimplement MDX parsing and restate every content schema in a second language, with nothing to catch the two definitions drifting apart. The heavier framework is real capability aimed at a problem this pipeline doesn't have yet, and it's harder to leave than to enter."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And plain async wins because of that same content loader — importing beats restating."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Exactly. In TypeScript the loader just imports extractFrontmatter and the content schemas from packages/shared, so a page gets validated by the same Zod library the linter and site already use. Model access goes through a separate provider-abstraction layer that validates the episode plan at the model boundary with that same Zod library. Do that content-schema sharing in Python and you're maintaining two definitions of a valid page with no mechanism to compare them — that's invisible drift waiting to happen, and it's why the engine landed in TypeScript with ordinary async functions instead of a graph."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So the engine's TypeScript and async functions, no graph framework. Walk me through why LangGraph specifically got ruled out, given there's a whole module built around it."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Because the actual workflow is source pack to plan to dialogue to review to a bounded revision loop to voice script to audio. That's one cycle with a capped iteration count — structurally that's just a for loop, not a graph. LangGraph earns its keep when you need branching across many paths, dynamic node selection, concurrent fan-out, or interrupt-and-resume against durable state, and this pipeline has none of those. The one candidate is human approval, and that's a file and a CLI between runs, not a suspended graph waiting on durable state."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "But you do write plan.json, draft-dialogue.json, review.json at every stage. Isn't that just checkpointing with a different name — which is the strongest thing LangGraph gives you for free?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "That's the honest counterargument, and it's worth maybe forty lines of hand-rolled state-writing to get it without the dependency. What tips it is that adopting LangGraph here would mean owning the shape of every future change to this pipeline because it happens to be the module topic — and that's exactly the kind of framework-first reasoning the handbook argues against everywhere else. A graph on a linear pipeline is a dependency bought with no property actually gained."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So once LangGraph is off the table, the pipeline still has to actually work against real content, not toy fixtures. What happened when you pointed the loader at the live handbook tree instead of test data?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Two things broke that fixtures would never have surfaced. Architecture pages and cheat sheets live one directory deeper than the loader expected, so readdir on the parent found no mdx files and just returned empty — no error, nothing. A test asserting more than forty documents total still passed with a quarter of the handbook missing, because a total can't see that two whole collections silently went to zero."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "That's a scary kind of pass. What was the second one?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "A type error in packages/shared that pnpm verify never caught, because pnpm check only ever ran astro check on the site — the shared package's own check script existed but nothing invoked it, and I confirmed that by deliberately breaking it and watching the build stay green. It'd gone unnoticed because that script was already failing for unrelated config reasons, so nobody noticed it wasn't running at all. Same failure mode the Redis integration job in Async AI Gateway hit that same day — a gate that's never actually run doesn't report that it's broken, it just reports success."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "Let's stay inside packages/podcast-providers for a second, because you keep saying the engine only imports two ports. What's actually on the other side of LlmPort and TtsPort, and why does that boundary matter more than which vendor sits behind it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "There's exactly one file that imports the ai package and the provider packages — ai-sdk.ts. Everything else in the engine calls the port interface, so swapping a vendor is a change to that one file, not a search-and-replace through business logic. I picked the AI SDK over LangChain JS for a specific reason: both ai-sdk/openai and ai-sdk/elevenlabs expose a .speech() method, so text and voice sit behind the same provider shape and changing voice vendor is configuration, not code. LangChain's core model interfaces are only language models and embeddings — there's no speech abstraction at all, so a LangChain pipeline needs a second, hand-written abstraction for the voice half regardless. I checked that against the installed packages, not the docs, because I didn't want to build on a claim that turned out to be aspirational."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So if you've already got to hand-write an abstraction for voice no matter what, the SDK underneath it might as well cover both halves. Where does Cloudflare AI Gateway fit into that — is it a third option competing with these two?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "No, and that was the thing I had to get straight in my own head first — it's not an alternative to either, it's a reverse proxy underneath whichever one you pick. You point the SDK at a gateway base URL, the request still speaks the provider's own wire format, and you gain caching, retries and fallback, rate limiting, and cost logging for free. It proxies twenty-six providers, three of them voice, and the whole integration is swapping one baseURL — turning it off is deleting two environment variables. That's why failover lives there instead of in application code; the one case it can't cover, failing between vendors with different credentials, gets a small withFallback wrapper, documented as the exception rather than the pattern."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So you had a test that just... failed on its own assumption. You wrote it expecting eight revision rounds to cost more than double what one round costs, and it didn't. What actually happened there?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "One round comes out to four sixty-two, eight rounds comes out to six forty-eight — nowhere near double, and the test said so. The reason is that speech synthesis costs the same regardless of how many times the script gets rewritten, and at these prices it's three dollars eighty out of four thirty-six at zero revisions — eighty-seven percent of the bill. The LLM text calls are the cheap part even when you let them run eight times."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So the thing that looks unbounded, the revision loop, isn't actually where the money is — the real lever is regenerating a whole segment's audio. Does that hold no matter what, or is it just true at today's prices?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Just at today's prices, and that's exactly why it's not hardcoded as a conclusion — there's a function that computes the crossover for whatever price list you give it. Below roughly forty-nine dollars per million speech characters the intuition flips back and the revision cap does become the thing to watch. Prices are configuration with no defaults for that reason — a stale hardcoded rate gives you a confident wrong number, which is worse than no number because it stops anyone from asking the question again."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So this isn't a decision that's closed forever — what would actually make you revisit it? Not vibes, but something you could point to and say, that's the trigger."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Three concrete things. If we ever need interactive Q&A with interrupt-and-resume — a voice session that pauses on a tool call and comes back against durable state — that's genuinely the shape graph frameworks are built for, and it can adopt one without dragging the batch generator along. Second, if the revision loop stops being a loop, meaning review outcomes start routing to different repair paths instead of back to one composer, that's real branching, not a for-loop wearing a costume. And third, if stage-level retry becomes load-bearing — a failed synthesis at minute thirty needs to resume rather than restart, and our hand-rolled checkpointing is piling up edge cases — that's the point to buy the framework instead of writing more of it ourselves."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So the reversal condition is a measurement, not a mood — same as the cost model, same as the two ports. That feels like the throughline of this whole ADR, honestly. Where does that leave the status right now?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Accepted, and already implemented — the content package reads the real handbook tree and builds those source packs, and pnpm check now typechecks every workspace, not just the site. Nothing here is theoretical; the bugs it caught were real and the numbers it produced overturned our own intuition — the revision-loop cost test failed at $6.48 against $9.24, which is the opposite of what the obvious reading predicts. That's really the whole case for writing it down: not that Python or LangGraph were wrong in the abstract, but that neither one matched what this repository already was."
+      }
+    ]
+  }
+}

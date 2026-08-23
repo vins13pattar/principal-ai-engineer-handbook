@@ -1,0 +1,168 @@
+{
+  "archiveVersion": 1,
+  "slug": "reference-redis",
+  "meta": {
+    "documentId": "reference:redis",
+    "url": "/reference/lookups/redis/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 360
+  },
+  "plan": {
+    "topic": "Redis",
+    "title": "Redis: The Single-Threaded Trick Behind Distributed Correctness",
+    "throughLine": "Redis looks like a simple in-memory cache, but its single-threaded design and atomic primitives are what let AI infrastructure keep per-replica state correct — as long as you respect what it does and doesn't guarantee about durability and consistency.",
+    "beats": [
+      {
+        "title": "What Redis actually is",
+        "intent": "Introduce Redis as a data-structure server, not a key-value blob store, and explain why single-threaded execution is a feature, not a bug — it gives atomicity without locks. Set up the structures (ZSET, Stream, Lua) that make it more than a cache.",
+        "excerptIds": [
+          "reference:redis#at-a-glance",
+          "reference:redis#key-concepts"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 51.333333333333336,
+        "allocatedCharacters": 1243
+      },
+      {
+        "title": "The atomic toolkit: claims, leases, and idempotency",
+        "intent": "Walk through SET NX EX as an atomic claim-if-absent primitive and contrast it with MULTI/EXEC's lack of rollback and pipelining's lack of atomicity. Connect this directly to the idempotency-key pattern from the distributed systems module — Redis is the durable backing store for the claim-before-execute pattern.",
+        "excerptIds": [
+          "reference:redis#key-concepts",
+          "reference:redis#common-gotchas",
+          "module:02-distributed-systems#implementation",
+          "module:02-distributed-systems#hands-on-lab"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 59.88888888888889,
+        "allocatedCharacters": 5306
+      },
+      {
+        "title": "The numbers that bite you in production",
+        "intent": "Cover the concrete gotchas: default maxmemory is unlimited, default eviction is noeviction (a 'cache' that just stops accepting writes), KEYS blocking the single command loop, async replication risking lost acknowledged writes, and cluster's no-cross-slot-multi-key rule. This is the 'read this before an incident' segment.",
+        "excerptIds": [
+          "reference:redis#numbers-that-matter",
+          "reference:redis#common-gotchas"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 64.16666666666667,
+        "allocatedCharacters": 1815
+      },
+      {
+        "title": "Where Redis fits in the bigger architecture — and its limits",
+        "intent": "Zoom out: Redis's asynchronous replication means it is not a consensus system, framed through CAP/PACELC. Then ground it in a real system — the async AI gateway's distributed rate limiter — showing the explicit fail-open/fail-closed decision that has to be made when Redis itself goes down.",
+        "excerptIds": [
+          "reference:redis#where-to-go-deeper",
+          "reference:cap-theorem#at-a-glance",
+          "architecture:async-ai-gateway#failure-modes",
+          "architecture:async-ai-gateway#trade-offs"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 55.61111111111112,
+        "allocatedCharacters": 3929
+      }
+    ],
+    "requestedSeconds": 231,
+    "plannedSeconds": 231,
+    "unsupported": [
+      "Redis Enterprise / RedisJSON / RedisSearch modules",
+      "Benchmark numbers for ops/sec or specific latency percentiles under load",
+      "Comparison to Memcached or other in-memory stores"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 89,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.103,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "50736d2b136324adb9bc356242b62dc2b12a3fc432d2e41cc88584387b4ad547",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So most people meet Redis as this thing you shove key-value pairs into to make your app faster, basically a cache with a fancy name. But that's apparently not really the right mental model, is it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Not even close, and it undersells what makes it useful in AI infrastructure specifically. Redis is a data-structure server — you're not just storing blobs, you're storing hashes, sorted sets, streams, and operating on them with commands that understand their shape. That's what lets it do things like leaderboards or delay queues natively, instead of you reimplementing that logic on top of a dumb key-value store."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Okay, but here's the part that sounds like a red flag to me: it's single-threaded. In a world obsessed with concurrency, isn't that a bottleneck?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "It sounds like a limitation until you realize what it buys you. Because commands execute one at a time, every single operation is atomic by default — no locks, no race conditions to reason about, no partial updates. That property is exactly why Redis becomes the thing that keeps state correct across replicas in distributed systems, whether that's a rate limiter, an idempotency key, or a lease. And it's not doing this alone — it's got sorted sets for ordered data, streams for durable queues, Lua scripting for bundling multiple commands into one atomic step. That combination is what turns it from 'fast cache' into 'correctness primitive.'"
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, so let's get concrete. That in-process dict-and-lock idempotency store from the distributed systems module — the one that checks and inserts under a single lock — what does it actually look like once you swap in Redis?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "It collapses down to one command: SET key value NX EX n. NX means only set it if it doesn't already exist, so the check-and-insert happens atomically on the server, no lock needed on your end. And the EX gives it a lease — so it's not just an idempotency claim, the exact same primitive is a distributed lock or a lease with a built-in expiry, all in one round trip."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So why not just use MULTI/EXEC or pipelining for that instead — aren't those also about grouping commands?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "They solve different problems and people conflate them constantly. Pipelining just batches commands over one connection to save round trips — there's no atomicity promise at all, other clients can interleave. MULTI/EXEC queues commands to run together, but if one fails at runtime the others still apply — there's no rollback, so it's not a transaction in the database sense. SET NX EX is the one that actually gives you atomic claim semantics, which is exactly why it's the durable backing store for claim-before-execute — it's what survives the restart that kills your in-process dict."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so let's talk about the stuff that actually pages you at 3am. What's the first number people get wrong before they even go to production?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Maxmemory defaults to zero, which means unlimited, and the eviction policy defaults to noeviction. So people deploy a 'cache' that will happily eat all available RAM until the OS OOM-kills the process, or if you did set a maxmemory limit, it just starts erroring on writes instead of evicting anything. Neither behavior is what anyone pictures when they hear the word cache. And separately, if you ever run KEYS star against a live instance, it's an O(n) scan over the entire keyspace on the one thread that's also trying to serve every other client — SCAN exists specifically so you don't do that."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And what about replication and cluster — where do those bite you specifically?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Replication to replicas is asynchronous by default, so a failover can lose writes the client already got an OK for — WAIT gets you replica acknowledgement, but that's still not consensus, so don't treat Redis as the durable source of truth for anything that can't be lost. And on cluster, multi-key operations across different hash slots are just rejected outright, so code that works fine on a single node can break the moment you shard, unless you deliberately colocate related keys with a hash tag like curly-brace tenant."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So zooming out — asynchronous replication means Redis isn't a consensus system, right? How does that map onto something like CAP theorem?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Right, CAP is really about what happens during a network partition — you pick consistency or availability, not some permanent three-way menu. Redis, by defaulting to async replication, is choosing availability: it'll answer you fast even if a replica hasn't caught up, which is why PACELC is the more useful frame day to day, since it also covers the latency-consistency tradeoff you make even when nothing's partitioned. Concretely, in the async AI gateway, the distributed rate limiter leans on Redis for exactly that speed, but the architecture has to explicitly decide what happens the moment Redis itself is unavailable — fail closed and protect quota at the cost of availability, or fail open with a tighter local emergency limit and protect availability at the cost of weaker enforcement. The one thing you can't do is nothing: no timeout on that Redis call, or a crash, is the actual failure mode you're designing against."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "That's a great place to leave it — Redis isn't magic, and the architecture around it has to own those edges explicitly rather than hope they never show up. Thanks for walking through this."
+      }
+    ]
+  }
+}

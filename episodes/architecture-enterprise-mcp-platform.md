@@ -1,0 +1,131 @@
+# Enterprise MCP Platform: Designing Multi-Tenancy Into a Stateless Protocol
+
+_Consolidating MCP servers into one multi-tenant platform turns isolation from an infrastructure property into a code property, and the 2026-07-28 protocol revision reshapes exactly what that code has to get right — per-request identity instead of sessions, and a new cache-based leak class alongside the old authorization ones._
+
+- **Source:** [architecture:enterprise-mcp-platform](/architecture/systems/enterprise-mcp-platform/)
+- **Runtime:** 16:10 · 36 turns · 9 beats
+- **Written by:** claude-sonnet-5 on 2026-08-23
+- **Voices:** af_heart (host), am_michael (guest)
+
+> Generated from the page above and spoken by a local text-to-speech model.
+> Two synthetic voices, not a recorded conversation. Where this differs from
+> the page, the page is correct.
+
+---
+
+## 1. Why one server, many tenants, and why now
+
+**Host:** So let's start with the problem that actually forces this whole redesign conversation. Once more than one team inside a company wants an MCP server, the naive answer is one server per team, per integration — and that sounds fine until you're the one operating it. Suddenly every team's server is its own deployment, its own credential, its own patch cycle, and it just doesn't scale.
+
+**Guest:** Right, so the obvious fix is consolidation — one server, many tenants — but that doesn't make the isolation problem go away, it just relocates it. Instead of isolation being an infrastructure property, where each team's server is physically separate and a mistake is contained by the deployment boundary, isolation becomes a property of your code. One missing check in that shared server and tenant A's tools are visible to tenant B.
+
+**Host:** And this is exactly the moment the protocol itself changed underneath everyone — the 2026-07-28 revision. Walk me through why that timing matters: it's not just that consolidation is architecturally harder now, it's that the protocol you'd consolidate on top of got rewritten in ways that touch identity and caching directly.
+
+**Guest:** Exactly right — two changes matter here. MCP removed the initialize handshake and the session entirely, so identity can't be established once per connection anymore; every single request has to prove who it is on its own. And the new cacheScope field means a listing response is now something infrastructure is allowed to store and replay, which opens up a leak class — cached data crossing tenant boundaries — that simply didn't exist before.
+
+---
+
+## 2. The seven requirements a multi-tenant server must satisfy
+
+**Host:** Okay, so given those two protocol shifts, what actually has to be true for a server to call itself safely multi-tenant? Is there a checklist you hold every implementation against?
+
+**Guest:** There is, and it's seven requirements. Per-request identity is the foundation — every request authenticates on its own. Then discovery isolation, so a tenant's tools/list and resources/list only ever return what that tenant was granted, and invocation authorization, which is separate — a tenant can't call something even if it never showed up in their listing, and can't call it even if it somehow did. Then non-disclosure on refusal, meaning a denial can't leak that the capability even exists, cache safety so nothing is ever marked shareable across tenants, horizontal scale so any replica can serve any request with no sticky affinity, and auditability — every call and every refusal traceable to a specific tenant.
+
+**Host:** That's a lot to hold simultaneously — discovery, invocation, and refusal all have to independently agree on the same boundary. Which of these is the one teams most often get wrong first?
+
+**Guest:** Non-disclosure is a subtle one, because teams nail authorization but then their error message gives away that a restricted tool exists, which is its own leak. The rest of this episode is really just walking through each of these seven one at a time and showing where the naive implementation breaks.
+
+---
+
+## 3. The constraints nobody designs for on paper: credentials, discover, wire-level filtering
+
+**Host:** So before we walk through the seven requirements one by one, you said there are constraints nobody designs for on paper. What's the first one that trips teams up?
+
+**Guest:** Credential placement — and it's counterintuitive because the protocol makes every request self-describing, so putting the tenant token in per-request metadata feels right. But the SDK issues calls your application code never writes, like an internal tools/list to validate an output schema after call\_tool, and that internal call has no way to carry your application's metadata. So a server authorizing on request metadata ends up rejecting its own client's internal call, and the only fix is putting the credential on the transport's Authorization header so it covers everything the transport carries, not just what your code explicitly sends.
+
+**Host:** That's a rough one to discover in production. What about the other constraints — discovery, filtering, and registration?
+
+**Guest:** Server discover can't require authentication at all, because a client needs it just to learn how to talk to you, so whatever's in that response is public by definition — no tenant secrets there. Filtering is trickier than people expect too, because middleware operates on outbound dicts after serialization, not on your typed result models, so isolation logic has to manipulate wire representations directly. And separately, dynamic client registration is deprecated now — new integrations use Client ID Metadata Documents with issuer validation per RFC 9207, so that's one more place old assumptions quietly stop holding.
+
+---
+
+## 4. Tracing a request through the fleet, and where it goes wrong
+
+**Host:** So walk me through what actually happens when a request lands. It arrives at some replica with a bearer credential, the token verifier resolves that to a tenant before anything else runs — and then what, every tenant-scoped call gets filtered and authorized separately?
+
+**Guest:** Right, no credential or a bad one gets a 401 at the transport, before your application logic even sees it. Past that, listings get filtered down to what the tenant is actually granted, and invocations are checked against those same grants independently — filtering and authorization are two separate gates, not one gate wearing two hats. The one deliberate exception is server discover, which bypasses all of it.
+
+**Host:** That sounds clean on paper. Where does it actually break in practice?
+
+**Guest:** The expensive one is putting the tenant credential in per-request metadata instead of the transport layer, because the SDK's own tool-calling implementation fires an internal list-tools call to validate output schema, and that internal call carries no application metadata — so the server locks out its own client, and the tempting fix, exempting that internal listing call from auth, reopens the exact hole you built the isolation to close. Then there's a one-word cache setting introduced in a later revision, which tells every cache on the path — client, gateway, CDN — that one tenant's filtered list is fine to serve to another, and the server behaves perfectly correctly while the leak happens entirely in infrastructure it never sees. Add to that filtering the tool listing without authorizing the tool invocation call, which is a UI convention masquerading as a security boundary and demos beautifully right up until someone names a tool directly; distinguishable 'forbidden' versus 'not found' responses that let a tenant enumerate everyone else's capabilities one call at a time; and code that caches identity or an in-progress operation per connection, which works fine on one replica in dev and fails intermittently the moment a load balancer is in the picture.
+
+---
+
+## 5. The security checklist that closes those holes
+
+**Host:** So we've got the wound list — five ways this thing bleeds. Give me the dressing for each, starting with tokens and that credential-placement trap you just described.
+
+**Guest:** Verify every token against an authorization server and validate the issuer per RFC 9207, binding the credential to that issuer — static tokens are a lab convenience, not a deployment. And use Client ID Metadata Documents instead of Dynamic Client Registration, since this revision deprecated it. Then, separately, authorize the invocation call independently of the discovery call — filtering a list answers 'what can this tenant see,' authorizing a call answers 'can this tenant do this,' and treating those as one check produces a server that looks isolated in a UI and is not.
+
+**Host:** And the enumeration and caching holes — the ones that leak without any code being wrong?
+
+**Guest:** Make refusals byte-identical to not-found — status code, shape, error text, all of it — because any difference is an oracle a tenant can walk. Set cacheScope private on every tenant-scoped response and actually assert it in a test, not code review, since that's the setting that told every cache on the path a filtered list was fair game to share. And treat tool descriptions from tenant-supplied sources as untrusted — they land in the model's context, so the tool-poisoning risk is now an inside-the-platform problem, not just an across-servers one. Last piece: sign, bound, and expire requestState, because it's client-held state that resumes execution server-side, and if you don't bind it to the authenticated principal the way the SDK does, you've handed out a resumable token nobody's watching — which is also why you audit refusals as carefully as successes, since a refusal is the only evidence a cross-tenant attempt ever happened.
+
+---
+
+## 6. The trade-offs a platform team is actually making
+
+**Host:** So let's zoom out from the checklist and talk about why any of this is hard in the first place. It sounds like every decision in this design has a cheaper, less-safe alternative sitting right next to it — and picking the safe one costs something real. What's the first trade-off a platform team actually has to make?
+
+**Guest:** Shared server versus per-tenant deployment. A shared server amortizes ops, patching, capacity — a new tenant becomes a config change, not a deployment. But that's exactly what turns isolation into a code property: a missing check is now a cross-tenant breach, where separate deployments would've just contained it. Per-tenant buys you that containment back, but the operational cost grows linearly with every tenant you add, which is the thing consolidation was supposed to fix.
+
+**Host:** And that same shape repeats — cheap-but-risky versus expensive-but-safe — in the other three axes too?
+
+**Guest:** Exactly the same shape. Per-request verification costs a check on every call but buys a fleet with no affinity, no session store, no partially-authenticated state — and it's rarely a close call since token verification is cheap; per-session just reintroduces the stickiness the protocol revision removed. Server-side filtering is the only actually secure option since the host isn't a trust boundary, but returning everything is simpler and lets one cached response serve every tenant — which is exactly why a public cache scope setting is a shortcut, not a feature. And tenant-level grants are simple to audit while role-level grants match how organizations really delegate, except now that dimension is baked into every check, every cache key, every audit query — and retrofitting it later is expensive precisely because the old shape is already encoded everywhere.
+
+---
+
+## 7. Scaling a stateless fleet, and making the edge do work
+
+**Host:** So if per-request identity kills the session, what does that actually buy the platform team running the fleet, day to day?
+
+**Guest:** It makes the fleet boring, in the good sense. No session store to shard or fail over, no client affinity to maintain, no draining sessions before a deploy — any instance can serve any request, so you scale it like any other stateless service. On top of that, Mcp-Method is visible without parsing the body, so a gateway can rate-limit tools/call separately from tools/list, or route the expensive operations to dedicated capacity. But caching gets subtle: cacheScope private stops shared caches from cross-serving, but it says nothing about a single client acting for several tenants, so your cache keys have to include the tenant explicitly or you'll serve tenant A's list to tenant B. And since hosts list far more than they call, getting ttlMs right on discovery is most of the protocol revision's performance win — get it wrong and you're re-fetching on every turn.
+
+**Host:** And that discovery traffic isn't just a server load problem — you said tool count is a context cost too. What does that mean in practice for how a tenant's grant gets sized?
+
+**Guest:** Right — every tool you list typically lands in the model's context window, so a tenant with a large grant isn't just hitting your server harder, they're paying for it in degraded response quality and token spend before the server even breaks a sweat. That flips how you think about role-level grants: it's not only an authorization question, it's a UX and cost budget per tenant. So teams end up tuning grants down to what a role actually needs, partly for security, partly because a leaner tool list makes the model perform better.
+
+---
+
+## 8. What it costs and what you have to watch
+
+**Host:** Okay, so grant size is a cost line, not just a risk line. Walk me through the rest of the bill — where does the money actually go once this thing is running at scale?
+
+**Guest:** Token verification runs per request, not per connection, so it scales with call volume — cache the verification result by token with a short TTL bounded by the token's own expiry, or you're paying that cost on every single call. Getting the discovery cache duration right is a direct saving too, since discovery dominates the request mix and every cache hit is a request the fleet never has to serve. And the one nobody budgets for upfront is audit retention — logging every call and refusal per tenant, kept long enough to matter in an investigation, usually ends up the largest storage line in the whole platform.
+
+**Host:** So how do you actually see any of that going wrong before it shows up as an incident?
+
+**Guest:** Every log line and span has to carry a tenant identifier or none of this is answerable at all. From there you watch refusal rate per tenant and per tool — a rise is either a misconfigured grant or an enumeration attempt, and only the per-tool breakdown tells you which. You also split 401s by cause, since absent credentials usually mean a broken client while invalid ones mean expiry or rotation, you track the cache hit ratio on the tool listing call because a low number means clients are ignoring your cache duration setting and the fleet's eating traffic it shouldn't, you break latency out by method name since blending cheap listings with expensive calls describes nothing, and you watch protocol version distribution to know when the old clients have actually stopped connecting.
+
+---
+
+## 9. The pre-traffic checklist and a working reference
+
+**Host:** So if I'm a platform team about to ship this, what's the actual gate before traffic hits it — not the design conversation, the checklist someone signs off on?
+
+**Guest:** It's the nine tests we already walked through — that's the actual sign-off gate, not a restatement. If any of those isn't a test, it's a hope.
+
+**Host:** That's a good place to leave it. If someone wants this as running code instead of a checklist, where do they look?
+
+**Guest:** The multi-tenant MCP server lab is exactly that — built on the official SDK, with transport auth, per-tenant discovery, invocation checked separately from listing, refusals that leak nothing, and statelessness proven rather than assumed, each one asserted by a real test against the real HTTP app. It's the same seven requirements and the same failure modes we've walked through this whole episode, just compiled and runnable. Worth reading the discover boundary section especially — it's the one place where deliberately skipping auth is the correct call, and the lab shows exactly why.
+
+---
+
+## Not covered
+
+The planner wanted these and found nothing in the source to support them:
+
+- A real-world incident walkthrough of a cross-tenant breach in production
+- Specific dollar figures or benchmark numbers for token verification or audit storage costs
+- Comparison of this platform's design against a competing vendor's multi-tenant MCP offering
+- Migration playbook for moving an existing per-team-server fleet onto the shared platform

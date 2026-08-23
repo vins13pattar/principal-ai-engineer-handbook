@@ -1,14 +1,14 @@
 /**
- * Rewrite every published transcript from the script that produced it.
+ * Rewrite every published transcript from its committed archive.
  *
- * Free and offline: `script.json` and `plan.json` already hold every word, so a
- * change to `renderTranscript` reaches sixty-odd published episodes without a
- * model call or a re-synthesis. The audio is not touched -- the words spoken
- * did not change, only how they are written down.
+ * Free and offline: `episodes/<slug>.json` holds the plan, the script, and the
+ * header metadata, so a change to `renderTranscript` reaches every published
+ * episode without a model call or a re-synthesis. The audio is not touched --
+ * the words spoken did not change, only how they are written down.
  *
- * Metadata comes from the existing transcript's own header rather than from the
- * manifest, which does not record the page URL or the measured runtime. That
- * keeps a re-render byte-identical except for the change being made.
+ * Reads the archive rather than the run directory on purpose. `.podcast/` is
+ * git-ignored scratch that may be cleared at any time; the archive is committed,
+ * which is what makes this repeatable a year from now.
  *
  * Usage:
  *   node --experimental-strip-types scripts/rerender-transcripts.ts [--check]
@@ -20,56 +20,11 @@ import { execFile } from "node:child_process";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import { renderTranscript, type TranscriptMeta } from "@handbook/podcast-engine";
-import type { DialogueScript } from "@handbook/podcast-engine";
-import type { EpisodePlan } from "@handbook/podcast-engine";
+import { archivePath, parseArchive, renderTranscript } from "@handbook/podcast-engine";
 
 const root = process.cwd();
 const check = process.argv.includes("--check");
 const run = promisify(execFile);
-
-/** The header `renderTranscript` wrote, read back. */
-function parseHeader(transcript: string): TranscriptMeta {
-  const find = (pattern: RegExp, what: string): RegExpMatchArray => {
-    const match = transcript.match(pattern);
-    if (!match) throw new Error(`could not read the ${what} from the transcript header`);
-    return match;
-  };
-
-  const source = find(/^- \*\*Source:\*\* \[([^\]]+)\]\(([^)]+)\)$/m, "source");
-  const runtime = find(/^- \*\*Runtime:\*\* (unmeasured|\d+:\d{2}) /m, "runtime");
-  const written = find(/^- \*\*Written by:\*\* (.+) on (\S+)$/m, "model");
-  const voices = find(/^- \*\*Voices:\*\* (\S+) \(host\), (\S+) \(guest\)$/m, "voices");
-
-  let audioSeconds: number | null = null;
-  if (runtime[1] !== "unmeasured") {
-    const [minutes, seconds] = runtime[1]!.split(":");
-    audioSeconds = Number(minutes) * 60 + Number(seconds);
-  }
-
-  return {
-    documentId: source[1]!,
-    url: source[2]!,
-    modelId: written[1]!,
-    generated: written[2]!,
-    voices: { host: voices[1]!, guest: voices[2]! },
-    audioSeconds,
-  };
-}
-
-/** The newest run for a slug that still has everything needed to re-render. */
-async function latestRun(slug: string): Promise<string | null> {
-  const base = join(root, ".podcast", slug);
-  const runs = await readdir(base).catch(() => []);
-  for (const run of runs.sort().reverse()) {
-    const dir = join(base, run);
-    const files = await readdir(dir).catch(() => []);
-    if (["plan.json", "script.json", "transcript.md"].every((name) => files.includes(name))) {
-      return dir;
-    }
-  }
-  return null;
-}
 
 const pageDir = join(root, "apps/handbook/src/transcripts");
 const slugs = (await readdir(pageDir))
@@ -78,24 +33,23 @@ const slugs = (await readdir(pageDir))
   .sort();
 
 let changed = 0;
-const orphaned: string[] = [];
+const unarchived: string[] = [];
 
 for (const slug of slugs) {
-  const dir = await latestRun(slug);
-  if (dir === null) {
-    // A published episode whose run directory is gone cannot be re-rendered.
-    // Reported rather than skipped silently: it means the page and the source
-    // of truth have parted company.
-    orphaned.push(slug);
+  const path = join(root, archivePath(slug));
+  const raw = await readFile(path, "utf8").catch(() => null);
+  if (raw === null) {
+    unarchived.push(slug);
     continue;
   }
 
-  const existing = await readFile(join(dir, "transcript.md"), "utf8");
-  const plan = JSON.parse(await readFile(join(dir, "plan.json"), "utf8")) as EpisodePlan;
-  const script = JSON.parse(await readFile(join(dir, "script.json"), "utf8")) as DialogueScript;
+  const { meta, plan, script } = parseArchive(JSON.parse(raw), archivePath(slug));
+  const rendered = renderTranscript(plan, script, meta);
 
-  const rendered = renderTranscript(plan, script, parseHeader(existing));
-  const stale = rendered !== existing;
+  // The transcript lives in two places: the archive's own rendering, kept beside
+  // the words it came from, and the derived copy the page imports.
+  const beside = join(root, "episodes", `${slug}.md`);
+  const stale = (await readFile(beside, "utf8").catch(() => null)) !== rendered;
   if (stale) changed += 1;
 
   if (check) {
@@ -103,20 +57,16 @@ for (const slug of slugs) {
     continue;
   }
 
-  if (stale) await writeFile(join(dir, "transcript.md"), rendered);
-
-  // The page copy is derived, so it is regenerated every time rather than only
-  // when the transcript moved: that makes the script idempotent, and it repairs
-  // a page copy that fell out of step with the run directory for any reason.
-  await run(join(root, "scripts/page-transcript.sh"), [
-    join(dir, "transcript.md"),
-    join(pageDir, `${slug}.md`),
-  ]);
+  await writeFile(beside, rendered);
+  // Regenerated every run rather than only when the transcript moved: that makes
+  // this idempotent, and repairs a page copy that fell out of step for any reason.
+  await run(join(root, "scripts/page-transcript.sh"), [beside, join(pageDir, `${slug}.md`)]);
   if (stale) console.log(`  rewrote ${slug}`);
 }
 
 console.log(`\n${changed} of ${slugs.length} transcripts ${check ? "would change" : "rewritten"}`);
-if (orphaned.length > 0) {
-  console.log(`${orphaned.length} have no run directory and were left alone:`);
-  for (const slug of orphaned) console.log(`  ${slug}`);
+if (unarchived.length > 0) {
+  console.log(`\n${unarchived.length} have no archive and were left alone:`);
+  for (const slug of unarchived) console.log(`  ${slug}`);
+  process.exit(1);
 }

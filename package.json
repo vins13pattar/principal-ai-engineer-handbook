@@ -24,10 +24,11 @@
     "test:watch": "vitest",
     "test:e2e": "pnpm --filter @handbook/site test:e2e",
     "lint:content": "node --experimental-strip-types scripts/lint-content-structure.ts",
+    "check:episodes": "node --experimental-strip-types scripts/rerender-transcripts.ts --check",
     "verify:deployment": "node --experimental-strip-types scripts/verify-deployment.ts",
     "check:links": "pnpm --filter @handbook/site check:links",
     "preview:cf": "wrangler dev -c wrangler.toml",
-    "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm test && pnpm build"
+    "verify": "pnpm lint && pnpm format:check && pnpm check && pnpm lint:content && pnpm check:episodes && pnpm test && pnpm build"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

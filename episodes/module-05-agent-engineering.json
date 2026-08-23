@@ -1,0 +1,356 @@
+{
+  "archiveVersion": 1,
+  "slug": "module-05-agent-engineering",
+  "meta": {
+    "documentId": "module:05-agent-engineering",
+    "url": "/learn/modules/05-agent-engineering/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-22",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 849
+  },
+  "plan": {
+    "topic": "Module 5: Agent Engineering",
+    "title": "Module 5: Agent Engineering — The Loop That Has to Behave Itself",
+    "throughLine": "An agent is just a control loop wrapped around a non-deterministic decision step — every hard problem in this module (runaway execution, side effects, permissions, partial failure) is a control-systems problem this handbook already has vocabulary for, now applied to a model's output instead of code you wrote.",
+    "beats": [
+      {
+        "title": "An Agent Is Not a Smarter Model",
+        "intent": "Open by resetting the frame: an agent is a bounded observe-decide-act-observe loop, and agent engineering is the discipline of making that loop safe and debuggable, not a claim about model intelligence.",
+        "excerptIds": [
+          "module:05-agent-engineering#executive-summary",
+          "module:05-agent-engineering#mental-model"
+        ],
+        "weight": 1,
+        "targetSeconds": 59.823008849557525,
+        "allocatedCharacters": 1080
+      },
+      {
+        "title": "Inside the Loop: A Model That Requests, a System That Decides",
+        "intent": "Walk through observe-decide-act-observe and the tool-calling mechanics underneath it — the model emits a structured request, not executable code, and every trust boundary in the module lives at the seam between that request and the system's decision to act on it.",
+        "excerptIds": [
+          "module:05-agent-engineering#mental-model",
+          "module:05-agent-engineering#deep-dive"
+        ],
+        "weight": 1,
+        "targetSeconds": 59.823008849557525,
+        "allocatedCharacters": 1131
+      },
+      {
+        "title": "Two Guards That Separate a Demo from a Production Loop",
+        "intent": "Name the budget check and the permission/schema check from the architecture diagram as the load-bearing components — a model requesting a tool call is not the system agreeing to run it.",
+        "excerptIds": [
+          "module:05-agent-engineering#architecture"
+        ],
+        "weight": 0.8,
+        "targetSeconds": 47.85840707964603,
+        "allocatedCharacters": 433
+      },
+      {
+        "title": "Four Levers to Stop a Loop from Running Forever",
+        "intent": "Cover step budget, cost budget, wall-clock timeout, and the model's own done-signal as the required combination, why each catches a different runaway shape, and why context growth and per-step latency need their own budgets too.",
+        "excerptIds": [
+          "module:05-agent-engineering#deep-dive",
+          "module:05-agent-engineering#interview-questions",
+          "module:05-agent-engineering#performance"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 65.80530973451329,
+        "allocatedCharacters": 2956
+      },
+      {
+        "title": "Plan-Then-Act vs. Interleaved Reasoning",
+        "intent": "Contrast upfront-plan architectures with the ReAct pattern of interleaved reasoning and acting — reviewability before execution versus adaptiveness mid-flight, with neither strictly better.",
+        "excerptIds": [
+          "module:05-agent-engineering#deep-dive",
+          "module:05-agent-engineering#trade-offs",
+          "module:05-agent-engineering#references"
+        ],
+        "weight": 0.9,
+        "targetSeconds": 53.840707964601776,
+        "allocatedCharacters": 1679
+      },
+      {
+        "title": "Memory Isn't Just the Context Window",
+        "intent": "Distinguish short-term context-window memory from long-term retrieval, and the failure modes of leaning too hard on either one alone.",
+        "excerptIds": [
+          "module:05-agent-engineering#deep-dive"
+        ],
+        "weight": 0.7,
+        "targetSeconds": 41.876106194690266,
+        "allocatedCharacters": 458
+      },
+      {
+        "title": "The Bounded Agent Loop, in Code",
+        "intent": "Walk the BoundedAgentLoop implementation — every tool failure returns as an observation rather than a crash, and allowed_for_task_types is the permission boundary enforced in code, not left to model judgment.",
+        "excerptIds": [
+          "module:05-agent-engineering#implementation"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 71.78761061946902,
+        "allocatedCharacters": 2470
+      },
+      {
+        "title": "A Support Ticket, Including the Moment It Breaks",
+        "intent": "Trace a concrete loop iteration — search, then draft — and then the failure case where draft_reply raises, showing the graceful step-budget-exhausted handoff instead of a silent hang or retry storm.",
+        "excerptIds": [
+          "module:05-agent-engineering#production-example"
+        ],
+        "weight": 1,
+        "targetSeconds": 59.823008849557525,
+        "allocatedCharacters": 933
+      },
+      {
+        "title": "Where Agents Actually Break",
+        "intent": "Cover runaway loops without budgets, hallucinated or malformed tool calls, side effects executing twice under retry (tied to Module 2's idempotency-key discipline), silent context-window truncation, and models papering over failed steps with confident answers.",
+        "excerptIds": [
+          "module:05-agent-engineering#failure-modes",
+          "module:02-distributed-systems#executive-summary",
+          "module:02-distributed-systems#mental-model",
+          "module:02-distributed-systems#architecture"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 77.7699115044248,
+        "allocatedCharacters": 4800
+      },
+      {
+        "title": "Guardrails and the Autonomy Trade-off",
+        "intent": "Cover least-privilege tool scoping, mandatory human approval gates for irreversible actions, sandboxing code execution, and prompt injection arriving through tool outputs — then the trade-off between full autonomy and approval latency, and single large-tool-set agents versus coordinated multi-agent systems.",
+        "excerptIds": [
+          "module:05-agent-engineering#security",
+          "module:05-agent-engineering#trade-offs",
+          "module:05-agent-engineering#scaling"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 71.78761061946902,
+        "allocatedCharacters": 2471
+      },
+      {
+        "title": "From Theory to Enforcement: The Policy-Gated Tool Runtime",
+        "intent": "Close on the hands-on lab as the concrete version of everything discussed — scope, schema validation, per-tool rate limits, bounded approval waits, and an audit log that records denials as carefully as successes, plus the idempotency-key extension exercise tying back to Module 2.",
+        "excerptIds": [
+          "module:05-agent-engineering#hands-on-lab",
+          "lab:policy-gated-tool-runtime#what-it-demonstrates",
+          "lab:policy-gated-tool-runtime#why-the-order-of-the-checks-matters",
+          "lab:policy-gated-tool-runtime#principal-level-discussion-points",
+          "lab:policy-gated-tool-runtime#relationship-to-mcp"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 65.80530973451329,
+        "allocatedCharacters": 5201
+      }
+    ],
+    "requestedSeconds": 676,
+    "plannedSeconds": 676,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 79,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.988,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "0fce3681ef85bcc2ae17b1e9f95b114e1c760b1e0aaa1946691411bf33480f0f",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Okay, module five, agent engineering. And I want to start by killing a phrase, because I think it's actively getting in people's way. An agent is not a smarter model. That's not what we're building here."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and I think that's the single most common misconception people bring into this. They think if the model gets good enough, it just becomes an agent on its own. But an agent is a control loop — observe, decide, act, observe again — and the model only owns one step of that, the deciding part. Everything else is structure you build around it."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So when we say agent engineering is a discipline, we mean the discipline is really about that loop — making it safe, bounded, debuggable — not about coaxing more intelligence out of the model. And the twist is that every hard problem we're about to cover — runaway execution, side effects, permissions, partial failure — is just a control-systems problem this handbook already has words for, now sitting at the seam between what the model asks to do and what your system actually lets happen."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So let's get concrete about that seam. When the model decides to use a tool, what actually happens — it's not like it's reaching out and executing something on your machine, right?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, it never runs anything. It emits a structured request — a function name and some arguments — that matches a schema you gave it up front. Your system is the one that validates that request, decides whether it's even well-formed, and only then executes it and feeds the result back in as the next observation."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So a hallucinated tool name or garbage arguments never even gets a chance to run — it just bounces back as an observation the model has to react to. That's a pretty clean trust boundary to design around."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Right, but the trust boundary isn't just about catching malformed calls — the diagram shows two actual guard components doing the load-bearing work here. What are they?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "The first is a step or cost budget check, and it runs before every single decision, not just once at the start — without it enforced continuously, an agent isn't a reliability feature, it's just a resource-usage risk waiting to happen. The second is a permission and schema check sitting between the model's decision and actual execution, and that's the one people skip in demos: the model requesting a tool call is not the same thing as the system agreeing to run it."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So the budget check runs continuously, fine — but what's actually in that check? You said step or cost, and I want to slow down on that, because it sounds like one thing and I suspect it's not."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "It's four separate levers, and all four need to exist at once: a step budget capping total iterations, a cost budget capping estimated spend, a wall-clock timeout, and the model's own done-signal. Each one catches a runaway shape the others miss — a step budget catches an infinite loop of cheap tool calls, a cost budget catches a handful of very expensive calls that never trip a step count, and a wall-clock timeout catches a loop that's technically making progress but far too slowly to be useful. The done-signal is real too, it's just not sufficient on its own — relying on the model to know when to stop isn't a termination condition, it's a hope, so it rides alongside the other three rather than replacing them."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "And you'd said context growth needs its own budget separately from that — why isn't a wall-clock timeout enough to catch that too?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Because context growth is a cost and latency problem that compounds silently long before you'd hit a hard limit or a timeout — every loop iteration adds tokens to the running context, so cost and latency compound over a long task even if nothing's gone wrong. That's why summarizing or pruning older observations has to happen well before the context window's actual ceiling, not at it. And separately, per-step latency needs its own budget too, because one slow tool call can quietly eat the entire task's time allowance while every other check still looks green."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Let's talk about how the loop actually structures its thinking. There seem to be two schools here — have the model draw up a full plan before touching anything, or have it think and act one step at a time. Walk me through that split."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, so the first approach is plan-then-act: the model produces a complete sequence of steps upfront, and only then does execution start. That's great for review — a human can look at the whole plan before anything real happens, and it gives clearer visibility into what the agent intends to do. The trade-off is it's brittle: it's less adaptive when the plan doesn't survive contact with real tool results."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "And the alternative is the ReAct pattern you mentioned back when we were talking about the loop itself — reason, act, observe, repeat."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Exactly, that interleaving is what makes it adaptive — each step's reasoning incorporates the actual observation from the last action, so it responds to reality as it unfolds instead of assuming the plan still holds. The cost is reviewability: there's no fixed plan sitting there for a human to inspect before execution starts, because the plan is being generated one step at a time as it goes. Neither one wins outright — it's really a question of whether the task needs to be reviewable before it starts or adaptive while it's running."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "Okay, next control-systems problem: memory. It's tempting to think the context window just is the agent's memory, but you're saying that's already a category error."
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Right, the context window is short-term memory only — it's bounded, and every token in it costs money and latency on every single call, so an agent that treats it as the only memory either runs out of room on long tasks or pays to re-send the whole history every turn. Long-term memory is retrieval from an external store, something Module 8 goes deep on, and it's what lets the agent recall something from beyond what fits in context without carrying it in-window the whole time. Production agents need both — context for immediate continuity within the current step, retrieval for anything that has to persist beyond what fits or beyond what's affordable to keep re-sending."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "Let's make this concrete with actual code, because I think the two guards you described — the step budget and the permission check — sound abstract until you see where they live. Walk me through this BoundedAgentLoop."
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Sure. The run method loops up to max_steps times, calling decide with the observations so far, and if the model returns a final answer, you're done. But look at what happens on a tool call — it goes to an execute step, and every single failure path in there, an unknown tool name, a permission denial, a tool that literally throws an exception, all of them return a string observation instead of raising. Nothing crashes the loop."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So a tool blowing up doesn't end the task, it just becomes another line of text the model reads on the next step. That's a deliberate design choice, not just error handling for its own sake."
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Exactly, the model gets to see its own failures the same way it sees successes and react to them, maybe retry with different arguments, maybe try a different tool. And the permission check is the other guard made concrete — each tool carries a set of task types it's allowed to run for, checked with a plain if statement in code, not a suggestion in a prompt. If the task type isn't in that set, the tool never runs, full stop, no model judgment involved."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "Let's walk through an actual ticket so this stops being abstract. What does one clean iteration look like end to end?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "The model gets a ticket with some error message, decides to call search_kb with that error text, and the tool comes back with three matching articles as the observation. Now the model has real context, so on the next step it calls draft_reply, pointing at one of those articles as the source. Two tool calls, each result fed back in before the next decision — nothing exotic, just the loop doing its job."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "Okay, now break it. What happens when draft_reply actually fails?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Say the templating service is down and draft_reply raises. That exception doesn't crash the task, it just becomes another observation — literally a string saying the tool failed and why — and the model sees that like it sees any other result. It might retry, it might escalate to a human tool instead, or it might burn through its step budget without resolving anything, and at that point the loop's own fallback fires: incomplete, step budget exhausted, handing off to a human. That's the whole point of the guard — a graceful, informative stop instead of a silent hang or the model hammering the same broken call forever."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "So we've seen one failure mode up close. What does the fuller catalog look like — where do these loops actually go wrong in production?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Start with the boring one: no budget at all — that's the same step and cost cap we already covered as the fix. Then there's malformed tool calls — the model invents a tool that doesn't exist, or gets the arguments wrong, and if you dynamically dispatch on that unchecked output instead of validating against a schema first, you're executing garbage."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "And the side-effect one — that's got to be where Module 2 comes back, right? Ambiguous timeouts on a real action like sending an email or charging a card."
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Exactly the same problem, just with a model in the loop instead of a retry policy — the tool call times out, the agent can't tell if it landed, and if it retries blind, that email or charge fires twice. Same fix too: idempotency keys, claimed before the action runs. And there's one more subtler one — a model can shrug off a failed step and hand you a confident answer built on top of it instead of surfacing that something never actually succeeded."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "So beyond retries and idempotency, there's a whole other category of failure that's about permissions and trust. What does that look like in practice?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "It starts with least-privilege tool scoping — the allowed for task types check we already wired into the loop isn't just a routing detail, it's the concrete mechanism that keeps a tool scoped to exactly what the task needs, rather than being an afterthought bolted onto a tool that can already do more. And anything irreversible — sending an email, spending money, deleting data — needs a mandatory human approval gate, full stop, not a config flag someone forgot to set. Code execution tools get sandboxed completely, no host filesystem, no network, no ambient credentials beyond exactly what that task needs."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "And there's a sneakier injection risk too, right — not through the prompt itself?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "Right, it comes in through tool outputs — a fetched webpage or a document can contain text that reads like an instruction, and the model's next loop iteration might just follow it. It's the same prompt injection problem Module 4 covers, just arriving as an observation instead of the initial prompt, which is exactly why it's easy to miss. That's the security side — the other half is a real trade-off: full autonomy is fast and needs no human around, but every action fires without a check, so it only belongs on low-risk reversible stuff, while approval gates buy you a real backstop at the cost of latency and someone having to be there. Same tension shows up in tool-set shape — one agent with every tool is simple to operate but gets slower and dumber as its context fills with tool descriptions, while multiple narrow agents scale better but now you need the ownership and lease coordination from Module 2 to keep them from stepping on each other."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "So if someone wants to see all of this stop being theory and start being code, that's the policy-gated tool runtime lab. Walk me through what's actually enforced there."
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "It's the pipeline version of everything we just talked about, in a specific order for a reason: scope check first because it's cheapest and shouldn't leak that a tool even exists to someone with no grant on it, then schema validation so a malformed call can't burn a well-behaved caller's rate limit, then the limiter itself keyed per tenant and per tool so a search and a fund transfer never share a budget, and only last the approval gate — because that's the one stage that blocks on a human, and you don't pay that latency for a call that was going to fail anyway. And it logs denials just as carefully as successes, because a tool nobody ever approves needs to be visible in the audit trail, not buried."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "And the extension exercise ties it straight back to Module 2, right — idempotency keys on the tool call itself?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Exactly — you add an idempotency key to the ToolCall, wire it through the same IdempotentTaskStore pattern from the distributed systems module, and write a test that fires the same call twice and proves the handler only actually runs once. That's the whole point of this module in miniature: an agent loop is a control system, and once a step can retry, every side-effecting action needs the same durability guarantee a distributed job would need. Get that right and you've genuinely built the thing, not just talked about it — which is as good a place as any to leave this module."
+      }
+    ]
+  }
+}

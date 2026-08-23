@@ -1,0 +1,136 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-slo-driven-ai-operations",
+  "meta": {
+    "documentId": "lab:slo-driven-ai-operations",
+    "url": "/build/labs/slo-driven-ai-operations/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 271
+  },
+  "plan": {
+    "topic": "SLO-Driven AI Operations",
+    "title": "SLO-Driven AI Operations: Making Reliability a Spendable, Actionable Signal",
+    "throughLine": "An error budget is only useful when one severity computation drives alerting, autoscaling, and incident response together — this lab shows what that looks like as running code, from multiwindow burn-rate detection to an honest terminal state.",
+    "beats": [
+      {
+        "title": "Burn rate as a spendable, alertable number",
+        "intent": "Introduce the error budget as a quantity that goes negative rather than clamping at zero, and explain why alerting needs both a long and a short window to catch a real burn without paging on noise.",
+        "excerptIds": [
+          "lab:slo-driven-ai-operations#what-it-demonstrates",
+          "lab:slo-driven-ai-operations#principal-level-discussion-points"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 60.8235294117647,
+        "allocatedCharacters": 1090
+      },
+      {
+        "title": "One severity, two consumers: the cooldown override and escalation over retry",
+        "intent": "Walk through the concrete mechanics — the autoscaler's fast-burn override that bypasses cooldown, and the runbook that escalates to a named contact instead of retrying blindly, ending in an honest EXHAUSTED state.",
+        "excerptIds": [
+          "lab:slo-driven-ai-operations#why-a-fast-burn-overrides-the-cooldown",
+          "lab:slo-driven-ai-operations#what-it-demonstrates",
+          "lab:slo-driven-ai-operations#run-it"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 71.88235294117646,
+        "allocatedCharacters": 2272
+      },
+      {
+        "title": "Trying it yourself and what's still a stand-in",
+        "intent": "Point listeners to the runnable demo and test suite, and note the deterministic Clock as the seam where a real metrics backend would plug in — a production gap that's an integration, not a rewrite.",
+        "excerptIds": [
+          "lab:slo-driven-ai-operations#run-it",
+          "lab:slo-driven-ai-operations#verify-it",
+          "lab:slo-driven-ai-operations#principal-level-discussion-points"
+        ],
+        "weight": 1,
+        "targetSeconds": 55.29411764705882,
+        "allocatedCharacters": 1068
+      }
+    ],
+    "requestedSeconds": 188,
+    "plannedSeconds": 187.99999999999997,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.124,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "67dea3eb93a8e64b534ebb44e09749103f93e0113a180499f1b8cc9126d62e10",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So let's start with a number that most dashboards get wrong: the error budget. The instinct is to clamp it at zero once you've blown it, right? Zero means bad, done, move on. But this lab does something different — it lets that number go negative."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and that's the whole point. Budget remaining fraction going negative tells you how far over you are, not just that you're over. Clamping to zero erases that distinction exactly when you need it most. It reframes reliability as something you spend deliberately, not a target you either hit or miss."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Okay, so if we're treating it as a spendable quantity, the next problem is alerting on the rate you're spending it — and that's where it gets tricky, because a single window either pages you on noise or catches things too late."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly, that's a real trade-off, not just a tuning knob. A short window is twitchy — one bad minute and you're paged for nothing. A long window smooths that out but by the time it crosses threshold you've already burned way more budget than you should have. So the lab requires both: a long window like an hour to confirm this is a real burn, and a short window like five minutes riding alongside it so the alert actually clears within minutes once the burn stops. Neither window alone can do both jobs."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So once you've got that severity number, what actually consumes it? You mentioned it drives the autoscaler directly — walk me through that."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, so normally the autoscaler has a cooldown timer to stop it flapping on noisy utilization samples — you scale up, then you wait before scaling again. But the controller checks burn severity before it even looks at cooldown. If severity is fast-burn and you're under max replicas, it scales up immediately, cooldown or not."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "That feels risky on paper — bypassing your own safety mechanism. Why is that actually the right call instead of just a bug waiting to happen?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Because a cooldown is designed to suppress noise, and a page-severity burn isn't noise — it's the service actively failing users right now. Waiting out a timer built for noisy metrics is the wrong response to a real outage. It's a narrow escape hatch for exactly one case; every other decision still respects cooldown normally. And the same severity number does this on the incident side too — the runbook's three steps, restart, scale up, page on-call, each run under their own timeout, and if a step doesn't resolve things it escalates to a named contact instead of retrying blindly. If all three steps burn through without resolution, the incident reports EXHAUSTED with the last contact paged, rather than looping forever or just quietly giving up."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So if someone wants to see all this actually run, what's the fastest path? I imagine there's a way to spin it up locally and just watch the severity number change behavior in real time."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Yeah, it's a small FastAPI app — go into the labs slo-driven-ai-operations directory, pip install with the dev extras, and run uvicorn. It registers one demo service, checkout-api, with a real runbook of restart, scale up, page on-call. You post a healthy autoscale request first and see ordinary proportional scaling, then you hammer it with fifty failed requests in a loop, and now the SLO endpoint reports page severity and the incident you open escalates the same way we described. Run pytest after — 32 tests, plus ruff and mypy — so you're not just trusting the demo, you're watching the same invariants get checked in code."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Before we wrap — is there anything here that's a stand-in, something you wouldn't ship as-is?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "One honest gap: the Clock is injected and deterministic, which is great for tests but obviously not talking to a real metrics backend yet. The important thing is that it's the exact seam where one would plug in a real metrics backend, so wiring in real burn-rate data is an integration, not a rewrite of the severity or runbook logic. That's really the whole point of this lab: get the one severity computation right and boring, and everything downstream, alerting, scaling, incidents, just inherits that correctness."
+      }
+    ]
+  }
+}

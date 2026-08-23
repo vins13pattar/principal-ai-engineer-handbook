@@ -1,0 +1,189 @@
+{
+  "archiveVersion": 1,
+  "slug": "reference-langgraph",
+  "meta": {
+    "documentId": "reference:langgraph",
+    "url": "/reference/lookups/langgraph/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 510
+  },
+  "plan": {
+    "topic": "LangGraph",
+    "title": "LangGraph: The Checkpoint Is the Whole Idea",
+    "throughLine": "LangGraph isn't a nicer way to draw an agent loop — it's a runtime built around one mechanism, persistent per-step state, that happens to solve crash recovery and human approval at the same time; understanding that mechanism, its API surface, and where it silently breaks is the whole episode.",
+    "beats": [
+      {
+        "title": "The framing: crash recovery and human-in-the-loop are the same feature",
+        "intent": "Open with the single idea the source insists matters most — LangGraph is an execution engine defined by stop-and-resume, not a LangChain wrapper — and show how Module 7 restates this as 'control flow becomes data' that can be checkpointed.",
+        "excerptIds": [
+          "reference:langgraph#at-a-glance",
+          "module:07-langgraph#executive-summary",
+          "module:07-langgraph#mental-model"
+        ],
+        "weight": 1,
+        "targetSeconds": 53.888888888888886,
+        "allocatedCharacters": 2918
+      },
+      {
+        "title": "Anatomy of a graph: nodes, edges, state, reducers, channels, checkpointer",
+        "intent": "Walk the concept table in order — StateGraph, node, conditional edge, state, reducer, channel, checkpointer, thread — and ground it with the deep-dive explanation of the super-step model and a concrete minimal implementation.",
+        "excerptIds": [
+          "reference:langgraph#key-concepts",
+          "module:07-langgraph#deep-dive",
+          "module:07-langgraph#implementation"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 70.05555555555556,
+        "allocatedCharacters": 5204
+      },
+      {
+        "title": "Which version you're actually looking at",
+        "intent": "Address the practical trap before going further: target 1.x, know that 1.0 is LTS and 0.4 is maintenance-only, and that most code found via search is stale 0.x that won't run — plus the current release numbers.",
+        "excerptIds": [
+          "reference:langgraph#numbers-that-matter",
+          "reference:langgraph#common-gotchas"
+        ],
+        "weight": 0.8,
+        "targetSeconds": 43.11111111111111,
+        "allocatedCharacters": 1828
+      },
+      {
+        "title": "Where it quietly breaks: reducers, retries, timeouts, streaming defaults",
+        "intent": "Cover the gotchas that cause real production bugs — silent overwrite without a reducer, a retry re-running an entire node (and why that demands idempotency, tying back to the distributed-systems framing), a per-node timeout that isn't a run timeout, streaming v3 being opt-in, and an error handler that swallows failures instead of compensating.",
+        "excerptIds": [
+          "reference:langgraph#common-gotchas",
+          "module:07-langgraph#failure-modes",
+          "module:02-distributed-systems#mental-model"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 64.66666666666666,
+        "allocatedCharacters": 4332
+      },
+      {
+        "title": "Human-in-the-loop made concrete, and where to go deeper",
+        "intent": "Close on the payoff made real: an interrupt_before pause on a sensitive node, approve-or-reject as literally 'resume from checkpoint,' the supervisor-pattern extension via conditional edges, and pointers to the modules and lab that go further.",
+        "excerptIds": [
+          "module:07-langgraph#production-example",
+          "module:07-langgraph#deep-dive",
+          "reference:langgraph#where-to-go-deeper"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 59.27777777777778,
+        "allocatedCharacters": 2725
+      }
+    ],
+    "requestedSeconds": 291,
+    "plannedSeconds": 291,
+    "unsupported": [
+      "Head-to-head comparison of LangGraph against other agent frameworks like CrewAI or AutoGen",
+      "JavaScript/TypeScript LangGraph API specifics beyond the general cross-language parity warning",
+      "Pricing or hosting cost details for any LangGraph Cloud offering"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 88,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.32300000000004,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "958f2b3a09e08c90d97effb6e46de581baeb5bd4ee3b3bbcf78c57d730a1ffff",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we've talked before about hand-rolling an agent loop yourself — a while loop, a step budget, a tool executor. Today we're getting into LangGraph, and I think the first thing to clear up is what it actually is, because it's easy to mistake it for just a nicer syntax for that same loop."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and that mistake is really common — people treat it as a graph-drawing wrapper around LangChain. But that's not the defining feature. The defining feature is that a run can stop completely and resume later, whether that's after a crash, after you redeploy your service, or after waiting a full day for a human to click approve on something. Those feel like totally different problems, but in LangGraph they're literally the same mechanism."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Same mechanism — that's the part I want to sit with. How does turning your loop into a graph actually get you that for free?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Because you stop encoding your control flow implicitly in code that only exists while the process is running, and instead make it explicit data — a typed state object, nodes that update it, edges that decide what runs next. Once control flow is data, you can persist it after every single step. And once you can persist and reload state at any step, crash recovery and human-in-the-loop stop being two separate features you'd build by hand — they just fall out of the same checkpoint mechanism."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Let's go through the vocabulary in order, then, because I think that's the fastest way to make this concrete. Start with StateGraph and walk me all the way down to checkpointer and thread."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "StateGraph is just the definition — a state type plus nodes plus edges between them, nothing running yet. A node is a function from state to a partial update: it doesn't return the whole state, just the piece it changed, and that update is also the unit of retry, timeout, and checkpoint. A conditional edge inspects that state at runtime and returns the name of whatever runs next — that's your loop-or-finish branch as an inspectable function instead of an if-statement buried in a while loop. State itself is a typed object, usually a TypedDict, and each key can declare a reducer that controls how a node's update merges in — default is overwrite, and forgetting to declare append on a message list is the single most common LangGraph bug, because each node's update silently replaces history instead of extending it. Underneath each key sits a channel, which is the actual storage and determines what gets persisted and how; and the checkpointer persists the full state after every one of these super-steps — schedule nodes, run them, merge updates, repeat — keyed by a thread ID, which is just that one run's identity across restarts. A minimal version of this is compact: a TypedDict with an Annotated list using an add reducer, a decide node and a tools node, a route function checking a step count against END, and graph.compile with a MemorySaver — that's the whole checkpointed loop."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "That step-count check in route sounds exactly like the runaway-loop guard from the agent engineering module — so the graph doesn't actually stop you from writing an infinite loop, it just gives you a clean place to put the guard. And I want to come back to that reducer bug you mentioned, because 'silently replaces history' sounds like exactly the kind of failure that doesn't announce itself until much later."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Before we go further into failure modes, let's fix something that trips people up before they even write a node: which version are we actually talking about? Because if you google LangGraph right now you get a pile of examples that look reasonable and just don't run."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Right, that's the 0.x wreckage — the API surface changed across the 1.0 boundary and search hasn't caught up, so half of what you find is stale. Current is 1.2.11, and that's the generation with DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 — the stuff we're about to talk about. If you want a long support window pin to 1.0, that's the LTS line; 0.4 still gets patches but that's maintenance-only, not where anything new is landing."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Let's go through the ways this actually breaks in production, because the checkpoint mechanism doesn't save you from every mistake. Start with the one that sounds too simple to be real — the reducer thing."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Two nodes return updates for the same key and whichever runs last just silently overwrites the other — no error, no warning. It's brutal for message history specifically, because a single-node test run never exposes it; you only find out when a second node clobbers the conversation and the agent looks like it has amnesia. Anything you're accumulating — messages, tool results, citations — needs an explicit reducer like add_messages, full stop, not the default behavior. And this compounds with retries: a retry re-runs the entire node, not just the failed line, so if that node already wrote a row or charged a card before it died, that side effect happens twice. That's the same idempotency argument from the distributed-systems module — a timeout doesn't tell you the work didn't happen, it just tells you the response didn't come back."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So every node with a side effect has to assume it might run twice. What about the timeout and streaming defaults — those feel like the kind of thing you only discover at 2am."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Per-node timeout is exactly that trap — thirty seconds per node times ten nodes is a five-minute worst case, and nothing warns you that your 'thirty second timeout' graph can run five minutes. You have to budget the whole run, not just the step. Streaming's the quieter one: stream_events still defaults to version two, so unless you explicitly pass version equals version three, you're getting the old event shape with none of the typed projections — no error, it just silently isn't v3. And the last one is the nastiest because it looks like resilience — an error handler that catches the exception and returns empty state instead of compensating or routing to a failure path turns a failed run into a wrong one that keeps executing like nothing happened."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Okay, let's make the human-in-the-loop piece concrete, because I think that's the payoff everyone actually wants. Walk me through interrupt_before on something like a send_email node."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "You compile the graph with interrupt_before equals send_email, so no matter what path led there, the run stops right before that node fires. The checkpointer has already persisted the full state at that point — the drafted email, the recipient, everything in messages — so a human can look at exactly what's about to be sent. Approve, and resume just means load that checkpoint and continue into send_email; reject, and you update state and route elsewhere instead, and notice that's the identical resume-from-checkpoint mechanism we talked about for crash recovery, just triggered by a human instead of a process restart. And the same conditional-edge machinery extends naturally into a supervisor pattern — one node inspects state and routes to different specialized agents or whole subgraphs, which is Module 5's multi-agent option finally implemented as inspectable code instead of bespoke coordination."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "That's a genuinely satisfying place to land — one mechanism, two features, and the same conditional-edge idea scales up to routing between agents. So if people want the exact API, reducer syntax, or which checkpointer backend to use, where do they go from here?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Module 7 itself is the deep dive on state, reducers, and conditional edges if you want the full architecture argument again; Module 5 is where you decide if a graph is even the right shape before you reach for LangGraph at all. For the durability guarantees without a framework opinion attached, Durable Agent Execution covers the same requirements at architecture scale, and the durable-agent-task-engine lab makes leases, fencing, retries, and dead-lettering concrete as running code."
+      }
+    ]
+  }
+}

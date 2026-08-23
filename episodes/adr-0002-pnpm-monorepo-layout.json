@@ -1,0 +1,104 @@
+{
+  "archiveVersion": 1,
+  "slug": "adr-0002-pnpm-monorepo-layout",
+  "meta": {
+    "documentId": "adr:0002-pnpm-monorepo-layout",
+    "url": "/adr/decisions/0002-pnpm-monorepo-layout/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 209
+  },
+  "plan": {
+    "topic": "ADR-0002: Use a pnpm workspace monorepo for site, packages, and labs",
+    "title": "ADR-0002: Why pnpm Workspaces for Site, Packages, and Labs",
+    "throughLine": "A single-maintainer OSS platform needs shared conventions across its docs site and component packages without sharing a build — and without dragging Python labs into a Node toolchain they don't belong in.",
+    "beats": [
+      {
+        "title": "Three kinds of code, one problem",
+        "intent": "Lay out the shape of the repo before the decision: the handbook site, its reusable packages, and the Python labs that predate the platform — and the core question of how to let a shared component change without a publish-and-bump cycle.",
+        "excerptIds": [
+          "adr:0002-pnpm-monorepo-layout#context",
+          "adr:0002-pnpm-monorepo-layout#problem"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 37.63157894736842,
+        "allocatedCharacters": 737
+      },
+      {
+        "title": "Weighing the layouts",
+        "intent": "Walk through the three options on the table — separate repos, a flat repo with relative imports, and a pnpm workspace — and why the first two break down for a solo maintainer as soon as a package needs its own tooling or a cross-cutting change needs coordinating.",
+        "excerptIds": [
+          "adr:0002-pnpm-monorepo-layout#options"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 44.473684210526315,
+        "allocatedCharacters": 870
+      },
+      {
+        "title": "The decision and its trade-offs",
+        "intent": "State what was actually adopted — pnpm workspace covering apps and packages, labs deliberately excluded and left on their own Python tooling — then land on the concrete payoffs (instant visibility of changes, shared root config, leaner node_modules) and the one honest cost: labs-only users still clone everything.",
+        "excerptIds": [
+          "adr:0002-pnpm-monorepo-layout#decision",
+          "adr:0002-pnpm-monorepo-layout#consequences",
+          "adr:0002-pnpm-monorepo-layout#status"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 47.89473684210526,
+        "allocatedCharacters": 1451
+      }
+    ],
+    "requestedSeconds": 130,
+    "plannedSeconds": 130,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 91,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.05,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "f1401eb402c2f9f7f24f4f8becd0ab6b035c22243f3f7d85e34e5a1d39153a3b",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Welcome back. Today we're digging into ADR-0002, which is really about the shape of a single-maintainer OSS platform before we even get to the tooling decision. There's the handbook site itself, there are the reusable pieces it leans on like design tokens and MDX components, and then there's this whole separate world of Python labs that the docs reference but don't build with."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and one of those labs is important to call out — the async AI gateway example wasn't born inside this repo, it was already its own standalone Python project with its own CI before the platform showed up. So you've got three kinds of code that all need to feel coherent to a solo maintainer, but they absolutely should not share a build. The real question driving this decision is how to let a shared component change without forcing a publish-and-bump cycle every time, while the labs just keep doing their own Python thing untouched."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So walk me through the actual options you weighed here, because I imagine separate repos was the first instinct — it's the classic clean-boundaries move. Why didn't that hold up?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "It's clean right up until you need a cross-cutting change, like a new doc component the site and some future second app both need — then you're publishing a package and bumping a version just to unblock yourself, alone, with no one else's PRs to coordinate against. The next option, a flat repo with relative imports like dot-dot-slash packages slash ui slash src, is even more tempting because it's zero setup, and it actually works fine until a package needs its own package.json or its own test runner — then that missing workspace tooling turns into friction on every single addition. That's what pushed me to a pnpm workspace, with labs deliberately left out of it since it's Python and shouldn't be something this workspace's tooling ever tries to build."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So the actual decision landed exactly where you were pointing: a pnpm workspace with pnpm-workspace.yaml covering apps and packages, workspace-star dependencies between them, and labs pointedly living outside all of that with its own pyproject.toml, pytest, ruff, mypy, and its own CI job. What does that buy you day to day?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "The concrete payoff is that a change to packages slash components shows up in apps slash handbook on the next dev server reload — no publish, no version bump, no registry round trip. Root config for ESLint, Prettier, Vitest, and the base TypeScript setup is defined once and extended per package, so a fourth package means adding a package.json and a tsconfig that extends the root, not re-deriving lint rules from scratch, and pnpm's content-addressable store keeps node_modules sane across packages that all share Astro and TypeScript instead of duplicating that tree everywhere. The one honest cost is that someone who only wants the Python labs still clones the whole repository — there's no slicing that out — but since the whole point of this project is that the platform and the labs are meant to be read together, that's a cost I accepted going in, not something I overlooked."
+      }
+    ]
+  }
+}

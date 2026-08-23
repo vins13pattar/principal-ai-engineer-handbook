@@ -1,0 +1,127 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-semantic-cache",
+  "meta": {
+    "documentId": "lab:semantic-cache",
+    "url": "/build/labs/semantic-cache/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 240
+  },
+  "plan": {
+    "topic": "Semantic Cache",
+    "title": "The Cache That Can't Tell Right From Wrong",
+    "throughLine": "A semantic cache promises free speed, but on this corpus every threshold that serves a real hit rate also serves wrong answers indistinguishable from right ones — and the fix isn't a better number, it's a better key.",
+    "beats": [
+      {
+        "title": "The false-hit curve nobody reports",
+        "intent": "Open with the dashboard metric everyone tracks (hit rate) versus the one that actually matters (false-hit rate), then land the corpus's core finding: at every threshold that serves anything, precision is below 100%, and the two similarity distributions are inverted rather than merely overlapping — the EU/US refund pair scores higher than the genuine password-reset paraphrase.",
+        "excerptIds": [
+          "lab:semantic-cache#the-finding"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 71.5,
+        "allocatedCharacters": 1364
+      },
+      {
+        "title": "What's real about it, and what a real embedding would fix",
+        "intent": "Turn the finding over: the mechanism (short semantic tokens swamped by shared framing) is real and would survive a real embedding model, but the inversion itself is likely a lexical-proxy artifact that would soften with a real dense model. Either way, the engineering conclusion holds — tightening the threshold trades one error for the other and can't eliminate both, and a threshold is a property of your corpus and model, not something you can inherit from someone else's writeup.",
+        "excerptIds": [
+          "lab:semantic-cache#how-much-of-that-is-the-simulation"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 60.49999999999999,
+        "allocatedCharacters": 1358
+      },
+      {
+        "title": "The key you forgot, and who's supposed to notice",
+        "intent": "Shift from threshold to scope: a cached answer is only valid for a specific model, prompt version, and tenant, and that scope has to be filtered before the similarity search runs — otherwise, echoing the vector DB's classic gotcha, you've already read another tenant's answer before deciding what to do about it. Close on the unresolved organizational questions: nobody has priced what a wrong answer costs, nothing downstream can tell a false hit from a real one, prompt edits silently keep serving stale answers until TTL, and an eval suite run through the cache measures the cache instead of the model.",
+        "excerptIds": [
+          "lab:semantic-cache#the-other-half-the-scope-key",
+          "reference:vector-db#common-gotchas",
+          "lab:semantic-cache#principal-level-discussion-points"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 65.99999999999999,
+        "allocatedCharacters": 3090
+      }
+    ],
+    "requestedSeconds": 198,
+    "plannedSeconds": 198,
+    "unsupported": [
+      "A concrete dollar figure for what a wrong cached answer costs — the excerpts pose this as the open question a team must answer, but don't supply one",
+      "A worked example of detecting entity-swap near-duplicates automatically, beyond naming it as 'the fix'",
+      "A production case study of this cache deployed at scale alongside the Model Router lab's cost tradeoffs"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.85400000000004,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "ddc9b374c3410706e89240ea74f4cf1c6633f672956514b86ef1fa062d851edc",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Every dashboard for a semantic cache shows you the same headline number: hit rate. It's the metric everyone brags about, because higher hit rate means faster responses and lower compute costs. But today we're going to talk about the number nobody puts on that dashboard."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, the false-hit rate. That's when the cache confidently serves you a wrong answer, and it comes back just as fast and just as polished as a right one. Downstream, there's no way to tell the difference — it looks exactly like a correct response until someone acts on it."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So walk me through what happens when you actually sweep the similarity threshold on a real corpus. I'd assume there's some sweet spot where you get a healthy hit rate and precision stays high."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "That's the finding that should worry people: there isn't one. At 0.90 you already get false hits with zero precision. At 0.90 and 0.85, hit rate and false-hit rate move together exactly. Loosen it further, past 0.80, and hit rate starts pulling ahead as precision actually rises — but it never gets safe, it just gets less bad. And it's worse than overlapping distributions — they're inverted. The EU refund question scores 0.875 against the US version, higher than 'how do I reset my password' scores against its own genuine paraphrase at 0.833. The pair that must never be conflated is literally the more similar one."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So how much of that inversion is a real property of the data, and how much is just an artifact of the toy embedding you built for this test?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "The mechanism is real — a short entity token like EU versus US gets swamped by all the shared framing around it, and that's a genuine weak spot even for real dense embeddings, not just a lexical stand-in. The inversion itself is probably an artifact of that stand-in; a real model would likely separate those two groups better and soften the flip into overlap rather than a clean reversal. But take the toy embedding away and the engineering point still holds: tightening the threshold only trades a false hit for a missed one, it can't erase the risk, and there's no universal number you can borrow — the threshold only means something once you've measured it against your own corpus and your own model."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So there's no number you can just lift from someone else's benchmark and paste into your config — you have to build the labeled near-duplicate set yourself and find your own curve."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so we've got a threshold we can't fully trust. Is there anything about this cache that's actually a solid rule, not a judgment call?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Yes — the key itself, before you even touch similarity. A cached answer is only valid for one model, one prompt version, one tenant, and that has to be filtered before the vector search runs, not after. Filter afterward and you've already read another tenant's answer and are just deciding what to do about it, which is the exact same gotcha vector databases have with cross-tenant leaks. Prompt version is the one everyone forgets, because prompts get edited weekly while models change rarely, so an edit that changes the right answer just keeps serving the old one until the TTL finally expires."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Which means the real open questions aren't technical at all — nobody's put a price on what a wrong cached answer costs, so the threshold gets set by whoever's staring at the hit-rate dashboard that day. Nothing downstream can tell a false hit from a real one apart from sampling cached against fresh, which almost nobody bothers to do. And if your eval suite runs through the cache, you're not grading the model anymore, you're grading the cache — and it'll keep reporting yesterday's score long after the model's changed."
+      }
+    ]
+  }
+}

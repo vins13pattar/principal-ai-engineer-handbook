@@ -1,0 +1,331 @@
+{
+  "archiveVersion": 1,
+  "slug": "module-04-ai-infrastructure",
+  "meta": {
+    "documentId": "module:04-ai-infrastructure",
+    "url": "/learn/modules/04-ai-infrastructure/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-22",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 871
+  },
+  "plan": {
+    "topic": "Module 4: AI Infrastructure",
+    "title": "Module 4: AI Infrastructure — The Layer Between Model and Product",
+    "throughLine": "AI infrastructure is the discipline of treating model and provider choice as a fast-changing, non-deterministic dependency that needs the same engineering rigor as any other production system — routing, cost tracking, evaluation, and deploy discipline — rather than either raw ML research or generic backend plumbing.",
+    "beats": [
+      {
+        "title": "What AI infrastructure actually is",
+        "intent": "Frame the module's scope: the stack between a model and a reliable, affordable, safe product feature, bridging generic distributed systems and AI-specific protocols.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#executive-summary"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 45.15,
+        "allocatedCharacters": 566
+      },
+      {
+        "title": "Layers that change at different speeds",
+        "intent": "Establish the core mental model — models change fastest, gateway occasionally, application slowest — and the principle of treating provider choice as a runtime routing decision, not a hardcoded dependency.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#mental-model"
+        ],
+        "weight": 2,
+        "targetSeconds": 60.2,
+        "allocatedCharacters": 1387
+      },
+      {
+        "title": "Why '200 OK' isn't enough",
+        "intent": "Introduce the architecture's evaluation/observability wrapper as necessary because AI failure modes are silent quality regressions, not error codes.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#architecture"
+        ],
+        "weight": 1,
+        "targetSeconds": 30.1,
+        "allocatedCharacters": 338
+      },
+      {
+        "title": "Build vs. buy, and non-determinism as an engineering fact",
+        "intent": "Walk through the hosted-vs-self-hosted crossover math and why non-determinism breaks exact-match testing, requiring an evaluation harness instead.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#deep-dive",
+          "module:04-ai-infrastructure#trade-offs",
+          "module:04-ai-infrastructure#interview-questions"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 75.25,
+        "allocatedCharacters": 3288
+      },
+      {
+        "title": "Cost per request, not per month",
+        "intent": "Explain token pricing asymmetry and why cost must be tracked per-request, then ground it in the concrete UsageRecord wrapper implementation.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#deep-dive",
+          "module:04-ai-infrastructure#implementation"
+        ],
+        "weight": 2,
+        "targetSeconds": 60.2,
+        "allocatedCharacters": 2585
+      },
+      {
+        "title": "A model swap is a deploy",
+        "intent": "Present the canary-and-rollback discipline for prompt/model changes and the worked Provider A to B example showing naive vs. rigorous rollout.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#deep-dive",
+          "module:04-ai-infrastructure#production-example"
+        ],
+        "weight": 2,
+        "targetSeconds": 60.2,
+        "allocatedCharacters": 1439
+      },
+      {
+        "title": "How this quietly breaks: failure modes and security",
+        "intent": "Cover silent quality drift, uncapped output cost, shallow eval coverage, provider rate-limit ceilings, and the security angle of prompt injection, exfiltration, and PII handling.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#failure-modes",
+          "module:04-ai-infrastructure#security"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 75.25,
+        "allocatedCharacters": 2551
+      },
+      {
+        "title": "The cost-latency-quality triangle and scaling routing problems",
+        "intent": "Discuss performance trade-offs (TTFT vs throughput, caching) alongside scaling concerns like multi-provider quota management, fallback chains under load, and multi-region availability.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#performance",
+          "module:04-ai-infrastructure#scaling"
+        ],
+        "weight": 2,
+        "targetSeconds": 60.2,
+        "allocatedCharacters": 1390
+      },
+      {
+        "title": "The gateway lab as the routing layer made real",
+        "intent": "Connect the abstract routing principle to the async-ai-gateway lab's concrete mechanisms — health-aware selection, atomic Redis-backed rate limiting, and the production vs secure app split — plus the discussion points on feedback loops, streaming fallback, and readiness vs liveness.",
+        "excerptIds": [
+          "module:04-ai-infrastructure#hands-on-lab",
+          "lab:async-ai-gateway#entry-points",
+          "lab:async-ai-gateway#what-it-demonstrates",
+          "lab:async-ai-gateway#principal-level-discussion-points"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 75.25,
+        "allocatedCharacters": 3661
+      },
+      {
+        "title": "When the test suite lies: the Redis integration story",
+        "intent": "Close with the cautionary tale of the CI job that was green regardless of Redis's existence, how the fix exposes real atomicity guarantees, and why production readiness tracking treats gaps as known, not hidden.",
+        "excerptIds": [
+          "lab:async-ai-gateway#run-it",
+          "lab:async-ai-gateway#verify-it",
+          "lab:async-ai-gateway#production-readiness"
+        ],
+        "weight": 2,
+        "targetSeconds": 60.2,
+        "allocatedCharacters": 2444
+      }
+    ],
+    "requestedSeconds": 602,
+    "plannedSeconds": 602,
+    "unsupported": [
+      "Detailed walkthrough of the planned Model Router and Semantic Cache labs' internal design (only mentioned as future work, not detailed)",
+      "Comparison to specific competing gateway products or vendors beyond the generic Provider A/B example",
+      "A deep dive into the cited external references' full arguments (Huyen, Willison, Yan) beyond their one-line framing"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 81,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.906,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "9e0f883c38b38a1853fc08be98eacdde321f723067c76831711859078e99fd85",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Welcome to Module 4. We've spent the last two modules on distributed systems and networking fundamentals — the stuff that underlies basically any backend. Today we're narrowing in on something more specific: what happens when the thing you're calling isn't a database or a microservice, but a model."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and that's really the whole premise of AI infrastructure — it's not machine learning research, and it's not generic backend plumbing either. It's the layer in between that takes a model, whether it's someone else's API or one you've trained yourself, and turns it into a product feature that's actually reliable, affordably priced, and safe to change over time. Think of this module as the bridge between the general systems material we've already covered and the AI-specific protocols and frameworks we'll get into later — it's about the concerns that show up precisely because your dependency is a model, not a server you fully control."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So if the models and providers are the fast-moving piece, how does that actually change the way you structure the stack? Like, where does that speed mismatch show up architecturally?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Think of three layers moving at different clock speeds. Models and providers churn constantly — new versions, new vendors, pricing shifts, sometimes the same API quietly gets worse or better underneath you. The gateway layer changes occasionally, maybe you add a policy or a new provider. And the application, the actual product surface and prompts, changes slowest of all. The design principle is simple: model and provider choice has to be a routing decision made at runtime, not something hardcoded into the slow-changing layer."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So if swapping a provider means editing application code, that's a signal the dependency arrow is pointing the wrong way."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Exactly, and that's precisely why in the async-ai-gateway lab, provider selection happens in a select function, evaluated per request, instead of being a compile-time import somewhere in the app. Teams that wire an SDK straight into product code are betting they'll never need a second provider or tenant-based routing, and that bet almost always fails within a year. The gateway isn't extra ceremony — it's the thing that absorbs the fast-changing layer before it spreads everywhere."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So what happens when the system answers just fine, and the answer is just... wrong? A 200 status code doesn't tell you that anything went bad."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Right, that's the evaluation gap, and it connects to something deeper: the same prompt can produce different outputs on different calls. That's not a bug, it's the nature of these models, but it breaks the core assumption every other testing discipline relies on, that a system under test behaves deterministically."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So the unit test playbook just doesn't apply here. You can't assert that the output equals some fixed string."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Exactly, exact-match assertions are the wrong tool entirely. What you need instead is an evaluation harness, a fixed suite of representative prompts scored against a rubric or reference set, run every time you touch a prompt or swap a model, the same way you'd run a regression suite before shipping code."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Which reframes something people tend to treat casually, editing a prompt in production. That's not a config tweak, that's a deploy, and it sounds like it needs the same guardrails, canary a slice of traffic, compare against baseline, have a rollback path."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Let's talk money, because I think most teams still think of AI spend the way they think of a cloud bill — check it at the end of the month, wince, move on. But you're saying that's already too late to catch the actual problem."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, because the pricing structure itself is asymmetric in a way that a monthly total completely hides. Providers charge separately for input and output tokens, and output tokens are typically several times more expensive than input. So 'summarize this document' is cheap — big input, tiny output — but 'expand this outline into a full report' is expensive, small input, large output. Two features can look similar in your product and have wildly different cost profiles per call, and if you're only looking at a monthly total, one expensive feature can quietly dominate your entire spend with zero visibility into which one it was."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So you need cost attached to the individual request, not the invoice. What does that actually look like in code — is this just logging a number somewhere?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "It's a small wrapper, but the details matter. You define a usage record — tenant, provider, input tokens, output tokens, latency — and estimated cost is a property computed on demand from a pricing table, not baked in at write time. That means two things: if a provider corrects their pricing retroactively, you can re-price historical records instead of having stale numbers frozen forever, and the pricing table stays the single source of truth instead of drifting across every call site that happens to hardcode a rate. Then a function that wraps the actual call times it and emits that record — so every single request produces a cost and latency data point you can attribute to a tenant."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So you've got requests flowing through this wrapper, cost and latency attributed per tenant. But at some point someone's going to say 'let's just switch our default provider, Provider B is cheaper.' Is that a bigger deal than it sounds?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "It's exactly as big a deal as a code deploy, because that's what it is. The naive version is you change one line in a config, deploy, and now a hundred percent of traffic is hitting a model that might phrase things worse, or just behave differently on your specific prompts — and nobody notices until support tickets pile up, because there's no error, just quieter degradation."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So what does doing it right actually look like, end to end?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Same shape as any canary rollout. Route five percent of traffic to Provider B, run your evaluation harness's rubric against both arms for a fixed window, and compare quality score, p95 latency, and cost per request side by side. If B holds up you ramp to twenty-five, then a hundred; if quality drops below your threshold at any stage, you roll back to A. The point is the decision is made from data you already have sitting there, not from someone's gut feeling after skimming a few outputs."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So say the rollout looks clean, you've ramped to a hundred percent, everyone moves on. Is that actually the end of the story, or does this stuff keep breaking quietly after the fact?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "It keeps breaking, that's the uncomfortable part. A provider can update the model behind that same stable endpoint months later, and quality shifts with zero error code, nothing a normal monitor flags — only a running eval harness comparing against baseline catches it. Same with cost: a request with no cap on output length, or a prompt that nudges the model into a long ramble, quietly turns into an expensive request, and since output tokens cost more than input, that adds up fast if you're not capping length explicitly."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "And I'd guess your eval suite itself can lull you into false confidence if it's only testing the easy cases."
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Exactly — happy-path-only evals miss adversarial inputs, weird formatting requests, the actual tail of real traffic, which is where production failures live. That same untrusted-input problem is also a security seam: a model summarizing a document or reading a webpage can follow instructions buried in that content, which shows up first as 'broken' behavior in your monitoring before anyone calls it prompt injection — so you separate trusted instructions from untrusted data, scope what context and tools each call can reach, and treat prompts and logs with the same PII discipline as any other system touching personal data. On top of that, watch provider rate limits as their own capacity constraint — your gateway's admission control does nothing once the ceiling lives on their side."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So let's talk performance trade-offs, because I don't think 'make it faster' is actually one problem. Time-to-first-token and tokens-per-second sound related but you're describing them as almost separate levers."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "They are separate. Time-to-first-token is about perceived responsiveness — did the thing start talking to me — which matters enormously for a chat interface, per Module 3's discussion of latency. Tokens-per-second throughput is about total duration for long outputs, which matters more for something like a report generation job nobody's staring at live. And both sit inside this cost-latency-quality triangle: cheaper, faster models are usually lower quality, so pushing on speed or price pushes back on the third corner. That has to be a measured, per-use-case decision, not one global default model for everything — and caching, semantic or exact-match, is a real lever on both cost and latency that we get into properly in the semantic cache lab."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "Okay, and then that per-use-case routing decision has to survive actual scale — multiple providers, real traffic. What breaks first?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Quota management, mostly — at scale you need to know each provider's remaining quota and route proactively, not just fall back reactively after a 429. And fallback chains need to scale with traffic, not sit there as a static ordered list — a fallback sized for occasional overflow can get overwhelmed itself if the primary degrades under a broad outage, which is exactly when everyone's traffic shows up at its door. Then multi-region adds another dimension, because not every model is available or priced the same everywhere, so scaling to a new region turns into a routing-policy problem, not just spinning up infrastructure."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "So everything we've just described in the abstract — health-aware selection, quota-aware routing, fallback that scales — is there an actual reference implementation we can point to, rather than just a mental model?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Yes, that's exactly what the async-ai-gateway lab is for. It ships two apps on top of a shared core: the production app has bounded concurrency, deadlines, retries with jitter, and health-aware fallback, while the secure app adds JWT-verified tenant identity, tier-based provider policy, and a Redis-backed rate limiter shared across replicas. The split exists so the identity and quota layer is legible on its own, though a real deployment would collapse them into one app with security always on."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "That Redis limiter is interesting given what you said about quota tracking at scale — what actually makes it safe under concurrency, where a naive counter wouldn't be?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "It's a single Lua script doing refill-and-consume atomically, so two replicas can't both read the same remaining quota and each think they're clear to spend it — in testing, a capacity of 20 with two replicas let through exactly 20 with the script versus all 40 with a naive get-then-set. And it's not the only subtlety: health scoring can create feedback loops where an unhealthy-looking provider starves of the probe traffic it needs to recover, streaming fallback is unsafe once a client has started rendering partial output, and conflating readiness with liveness is what makes rolling deploys kill pods that were just draining connections, not actually broken."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "You mentioned testing earlier, but I want to end on this because it's such a good gut-punch story. There was a Redis integration job in CI that was green the entire time — tell me how that happened."
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "The job spun up a Redis service container and then ran the test suite filtered down to anything with 'redis' in the name, but the only tests matching that filter were backed by a FakeRedis stub — canned answers, no socket ever opened. So the container just sat there unused, and the job was green whether Redis existed or not, including if it had never started at all. The fix, a new Redis integration test file, does the one thing a fake can't: two limiter instances against one real Redis, twice the capacity fired concurrently, and it asserts exactly capacity gets through — swap the Lua script for a naive get-then-set and you watch it let 40 of 40 through instead of 20. The subtler half is a required-integration flag that turns a missing Redis connection URL into a hard failure instead of a skip, because a skip doesn't turn the build red — it just goes vacuously green again, more quietly than before."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "So the lesson isn't 'write more tests,' it's 'make sure the test can actually fail for the reason you think it can.' That feels like a fitting note to close the whole module on — treat gaps as known and tracked, not hidden behind something that looks like coverage."
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "Exactly, and that's why the lab keeps its own production readiness list right next to the code — correctness contracts, reliability, observability, tenancy, capacity, delivery — with unchecked items left visibly unchecked. An honest gap list beats a green checkmark that isn't measuring anything, and that's the whole discipline of this layer in one sentence: assume non-determinism, verify your guarantees under real conditions, and never let 'it passed CI' stand in for 'it works in production.'"
+      }
+    ]
+  }
+}

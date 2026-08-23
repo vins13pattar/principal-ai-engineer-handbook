@@ -17,6 +17,7 @@ export * from "./episode.ts";
 export * from "./create.ts";
 export * from "./review.ts";
 export * from "./transcript.ts";
+export * from "./archive.ts";
 
 export * from "./config.ts";
 export * from "./run.ts";

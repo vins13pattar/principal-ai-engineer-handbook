@@ -1,0 +1,115 @@
+{
+  "archiveVersion": 1,
+  "slug": "adr-0004-single-docs-collection-schema",
+  "meta": {
+    "documentId": "adr:0004-single-docs-collection-schema",
+    "url": "/adr/decisions/0004-single-docs-collection-schema/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 236
+  },
+  "plan": {
+    "topic": "ADR-0004: Use one permissive Starlight schema plus a separate structural linter",
+    "title": "ADR-0004: One Schema, One Linter",
+    "throughLine": "Starlight forces every doc into a single content collection, so validation strictness has to be split between a permissive build-time schema and a separate structural linter that actually enforces per-section rules.",
+    "beats": [
+      {
+        "title": "The mismatch between seven content types and one collection",
+        "intent": "Establish why this is a problem at all: seven very different document types (ADRs, Learn modules, etc.) each need their own frontmatter fields and required body sections, but Starlight only supports one schema per collection, and splitting into multiple collections means losing sidebar/pagination features for free.",
+        "excerptIds": [
+          "adr:0004-single-docs-collection-schema#context",
+          "adr:0004-single-docs-collection-schema#problem",
+          "adr:0004-single-docs-collection-schema#options"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 50.375,
+        "allocatedCharacters": 1836
+      },
+      {
+        "title": "Permissive schema at build time, strict linter in CI",
+        "intent": "Explain the chosen decision: one Starlight schema with everything optional so the build only rejects malformed data, while the real per-type contract lives once in packages/shared and is enforced against actual content by a separate structural linter script in CI.",
+        "excerptIds": [
+          "adr:0004-single-docs-collection-schema#decision",
+          "adr:0004-single-docs-collection-schema#status"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 54.25,
+        "allocatedCharacters": 901
+      },
+      {
+        "title": "Living with two systems and duplicated schemas",
+        "intent": "Walk through the tradeoffs accepted: overview pages can skip irrelevant fields, the canonical shape lives in one documented place, but 'build succeeded' no longer means 'content complete,' and two schema definitions must be kept in sync by hand deliberately, to avoid cross-package zod version coupling.",
+        "excerptIds": [
+          "adr:0004-single-docs-collection-schema#consequences",
+          "adr:0004-single-docs-collection-schema#references"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 50.375,
+        "allocatedCharacters": 1594
+      }
+    ],
+    "requestedSeconds": 155,
+    "plannedSeconds": 155,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 91,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.875,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "13b55376ec66960c9f8d124d7d1829ca27bb4a47ac1983fbc46a8263c767dfad",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So today we're digging into ADR-0004, which is basically about a headache anyone using Starlight for a big docs site eventually hits. You've got seven totally different kinds of documents in this project — ADRs, Learn modules, Build, Architecture pages, Interviews, Reference, Cheat Sheets — and each one wants its own frontmatter and its own required sections. An ADR needs an adrNumber and adrStatus and a Status through References structure, while a Learn module needs a moduleNumber, a difficulty rating, and fifteen separate required sections. Totally different shapes."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and the wrinkle is that Starlight only gives you one schema per content collection, and this whole site runs on a single docs collection. There's no built-in way to say 'this subfolder gets these fields, that subfolder gets those.' So you're stuck: either force every single page to satisfy the union of all seven types' requirements, which means meaningless placeholder fields on pages that don't need them, or you split into multiple collections and lose the sidebar and pagination behavior Starlight gives you for free. Neither of those is a real answer, which is exactly why this ADR exists."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So how do you actually resolve that fork without giving up on either side? What did the ADR land on?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "The trick is splitting where strictness lives. The Starlight schema in content.config.ts stays permissive — it's the base schema plus every section-specific field, but everything's optional or defaulted at the Zod level. So the build only rejects frontmatter that's actually broken, like a wrong type or an invalid enum, never a page for skipping a field that doesn't apply to it."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And the real contract, the one that says an ADR needs a decision section and a module needs certain fields, that lives somewhere else entirely?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Exactly, it's written once in packages/shared/src/schemas.ts as fully-required Zod schemas, and those same schemas back that package's own tests. Then scripts/lint-content-structure.ts runs in CI, knows the required sections per directory — learn modules, architecture systems, ADR decisions — and checks real content against that stricter contract, completely separate from the build."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So walk me through what you're actually accepting by living with two systems. I get that overview pages like learn/index or adr/index can skip fields that only matter for the numbered pages underneath — that seems like a clean win."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "That's exactly the tradeoff, which is why pnpm ci always runs both — build and lint:content — so nobody gets to rely on green build alone. The upside is the canonical shape of each content type lives in exactly one documented place, packages/shared/src/schemas.ts, that a Node script or even an editor integration could import later. And yes, that means two schema definitions, the Astro extend schema and the shared per-type ones, overlap and have to be kept in sync by hand — but that's deliberate, because sharing one Zod instance across Astro's content layer and plain Node tooling would couple both to whatever zod version happens to be installed where, and silent instanceof mismatches across duplicate zod installs is a genuinely worse failure mode than a small hand-maintained duplication you can actually see in a diff. That's the whole ADR in one sentence, really: split the strictness, document the shape once, and accept a bit of manual sync as the price of not coupling two tools to one shifting dependency."
+      }
+    ]
+  }
+}

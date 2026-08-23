@@ -1,0 +1,330 @@
+{
+  "archiveVersion": 1,
+  "slug": "module-08-rag",
+  "meta": {
+    "documentId": "module:08-rag",
+    "url": "/learn/modules/08-rag/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-22",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 766
+  },
+  "plan": {
+    "topic": "Module 8: RAG",
+    "title": "Module 8: RAG — Making Retrieval the Star of the Show",
+    "throughLine": "RAG succeeds or fails on retrieval quality, not model cleverness — the episode walks through why two independent pipelines exist, how chunking/embedding/hybrid search/re-ranking decisions shape what the model ever sees, why freshness and access control are architectural decisions not afterthoughts, and why retrieval and generation must be measured as two separate systems.",
+    "beats": [
+      {
+        "title": "Why bolt retrieval onto a model at all",
+        "intent": "Set up the core problem RAG solves: fixed training data, private documents, and the cost of retraining, motivating retrieve-then-generate as the fix.",
+        "excerptIds": [
+          "module:08-rag#executive-summary"
+        ],
+        "weight": 5,
+        "targetSeconds": 47.301587301587304,
+        "allocatedCharacters": 590
+      },
+      {
+        "title": "Two pipelines, one hard ceiling",
+        "intent": "Explain the ingestion/query split, why drift between them causes most RAG failures, and why retrieval quality is a hard ceiling no amount of prompting can lift.",
+        "excerptIds": [
+          "module:08-rag#mental-model"
+        ],
+        "weight": 6,
+        "targetSeconds": 56.76190476190476,
+        "allocatedCharacters": 808
+      },
+      {
+        "title": "Chunking: the decision nobody thinks is a decision",
+        "intent": "Walk through fixed-size vs semantic chunking, the size trade-off, overlap, and the concrete failure of a table or procedure getting split across chunks.",
+        "excerptIds": [
+          "module:08-rag#deep-dive",
+          "module:08-rag#trade-offs",
+          "module:08-rag#failure-modes"
+        ],
+        "weight": 7,
+        "targetSeconds": 66.22222222222223,
+        "allocatedCharacters": 1764
+      },
+      {
+        "title": "Finding the right chunks: embeddings, ANN, hybrid search, re-ranking",
+        "intent": "Cover dense embedding similarity search, why ANN/HNSW trades recall for speed at scale, why hybrid dense+sparse retrieval beats either alone, and the two-stage over-fetch-then-re-rank pattern.",
+        "excerptIds": [
+          "module:08-rag#deep-dive",
+          "module:08-rag#trade-offs",
+          "module:08-rag#performance"
+        ],
+        "weight": 8,
+        "targetSeconds": 75.68253968253968,
+        "allocatedCharacters": 1922
+      },
+      {
+        "title": "Freshness is a consistency problem wearing a search-index costume",
+        "intent": "Connect index staleness directly to Module 2's per-invariant consistency framing, and use the support-docs example to show reindex-on-change versus periodic full reindex trade-offs and the silent staleness failure that results from picking neither deliberately.",
+        "excerptIds": [
+          "module:08-rag#deep-dive",
+          "module:08-rag#production-example",
+          "module:08-rag#failure-modes",
+          "module:02-distributed-systems#deep-dive"
+        ],
+        "weight": 7,
+        "targetSeconds": 66.22222222222223,
+        "allocatedCharacters": 5618
+      },
+      {
+        "title": "Access control belongs inside the query, not after it",
+        "intent": "Present the architectural stance that permission filtering must happen inside retrieval itself, walk through the tenant_id-as-required-parameter implementation, and tie it to the security guidance and the leak failure mode it prevents.",
+        "excerptIds": [
+          "module:08-rag#architecture",
+          "module:08-rag#implementation",
+          "module:08-rag#security",
+          "module:08-rag#failure-modes"
+        ],
+        "weight": 8,
+        "targetSeconds": 75.68253968253968,
+        "allocatedCharacters": 3428
+      },
+      {
+        "title": "When retrieval quietly breaks: confident wrong answers and silent embedding drift",
+        "intent": "Cover the fluent-but-wrong failure when context lacks the answer, and the embedding-model-version mismatch that degrades similarity scores without ever throwing an error.",
+        "excerptIds": [
+          "module:08-rag#failure-modes"
+        ],
+        "weight": 5,
+        "targetSeconds": 47.301587301587304,
+        "allocatedCharacters": 349
+      },
+      {
+        "title": "Running RAG at scale: latency budgets, tuning knobs, and growing indexes",
+        "intent": "Discuss retrieval latency as part of time-to-first-token, ANN parameter tuning, per-request embedding cost, index sharding, and the independent scaling profiles of ingestion versus query workloads plus multi-tenant isolation trade-offs.",
+        "excerptIds": [
+          "module:08-rag#performance",
+          "module:08-rag#scaling"
+        ],
+        "weight": 6,
+        "targetSeconds": 56.76190476190476,
+        "allocatedCharacters": 1199
+      },
+      {
+        "title": "Measuring the right thing: retrieval and generation as separate scores",
+        "intent": "Explain why recall/precision@k against labeled query-chunk pairs must be measured independently from generation quality, and how conflating them wastes weeks tuning the wrong layer — anchored by the original RAG paper's framing of retrieval as external knowledge access.",
+        "excerptIds": [
+          "module:08-rag#interview-questions",
+          "module:08-rag#references"
+        ],
+        "weight": 6,
+        "targetSeconds": 56.76190476190476,
+        "allocatedCharacters": 2276
+      },
+      {
+        "title": "Building it yourself: the hybrid retrieval lab and the tenant-isolation test",
+        "intent": "Close on the hands-on lab that implements structure-aware chunking, fused hybrid search, re-ranking, and groundedness/eval metrics, plus the concrete test for proving tenant isolation actually holds.",
+        "excerptIds": [
+          "module:08-rag#hands-on-lab"
+        ],
+        "weight": 5,
+        "targetSeconds": 47.301587301587304,
+        "allocatedCharacters": 914
+      }
+    ],
+    "requestedSeconds": 596,
+    "plannedSeconds": 596,
+    "unsupported": [
+      "Comparative benchmarking of specific vector database products",
+      "Fine-tuning or training a custom embedding model for a domain corpus",
+      "Multi-modal (image/audio) retrieval in a RAG pipeline",
+      "Cost comparison of hosted vector DB services versus self-hosted ANN indexes"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 81,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.468,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "ac1c4624fb615fc555140acf7864a9a34bdc8b3707070faadf9518b82a3a61f9",
+    "droppedForBudget": [
+      "lab:hybrid-retrieval"
+    ]
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Welcome to Module 8, where we're tackling RAG — retrieval-augmented generation. Before we get into chunking strategies and re-ranking and all the architectural decisions, I want to start with the basic question: why do we even need to bolt retrieval onto a language model in the first place? Why isn't the model enough on its own?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Because a model's knowledge is frozen the moment training ends, and it never had access to your private documents to begin with — your internal wikis, your customer data, whatever's specific to you. You could retrain or fine-tune every time that data changes, but that's slow and expensive, and your data probably changes daily. RAG sidesteps both problems: instead of baking knowledge into the model's weights, you retrieve the relevant pieces of your own data at the moment of the request and hand them to the model as context alongside the query."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So RAG isn't one pipeline, it's two. Walk me through the split, because I think people picture it as a single flow from question to answer."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, there's ingestion, which happens ahead of time — you chunk your documents, embed them, and write them into a vector index. Then there's the query pipeline, which runs per request: the incoming question gets embedded with that same embedding model, compared against the index, and whatever matches best becomes the context you hand to the model. Almost every RAG failure traces back to these two drifting out of sync — different chunking assumptions, a mismatched embedding model, a stale index that doesn't reflect what changed."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And if that context is wrong or incomplete, is there any amount of clever prompting that saves you?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "None. If the retrieved context doesn't contain the answer, the model can't produce it — it's not being stubborn, the information simply isn't there. That's why this module measures retrieval and generation as two separate systems instead of one blended score, because you can pour all your effort into generation and get nothing if retrieval was the actual bottleneck."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So before any of that retrieval machinery even runs, someone has to decide how to cut the documents into pieces in the first place. That sounds like the most boring step in the whole pipeline — why does it actually matter?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Because that cut determines what the model is even allowed to see later. The naive approach is fixed-size chunking — just slice at a fixed length — and it's simple, but it doesn't know or care what's in the document. It'll happily cut a table in half, or split a procedure's numbered steps across two chunks, and now neither half retrieves as useful because the piece that made it complete is sitting in the neighboring chunk. Semantic chunking, splitting on paragraph or section boundaries, respects that structure but gives you variable, less predictable chunk sizes to manage."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And I assume size itself is a whole separate knob — you can't just pick 'small' or 'large' and move on."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Right, it's a real trade-off in both directions. Too small and you lose the surrounding context that made the chunk meaningful on its own; too large and you dilute relevance — a chunk that matches on one sentence but is mostly noise, while also burning more of your context-window budget per retrieved item. Overlapping chunks help hedge against a boundary slicing through something important, but that redundancy costs you extra storage and embedding compute, so even that fix isn't free."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Okay, so once the chunks exist, how does the system actually find the right ones at query time? I assume it's not scanning every chunk in the database for every question."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Right, both the chunks and the incoming query get turned into dense vectors by an embedding model, and you're looking for the closest vectors by something like cosine similarity. But exact nearest-neighbor search over millions of vectors is too slow to be practical, so production systems use approximate nearest-neighbor indexes — HNSW is the one you'll see most. You're deliberately trading a little bit of recall for a huge speed win, and that's a real knob you tune, not something to leave on default."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "But embeddings capture meaning, not exact strings — so what happens when someone types an actual product SKU or an error code and the semantically 'closest' chunk isn't the one with that literal string in it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "That's exactly the gap — dense retrieval is great at conceptual similarity but can miss exact keyword or entity matches, while sparse keyword search like BM25 is the opposite: it nails exact matches but is blind to paraphrasing. So hybrid search runs both and fuses the results, usually with something like reciprocal rank fusion, since the two approaches fail in different ways. And on top of that, a common pattern is to over-fetch a larger candidate set cheaply with ANN, then run a more expensive cross-encoder re-ranker over just that smaller set to pick the final top few that actually reach the model — trading extra latency for meaningfully better precision."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So once the top-k chunks are actually landing on the model's desk, there's still the question of whether they're even up to date. This feels like it's the same staleness question from the distributed systems module, just wearing a different hat."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "It's exactly that question, just pointed at a search index instead of a database. Module 2's whole argument was that consistency gets chosen per invariant, not globally — a payment ledger needs strong consistency, a search index can usually tolerate being eventually consistent. Here the invariant is 'how stale can retrieved content be before it misleads someone,' and that answer is wildly different for a legal document repository than for a general knowledge base."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "And the support-docs case makes that concrete — reindex-on-change gets you near-real-time freshness but adds moving parts, versus a periodic full reindex that's simple to operate but serves anything changed since the last run as confidently stale."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, and either choice is fine if you actually made it. What's not fine is drifting into whichever was easiest to build, because then you get a support bot confidently quoting yesterday's pricing page. From outside that looks like a generation failure — the model sounds so sure of itself — but it's purely a retrieval-staleness failure, and no amount of prompt tuning fixes an index that's quietly out of date."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "Okay, so staleness is one failure mode, but there's a scarier one lurking in the same architecture: what stops a retrieval system from just handing one tenant's documents to another tenant's user?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Nothing stops it, unless you build the filter into the search itself rather than bolting it on after. If your pipeline fetches the fifty best-matching chunks across the whole corpus and only then checks who's allowed to see what, you've already lost — those unauthorized chunks influenced the ranking, and in a naive setup they can end up in the model's context before anyone checks permissions."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So the fix isn't a permissions check somewhere in the application layer that a developer has to remember to call. It's structural."
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Exactly — in the implementation we walk through, tenant_id is a required parameter on the vector index's search method itself, not an optional filter tacked on afterward. That means forgetting to scope a query by tenant isn't a bug someone has to catch in code review, it's a type error that fails before the code even runs — the query can't compile without saying whose data it's allowed to touch."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So let's talk about the failures that don't announce themselves. What happens when the retrieved context just doesn't have the answer in it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "The model doesn't say 'I don't know' — it generates something fluent and confident anyway, because that's what language models do with whatever context they're given. There's also a silent one on the ingestion side — if you re-embed with a new model version but don't fully rebuild the index, you're comparing new-model query vectors against old-model chunk vectors, and similarity scores become meaningless without a single error being thrown."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So let's say the pipeline is correct and the access control is solid — now it just has to run fast at scale. Where does retrieval latency actually sit in the request timeline?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "It's part of your time-to-first-token budget, full stop — the same layered latency thinking from the networking module, just applied to a retrieval hop instead of a network hop. Your ANN index has tuning knobs, HNSW being the common one, that trade recall for speed, and leaving them at default is a choice you're making without realizing it. And every query also pays for embedding the query itself, which is a real per-request cost in latency and, if it's a hosted API, in money — track it like you'd track generation cost."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "And once the index itself gets big, does that latency problem get worse on its own?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Eventually yes — past a certain size you have to shard the vector index across nodes, and now 'search the index' is a distributed query with its own consistency headaches. What trips people up is that ingestion and query don't scale together — ingestion is bursty batch work tied to document volume, query scaling is tied to request volume, so you need separate capacity planning for each. And if you're multi-tenant, you choose between separate indices per tenant, clean isolation but heavy operational overhead, or one shared index with metadata filtering, which scales better operationally but means every single query has to get that filter exactly right or isolation quietly fails."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "So once the thing is actually running at scale, how do you know if it's any good? I feel like teams just eyeball the final answers and call it a day."
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "That's exactly the trap. Retrieval is a distinct system from generation, and it needs its own scorecard. You build a labeled set of query-to-relevant-chunk pairs and measure recall and precision at k, completely independent of what the model does with those chunks once it has them. Generation gets scored separately, using the same evaluation harness pattern from the infrastructure module, against the final answer quality."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "And if you skip that separation, you just... guess at the fix?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Right, and you usually guess wrong. Poor end-to-end quality with strong retrieval recall means your generation or prompt construction is broken — the right chunks are there and the model's botching them. The same poor quality with weak retrieval recall is a totally different problem, and no amount of prompt tuning fixes it. Without measuring the two separately, teams routinely burn weeks rewriting prompts when retrieval was the actual bottleneck the whole time."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "So if someone wants to stop nodding along and actually build this, where do they start? Is there something that puts chunking, hybrid search, re-ranking and evaluation all in one place?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "That's exactly the hybrid retrieval and evaluation lab — structure-aware chunking, BM25 and vector search fused by rank rather than raw score, a re-ranking stage, groundedness checking, and a harness that spits out precision at k, recall at k, and MRR so you can watch the numbers we've been talking about all episode move. It's labelled production-shaped because the pipeline is real but the embedding function is a deterministic hashing stand-in, no real semantic similarity, and it's upfront about that. And then take it further yourself: implement the VectorIndex protocol against a real local vector store, seed it with two different tenant IDs, and write a test that queries as tenant A using content deliberately close to tenant B's documents, then assert zero tenant B chunks ever leak through no matter how high the similarity score. If that test passes, you've proven the point of this module."
+      }
+    ]
+  }
+}

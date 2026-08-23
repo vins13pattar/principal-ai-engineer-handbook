@@ -1,0 +1,134 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-async-ai-gateway",
+  "meta": {
+    "documentId": "lab:async-ai-gateway",
+    "url": "/build/labs/async-ai-gateway/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 322
+  },
+  "plan": {
+    "topic": "Async AI Gateway",
+    "title": "Inside the Async AI Gateway: Reliability, Proof, and Production Gaps",
+    "throughLine": "A tour of the Async AI Gateway lab shows how reliability features are built, how a supposedly rigorous test turned out to be vacuous, and what principal-level judgment calls separate a demo from a real production system.",
+    "beats": [
+      {
+        "title": "Two apps, one core: what the gateway actually does",
+        "intent": "Introduce the lab's architecture — production_app and secure_app layered on AsyncAIGateway — and walk through the concrete reliability and security capabilities (bounded concurrency, deadlines, retries, circuit breaking, JWT tenancy, Redis-backed rate limiting, observability) plus how to run it locally.",
+        "excerptIds": [
+          "lab:async-ai-gateway#entry-points",
+          "lab:async-ai-gateway#what-it-demonstrates",
+          "lab:async-ai-gateway#run-it"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 63.73529411764706,
+        "allocatedCharacters": 2255
+      },
+      {
+        "title": "The Redis test that was green for the wrong reason",
+        "intent": "Tell the story of the integration job that selected only FakeRedis-backed tests and never touched its own Redis container, then explain the fix: a concurrent-acquire test that actually measures the atomic Lua script's guarantee against a naive HGET/HSET alternative, plus the REQUIRED flag that turns a missing Redis into a failure instead of a silent skip.",
+        "excerptIds": [
+          "lab:async-ai-gateway#verify-it"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 75.32352941176471,
+        "allocatedCharacters": 1582
+      },
+      {
+        "title": "Where the demo still falls short of production",
+        "intent": "Move from the fixed test to the broader principal-level tradeoffs the lab surfaces — concurrency vs rate limiting, atomic quota mutation, feedback loops in health-based routing, why streaming can't silently fall back, and readiness vs liveness — and close by pointing at the tracked gap list as unresolved, not accidental.",
+        "excerptIds": [
+          "lab:async-ai-gateway#principal-level-discussion-points",
+          "lab:async-ai-gateway#production-readiness"
+        ],
+        "weight": 1,
+        "targetSeconds": 57.94117647058823,
+        "allocatedCharacters": 1429
+      }
+    ],
+    "requestedSeconds": 197,
+    "plannedSeconds": 197,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.781,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "160b2db60a39d7bfb61d9330bb797286e363bc941cb1b104509e320f43930bc1",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Welcome back. Today we're cracking open a lab called the Async AI Gateway, and this one's a great teaching tool because it doesn't just show you the happy path — it shows you where a supposedly solid test turns out to be hollow, and where real engineering judgment has to step in. So let's start with the basics: what are we actually looking at when we open this repo?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "So there are two FastAPI apps sitting on top of one shared core called AsyncAIGateway. The first, production_app, gives you bounded concurrency, deadlines, retries with jitter, health-aware fallback between providers, RED metrics, and OpenTelemetry hooks — it identifies tenants with a simple header so you can run it without standing up an identity provider. Then there's secure_app, which is everything production_app has, plus JWT-verified tenant identity, tier-based provider policy, and Redis-backed rate limiting that's shared correctly across replicas. That second one is really the reference for what a real deployment should look like."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Why split them at all instead of just shipping one app with security always on?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Purely pedagogical — it keeps the identity and quota layer legible on its own instead of threading JWT checks through every single reliability example. In production you'd collapse them into one app with security always on. And it's genuinely easy to poke at locally: you set up the virtualenv, pip install the extras, run uvicorn on production_app, and you can curl the generate endpoint with a tenant header, or just run docker compose up and get the gateway, Redis, and an OpenTelemetry collector all wired together at once."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, so let's talk about the part of this lab that I think is the most humbling story: the Redis integration job that was green for months and testing basically nothing. What was actually going on there?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "So the CI job would spin up a real Redis service container, then run pytest with a filter, dash-k redis, to select the relevant tests. The problem is the only tests matching that filter were backed by a FakeRedis stub — an in-memory fake that returns canned answers and never opens a socket. The container just sat there unused, and the job was green whether Redis existed or not."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So it would have passed even if the container had never started at all. How do you even catch that kind of thing, and what did the fix look like?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, that's the scary part — it's a passing test with zero signal. The fix was a new test file that actually talks to a live server: two limiter instances sharing one Redis, and you fire two times capacity acquires concurrently at a single tenant. Exactly capacity should succeed, and if you swap the atomic Lua script for a naive HGET-then-HSET, you watch 40 of 40 get through where the atomic version correctly allows only 20 — so the test measures the atomicity claim instead of just restating it. We also set REDIS_INTEGRATION_REQUIRED equals 1, so a missing REDIS_URL fails the build instead of quietly skipping, because skipped tests don't turn anything red and the job could go vacuous again just as silently."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so the test is fixed and honest now. But zoom out — what does this lab actually teach about the gap between a working demo and something you'd trust in production?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "A bunch of things that look like nitpicks but aren't. Semaphores cap concurrent work, token buckets cap arrival rate, and you actually need both enforced at different points, not one standing in for the other. Then there's the atomicity point we just proved — naive GET-then-SET against Redis lets 40 through at a capacity of 20, only the Lua script gets it right. And health-based routing has a nasty feedback loop hiding in it: score a provider unhealthy, starve it of probe traffic, and it can never prove it recovered, so you need decay and caps on those adjustments. Streaming makes this worse because once a partial response has hit the client you can't silently retry — the caller's already rendering it. And readiness versus liveness is the one that bites people in rollouts: readiness says can this pod safely take traffic, liveness says should this process be restarted, and conflating them means your rolling deploy kills pods that were just draining correctly."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So none of that is fixed in this lab yet — it's sitting in the readiness doc as known work, not something someone forgot."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Exactly, that's the point of tracking it in the production readiness document instead of pretending it's done — unchecked items are deliberate gaps across correctness, reliability, observability, tenancy, capacity, delivery. That's the principal-level habit this whole lab is really modeling: distinguish what you've actually verified, like that Redis test now does, from what you've simply not broken yet. Demo versus production is exactly that line."
+      }
+    ]
+  }
+}

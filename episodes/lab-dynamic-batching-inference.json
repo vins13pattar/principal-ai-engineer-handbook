@@ -1,0 +1,161 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-dynamic-batching-inference",
+  "meta": {
+    "documentId": "lab:dynamic-batching-inference",
+    "url": "/build/labs/dynamic-batching-inference/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 317
+  },
+  "plan": {
+    "topic": "Dynamic Batching Inference",
+    "title": "Dynamic Batching Inference: Racing Time Against Throughput",
+    "throughLine": "Batching trades latency for throughput by racing a size trigger against a timeout, but the safety of that trade only holds if per-version metrics stay honest and the batch-size win is measured, not assumed.",
+    "beats": [
+      {
+        "title": "The core mechanism: racing size against timeout",
+        "intent": "Introduce the lab's central trick — closing a batch on whichever of size or timeout fires first — and explain why either trigger alone fails at one end of the traffic range, bounding worst-case wait while still filling batches under load.",
+        "excerptIds": [
+          "lab:dynamic-batching-inference#what-it-demonstrates",
+          "lab:dynamic-batching-inference#run-it"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 58.89795918367347,
+        "allocatedCharacters": 834
+      },
+      {
+        "title": "Canary rollout as routing, not deploys",
+        "intent": "Walk through per-version batchers and metrics, why blending canary traffic into an aggregate error rate defeats the rollout, and why promote/rollback being weight changes rather than deploys is what makes rollback usable during an incident.",
+        "excerptIds": [
+          "lab:dynamic-batching-inference#what-it-demonstrates",
+          "lab:dynamic-batching-inference#run-it",
+          "lab:dynamic-batching-inference#principal-level-discussion-points"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 54.367346938775505,
+        "allocatedCharacters": 1224
+      },
+      {
+        "title": "Why the mean lies and the fixed-cost sleep hides the real curve",
+        "intent": "Explain the percentile benchmarking rationale — a request arriving just after a batch closes waits nearly a full timeout longer — and then pivot to the lab's honest limitation: the fixed-cost sleep makes throughput look linear in batch size forever, when real cost grows with padded sequence length and optimal batch size depends on the length distribution, not the rate.",
+        "excerptIds": [
+          "lab:dynamic-batching-inference#what-it-demonstrates",
+          "lab:dynamic-batching-inference#what-the-fixed-cost-stand-in-hides",
+          "lab:dynamic-batching-inference#principal-level-discussion-points"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 63.428571428571416,
+        "allocatedCharacters": 2122
+      },
+      {
+        "title": "A factory, not a singleton — and the bug that proved why",
+        "intent": "Close with the engineering discipline this exposed: create_app builds fresh routers and batchers per call because a DynamicBatcher can't restart after shutdown, and recount the real bug where ASGITransport skipped the lifespan protocol, hanging the test suite instead of failing it.",
+        "excerptIds": [
+          "lab:dynamic-batching-inference#why-the-app-is-a-factory-not-a-singleton",
+          "lab:dynamic-batching-inference#verify-it"
+        ],
+        "weight": 1,
+        "targetSeconds": 45.306122448979586,
+        "allocatedCharacters": 751
+      }
+    ],
+    "requestedSeconds": 222,
+    "plannedSeconds": 221.99999999999997,
+    "unsupported": [
+      "Comparing this lab's batching mechanism directly against vLLM's continuous batching and PagedAttention implementation details",
+      "Discussing the SLO-driven autoscaling or async gateway labs as alternatives to this lab's rollout mechanism",
+      "Security and multi-tenancy concerns around prompt/completion data in the batching queue"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 89,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.446,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "c17d658ecd8401e72c91a85e0c0a2e71c367557be61433532513ac1a7d0e7465",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So today we're digging into dynamic batching for inference serving, and the whole thing hinges on one deceptively simple trick: a batch closes when either it fills up or a timeout hits, whichever comes first. Why not just pick one of those and call it a day?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Because each one alone breaks in an opposite way. If you only trigger on size, a lone request arriving during a quiet stretch just sits there waiting for company that may never show up, so your latency is unbounded. If you only trigger on a timeout, you're safe on worst-case wait, but under heavy load you're closing tiny batches every few milliseconds when you could've packed in way more work per GPU pass."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So racing them means you get the throughput win when traffic is heavy and the size trigger fires first, but you still cap the pain when traffic is sparse and the clock runs out instead."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly, and that cap is a real number you control, the max wait time in seconds — it's the worst case any single request can be stuck waiting on strangers to fill the batch. That's the core mechanism the whole lab builds on, and everything else we'll talk about, canaries, per-version metrics, rollback, all sits on top of this one race."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So once you've got that race dialed in, how do you actually roll out a change to it without risking the whole fleet? I know the lab spins up two versions side by side."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, stable-v1 and canary-v2, each with its own batcher, its own queue, its own weight — nine to one in the demo. That isolation matters because canary-v2 can run a totally different batch size and wait time without touching stable's tuning, and critically, the two never share a queue. But the part people get wrong is the metrics: if you blend stable and canary traffic into one aggregate error rate, a canary that's failing badly on its small slice just gets averaged away into noise, and you've defeated the entire point of doing a gradual rollout in the first place."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So the whole safety story depends on watching canary-v2's numbers in isolation, not the combined feed. And when something does go wrong, what does pulling it back actually look like?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "That's the other piece — promote and rollback are just weight changes, hitting an endpoint to shift traffic, not redeploying anything. That's the difference between rollback taking a second during an incident versus you standing there redeploying the old version while requests keep failing. Cheap rollback is what makes the canary trustworthy, because you'll actually use it under pressure instead of hesitating."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So if rollback is the safety net, how do you even know when you need it — like what's the actual signal that batching is hurting you rather than helping?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "You can't see it in the mean, which is exactly why the lab benchmarks p50, p95, and p99 under bounded concurrency instead of just averaging. A request that lands right after a batch closes sits there for almost the full timeout, while one that lands right before gets swept in immediately — the mean smooths that gap away, but the tail is where the actual user experience lives. If you're only watching the mean, you'll ship a config that looks fine and quietly punishes a chunk of your traffic every cycle."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so the tail tells the truth about latency. But you've also said the lab's cost model has a real blind spot — walk me through that."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "The handler just sleeps a fixed duration no matter how many payloads are in the batch, so doubling batch size always halves per-request cost — a clean line that goes forever. Real inference doesn't work that way: cost tracks padded sequence length, so one long sequence in a batch drags every short sequence along to pay for it, and past some point a bigger batch stops paying for itself. That breakeven point is set by the traffic's length distribution, not its rate, which is exactly why the lab hands you a sweep harness instead of a recommended number — the mechanism and the measurement transfer, the curve doesn't."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So we've got the mechanism, the canary as routing, the honest curve — what's the last piece? You mentioned something about the app itself being built differently than you'd expect."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Right, create_app builds a fresh router and batchers every time you call it, instead of one shared instance for the whole process — because a DynamicBatcher can't restart once shutdown has run, same as a real batching worker once its background task dies. That's not theoretical: httpx's ASGITransport doesn't drive the lifespan protocol, so in early tests the batcher's background loop never started, and every request to infer just awaited a batch that nothing would ever flush. The suite didn't fail, it hung — which is its own lesson, that a missing lifespan doesn't throw an error, it just quietly starves you, and the fix was making the app a factory and making tests enter the lifespan explicitly rather than assuming it's there."
+      }
+    ]
+  }
+}

@@ -1,0 +1,112 @@
+{
+  "archiveVersion": 1,
+  "slug": "cheatsheet-design-round",
+  "meta": {
+    "documentId": "cheatsheet:design-round",
+    "url": "/cheatsheets/sheets/design-round/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 268
+  },
+  "plan": {
+    "topic": "Cheat Sheet: Design Round",
+    "title": "Cheat Sheet: Design Round",
+    "throughLine": "A 45-minute design round is judged by order and discipline, not cleverness — load the sequence beforehand, know the one hard part per system, and avoid the handful of tells that mark a weak answer.",
+    "beats": [
+      {
+        "title": "Load the sequence before you walk in",
+        "intent": "Establish that the cheat sheet is meant to be read beforehand, then walk through the minute-by-minute sequence: constraints first, name the hard part, trace one request path, go deep, volunteer failure modes, then scale and cost — stressing that interruptions are the actual exam.",
+        "excerptIds": [
+          "cheatsheet:design-round#use-this-when",
+          "cheatsheet:design-round#the-sequence"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 47.666666666666664,
+        "allocatedCharacters": 1229
+      },
+      {
+        "title": "The arithmetic and the one hard part per system",
+        "intent": "Show how Little's Law turns vague capacity talk into a defensible number, then run through the single dominant decision for each named system (gateway, durable execution, tool execution, RAG, serving, MCP, reliability) and note that trade-offs must be argued both directions.",
+        "excerptIds": [
+          "cheatsheet:design-round#quick-reference"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 51.33333333333333,
+        "allocatedCharacters": 1183
+      },
+      {
+        "title": "The red flags that sink an otherwise strong answer",
+        "intent": "Close by naming the concrete tells of a weak answer — naming tech before constraints, adjectives instead of arithmetic, treating the model as a pure function, no evaluation story, security reduced to auth, and boxes-then-failure-modes-too-late — as the checklist to run against your own answer in real time.",
+        "excerptIds": [
+          "cheatsheet:design-round#red-flags"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 43.99999999999999,
+        "allocatedCharacters": 626
+      }
+    ],
+    "requestedSeconds": 143,
+    "plannedSeconds": 143,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 91,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.999,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "894259cdc5f27c225bfbefb53cb22c930ba61d7fae0108f09d0e950baef18ef6",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So today we're doing a cheat sheet episode, and the frame is a 45-minute design round — the kind where you get a prompt and a whiteboard and not much else. The whole point of this cheat sheet is that it's meant to be read in the ten minutes before you walk in, not consulted during, because the value isn't the content, it's having the order already loaded into your head. So let's walk through that sequence minute by minute."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and the sequence is pretty rigid on purpose. First eight minutes are constraints — volume, p99, correctness, data boundary, cost per call, failure budget — you say out loud who calls this, how often, how fast, how wrong it's allowed to be, whose data it touches. Then minutes eight to ten you name the one hard part, because every one of these systems has exactly one decision that dominates everything else, and saying that out loud tells the interviewer you know where the weight is. From there it's tracing one request end to end at a defensible depth — not a component inventory — then twenty to thirty-three is going deep on that hard part, which is where the round is actually won, then you volunteer failure modes and what you'd measure, and close with scale, cost, and what you'd cut at ten x. And the thing to internalize now, before you're in the room, is that interruptions aren't a disruption to this sequence — they are the actual exam."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, before we get to the one hard part per system, let's arm people with the actual math, because 'we'll need a few replicas' is not an answer an interviewer accepts. What's the formula you want loaded and ready?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Little's Law — concurrency equals arrival rate times average latency. So 200 requests per second at 2 seconds average latency means 400 requests in flight at any moment, and that single number sets your pool sizes, your semaphore bounds, your replica count. Size for peak plus roughly thirty percent headroom, say it out loud, and you've just turned a vibe into an engineering decision."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "That's the number, now give me the one dominant decision per system, fast, because that's what minutes eight to ten are for."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Gateway — where quota state lives, because per-replica buckets silently multiply a tenant's limit by replica count. Durable execution — at-least-once is the ceiling, so exactly-once effect only comes from idempotent handlers. Tool execution — scope, validation, quota, approval, in that fixed order. RAG — permission filtering has to happen inside the index query, never bolted on after retrieval. Serving — cold start takes minutes, so any trailing scaling signal is already too late by construction. MCP — the credential has to live wherever the SDK's own internal calls carry it. Reliability — alerting, scaling, and incident response all have to read one shared severity computation. And every trade-off you cite — gateway versus direct calls, shared versus per-tenant, fail open versus closed, database queue versus broker — you argue both directions out loud, because picking a side without acknowledging the cost of that side is the tell that you've memorized an answer instead of reasoned to it."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So let's close with the tells — the things that sink an answer even when the boxes and arrows look right. What's the first thing that makes you wince as an interviewer?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Naming technologies before you've said what constraint forces that choice — that's the first one, and adjectives are the second, 'scalable' and 'high throughput' with no arithmetic behind them. Then treating the model as a pure function with no cost, no latency tail, no degradation, and having no evaluation story at all, which is the single most common gap even in strong answers. Add security reduced to just authentication while retrieved documents and tool descriptions and model output feeding an action go unmentioned, spending twenty minutes drawing boxes and reaching failure modes with five minutes left, and a design with no stated cost anywhere — because that reads as a design whose costs were never understood, and if you run that list against your own answer in real time, you'll catch yourself before the interviewer has to."
+      }
+    ]
+  }
+}

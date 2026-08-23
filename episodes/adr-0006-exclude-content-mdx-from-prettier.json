@@ -1,0 +1,133 @@
+{
+  "archiveVersion": 1,
+  "slug": "adr-0006-exclude-content-mdx-from-prettier",
+  "meta": {
+    "documentId": "adr:0006-exclude-content-mdx-from-prettier",
+    "url": "/adr/decisions/0006-exclude-content-mdx-from-prettier/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 308
+  },
+  "plan": {
+    "topic": "ADR-0006: Exclude content/docs MDX files from Prettier",
+    "title": "ADR-0006: When Prettier Corrupts the Code It's Supposed to Format",
+    "throughLine": "A formatter silently broke real Python examples inside MDX doc components, and the fix — excluding those files from Prettier entirely — trades cosmetic consistency for the guarantee that code stays code.",
+    "beats": [
+      {
+        "title": "Six pages, silently corrupted",
+        "intent": "Establish what actually broke: Prettier's MDX formatter, running against fenced Python code nested inside custom JSX components like CodeWalkthrough, stripped indentation, merged comments, and escaped underscores/asterisks in identifiers — turning valid Python into unparseable code. Critically, nothing in CI caught it: pnpm format and pnpm build don't validate fence contents, and the content linter only checks headings and frontmatter.",
+        "excerptIds": [
+          "adr:0006-exclude-content-mdx-from-prettier#context",
+          "adr:0006-exclude-content-mdx-from-prettier#problem"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 61.28888888888888,
+        "allocatedCharacters": 1812
+      },
+      {
+        "title": "Three ways out, and why two don't hold",
+        "intent": "Walk through the options considered — banning blank lines in nested fences (a landmine with no enforcement), ripping out narrative components like CodeWalkthrough entirely (throws away real value for every future example), versus just excluding content/docs MDX from Prettier since authors already hand-format their code fences anyway. Land on why the third one is the only option that matches the actual severity of the bug.",
+        "excerptIds": [
+          "adr:0006-exclude-content-mdx-from-prettier#options"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 65.66666666666667,
+        "allocatedCharacters": 1152
+      },
+      {
+        "title": "The decision, the repair, and the cost that's left over",
+        "intent": "Cover the actual fix: .prettierignore excludes the docs tree, the six pages were hand-repaired and verified with Python's own ast.parse() per code block — a check strong enough to catch what neither Prettier nor the linter would. Then be honest about consequences: prose/JSX formatting in docs is now unenforced, every future nested code example needs manual author verification since a clean pnpm verify no longer implies valid code, and if Prettier is ever re-enabled the same ast.parse() check must re-verify it rather than trusting a version bump. Ground this in the two real pages affected.",
+        "excerptIds": [
+          "adr:0006-exclude-content-mdx-from-prettier#decision",
+          "adr:0006-exclude-content-mdx-from-prettier#consequences",
+          "adr:0006-exclude-content-mdx-from-prettier#status",
+          "adr:0006-exclude-content-mdx-from-prettier#references"
+        ],
+        "weight": 1.6,
+        "targetSeconds": 70.04444444444445,
+        "allocatedCharacters": 1978
+      }
+    ],
+    "requestedSeconds": 197,
+    "plannedSeconds": 197,
+    "unsupported": [
+      "What the corrupted Module 5 and Module 7 code examples actually taught about agent loops or LangGraph (the ADR only references these pages as evidence of the bug, not their content)",
+      "Any detail of the agent loop, tool-calling, or LangGraph checkpointing material itself, since it's unrelated to the Prettier decision beyond being the corrupted content"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.781,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "069c926fb200d58439fc6f85ee8b9f5f46c9610e841ae979861787801a3c2ca4",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we're digging into ADR-0006 today, and the setup is almost comic if it weren't so nasty: six pages across your Learn module — Modules 1, 2, 4, 5, 6, and 7 — had Python code examples that just silently stopped being valid Python. Not a crash, not a warning, just quietly broken. Walk me through what actually happened."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, so these code examples weren't sitting at the top level of an MDX file — they were nested inside a custom JSX/MDX component we use for walkthroughs. Someone ran pnpm format, which runs Prettier across the repo, and Prettier rewrote several of these nested fences: it stripped indentation off lines that came after a blank line inside the fence, merged comments onto the previous line of code, and it backslash-escaped underscores and asterisks in identifiers like __init__ and self._admit because it treated them as Markdown emphasis syntax instead of code."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "And none of that got caught anywhere in CI, which is the part that really stings — pnpm format and pnpm build ran fine, right through it."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly, neither of those checks the actual contents of a fenced block against its declared language, so mangled Python sailed straight through. The only content-specific check we had was a lint script validating required headings and frontmatter — nothing was ever looking inside the fences, so there was no seatbelt at any layer for this."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So once you know nothing's watching inside those fences, you've got three ways to respond. Walk me through them, starting with the one that feels cheapest."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Cheapest is just declaring a rule: never put a blank line inside a nested fenced code block. But that's a landmine with no lint rule behind it — some future contributor who doesn't know the rule hits the trigger, and gets silently corrupted code instead of a formatting diff. A failure mode that severe can't rest on people remembering a rule nobody wrote down anywhere enforceable. The second option is ripping out CodeWalkthrough and similar components so every fence lives at the top level, which does dodge the bug, but it throws away the narrative framing those components give for every future example in the handbook, not just the six that got hit."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So one option is unenforceable, and the other is a permanent tax on every doc author going forward. What made the third option — excluding content docs from Prettier entirely — the obvious landing spot?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Because it matches the actual severity: authors already hand-format code inside those fences since they're excerpts from real source, not generated output, so Prettier touching them was never adding value, just risk. Excluding the docs MDX means we only lose automatic formatting of prose and JSX outside the fences — purely cosmetic — while removing the one thing that could silently mangle real code. Once nothing inside those fences could be trusted anyway, the trade was easy."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So walk me through what actually landed in the repo. Not the philosophy anymore, the mechanics — what's the diff look like?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "One line in .prettierignore, apps/handbook/src/content/docs plus the glob for MDX, so the whole docs tree is hands-off for Prettier going forward. The six corrupted pages got hand-repaired, and then verified by literally parsing every fenced Python block with Python's own ast.parse — not the linter, not Prettier, the actual language parser, which is strong enough to catch this exact failure mode, one that neither Prettier nor the existing content linter would. Module 5, Agent Engineering, and Module 7, LangGraph, are two of those six, and they're the ones I'd point anyone to if they want to see real corrupted-then-restored examples rather than a synthetic case. The catch is what we lose: pnpm format:check no longer touches prose or JSX in those files, so sloppy spacing or wrapping in docs just won't get flagged anymore, that's a permanent, accepted cost. And it means every future code example dropped into a CodeWalkthrough is on the author to verify by hand, because a clean pnpm verify literally does not mean the code inside those fences is valid — nothing in CI parses Markdown fences today. Even this ADR says so itself: if Prettier ever ships a fix and someone's tempted to re-enable it, the obligation is to re-run the same ast.parse check against real content first, not just trust a changelog entry."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Which is really the whole shape of this decision in one sentence — trade a small, visible, cosmetic cost for removing a silent, invisible, correctness-breaking one. That's ADR-0006. Thanks for walking through it."
+      }
+    ]
+  }
+}

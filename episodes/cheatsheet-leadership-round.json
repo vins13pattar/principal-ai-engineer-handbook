@@ -1,0 +1,123 @@
+{
+  "archiveVersion": 1,
+  "slug": "cheatsheet-leadership-round",
+  "meta": {
+    "documentId": "cheatsheet:leadership-round",
+    "url": "/cheatsheets/sheets/leadership-round/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 250
+  },
+  "plan": {
+    "topic": "Cheat Sheet: Leadership Round",
+    "title": "Cheat Sheet: Leadership Round",
+    "throughLine": "The leadership round isn't scored on what you did but on whether your account of it holds together under repeated probing — so preparation means picking a few decisions you truly owned and being able to reconstruct the constraint, the rejected options, and the cost, not polishing a summary.",
+    "beats": [
+      {
+        "title": "Prepare the night before, in ADR shape",
+        "intent": "Frame why this round needs real prep rather than lobby-level recall, and introduce the ADR-shaped preparation exercise — especially the Options section — as the way to find out privately whether your stories survive scrutiny.",
+        "excerptIds": [
+          "cheatsheet:leadership-round#use-this-when",
+          "cheatsheet:leadership-round#the-sequence"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 50.794117647058826,
+        "allocatedCharacters": 900
+      },
+      {
+        "title": "Build the answer to survive follow-up: constraint, decision, rejected options, cost, outcome, mind-change",
+        "intent": "Walk through the six-step answer structure and the situations worth having loaded four questions deep, showing how each element exists specifically to withstand probing rather than to sound impressive.",
+        "excerptIds": [
+          "cheatsheet:leadership-round#the-sequence",
+          "cheatsheet:leadership-round#quick-reference"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 60.02941176470588,
+        "allocatedCharacters": 1799
+      },
+      {
+        "title": "The tells that give you away",
+        "intent": "Cover the concrete red flags — no stated cost, undivided 'we', depth running out early, 'we aligned', effort-as-impact — as the diagnostic checklist for what a sanded-smooth or under-prepared answer sounds like.",
+        "excerptIds": [
+          "cheatsheet:leadership-round#red-flags"
+        ],
+        "weight": 1,
+        "targetSeconds": 46.17647058823529,
+        "allocatedCharacters": 683
+      }
+    ],
+    "requestedSeconds": 157,
+    "plannedSeconds": 157,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 91,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.021,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "74afd2fd099d9ed235283f7f5a9f31055ad4eb0ac89b399009605c641d837a81",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So you know the leadership round is coming, and the temptation is to think you can wing it — you lived these decisions, right? But this round isn't scored on what you did, it's scored on whether your account of it holds together when someone keeps pushing on it. That's a different skill, and it needs real prep, not just a quick recall in the lobby before you walk in."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and the prep that actually works is doing it the night before, in something like the ADR shape — Context, Problem, Options, Decision, Consequences. Pick two or three decisions that were genuinely yours and write them out that way. Options is where it gets uncomfortable, and it's the one that does the work."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Because that's where you have to remember what you rejected and why, not just what you chose."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly — if you can't reconstruct the alternatives you turned down, that's a huge signal, and you want to discover it alone at your desk, not in the room. Better to find the gap in private than have it found for you in the room."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So say you've done that private audit and you've got your two or three decisions in ADR shape. How do you actually structure the spoken answer so it doesn't fall apart when they start poking at it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "There's a sequence, and each piece exists to survive a specific probe, not to sound polished. Start with the constraint — a number or a named party, not an adjective, because 'tight timeline' invites a follow-up you can't answer. Then the decision, and you say it was yours, not the team's, because an undivided 'we' just gets probed and that probing eats your time. Then the options you rejected and why — that's the piece that turns it from a default into an actual decision — followed by the cost, which is the cheapest credibility in the room and almost nobody names it. Close with the outcome as a number that isn't a duration, because six months of migrating is effort, not impact, and finally what would've changed your mind, and if it did change, how long the gap was between the evidence showing up and you acting on it. Then you stop talking and let them dig."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And that last one about the gap — that's clearly not a one-off question, that's a whole category, right? Reversed decisions, disagreements you lost, things you standardized."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, and that's why you want a handful of situations loaded four questions deep, not eight shallow ones. A disagreement you lost is really testing whether you can separate being overruled from being wrong. A decision you reversed is testing that evidence-to-action gap again. Something you standardized is testing whether you did it where it compounds — identity, observability, deployment — or just on personal taste. Three decisions you actually owned beats eight you can merely describe, and if you catch yourself reaching for a project where you were just nearby, that reach is the finding."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So let's make it concrete — what are the actual tells that give an interviewer the sense they're listening to a sanded-smooth answer? What should someone listen for in their own practice runs?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Start with no stated cost — if the decision cost nothing, it was trivial, and if it clearly wasn't trivial but you can't name what it cost, you've smoothed it over. Next is the undivided 'we,' which reads as either modesty or concealment and the interviewer genuinely can't tell which, so you have to say what you specifically did. Watch for depth running out one question early — the fix there is fewer examples prepared deeper, not a more polished summary. 'We discussed it and aligned on the best approach' is the single most common non-answer, so ban it from your own mouth. And impact measured in effort — duration, headcount, lines changed — is a tell you're describing motion, not judgment; same with claiming you've never been wrong, or not being able to say how long it took you to notice you were. Really, recall under follow-up is a different task from recall itself, and the difference shows within four minutes — so don't treat this as the round that needs no preparation."
+      }
+    ]
+  }
+}

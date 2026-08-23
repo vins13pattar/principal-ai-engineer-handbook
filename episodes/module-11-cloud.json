@@ -1,0 +1,330 @@
+{
+  "archiveVersion": 1,
+  "slug": "module-11-cloud",
+  "meta": {
+    "documentId": "module:11-cloud",
+    "url": "/learn/modules/11-cloud/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-22",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 667
+  },
+  "plan": {
+    "topic": "Module 11: Cloud",
+    "title": "Module 11: Cloud — Decisions You Can't Refactor Away",
+    "throughLine": "Cloud architecture choices for AI infrastructure are expensive to reverse, so this episode walks through the four decisions that matter most — managed vs. self-hosted, blast radius, real (tested) recovery, and cost attribution — and shows why each one only counts when it's proven, not just diagrammed.",
+    "beats": [
+      {
+        "title": "Why cloud decisions are different",
+        "intent": "Open with the framing: cloud architecture choices bake in and are hard to undo, unlike code. Introduce the four decisions the episode will cover and preview the mental model of trading control for operational burden.",
+        "excerptIds": [
+          "module:11-cloud#executive-summary",
+          "module:11-cloud#mental-model"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 74.75206611570248,
+        "allocatedCharacters": 1267
+      },
+      {
+        "title": "Managed vs. self-hosted, as a default",
+        "intent": "Unpack the build-vs-buy axis specifically for AI infra components like vector databases and Kubernetes control planes, and establish 'managed until a measured reason says otherwise' as the default rule.",
+        "excerptIds": [
+          "module:11-cloud#deep-dive",
+          "module:11-cloud#trade-offs",
+          "module:11-cloud#interview-questions"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 59.80165289256199,
+        "allocatedCharacters": 1680
+      },
+      {
+        "title": "Network segmentation is only the first layer",
+        "intent": "Explain public vs. private subnets as the baseline network control, and the concrete mistake it prevents — an internet-reachable service that was never placed in a private subnet.",
+        "excerptIds": [
+          "module:11-cloud#deep-dive",
+          "module:11-cloud#failure-modes"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.83471074380166,
+        "allocatedCharacters": 874
+      },
+      {
+        "title": "IAM is the real blast-radius control",
+        "intent": "Make the case that IAM, not network topology, determines what a compromised service can actually do — walk through the architecture diagram's reasoning and the least-privilege principle borrowed from Module 6's tool permissions.",
+        "excerptIds": [
+          "module:11-cloud#architecture",
+          "module:11-cloud#deep-dive",
+          "module:11-cloud#security"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.78512396694215,
+        "allocatedCharacters": 1799
+      },
+      {
+        "title": "IAM in code: a real least-privilege policy",
+        "intent": "Ground the IAM discussion in the concrete policy example — two actions, two resources — and explain why that scoping is what actually contains a breach.",
+        "excerptIds": [
+          "module:11-cloud#implementation"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.83471074380166,
+        "allocatedCharacters": 888
+      },
+      {
+        "title": "When IAM fails: the shared-role trap",
+        "intent": "Cover the failure mode of a single broadly-scoped IAM role reused across services, and why that turns a contained incident into an account-wide one — including the public-subnet-by-oversight failure alongside it.",
+        "excerptIds": [
+          "module:11-cloud#failure-modes",
+          "module:11-cloud#interview-questions"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.83471074380166,
+        "allocatedCharacters": 1039
+      },
+      {
+        "title": "RTO and RPO: recovery, not just redundancy",
+        "intent": "Introduce RTO/RPO as business-driven numbers, not architecture-derived ones, and make the case that a failover that's never been exercised is an assumption, not a capability.",
+        "excerptIds": [
+          "module:11-cloud#mental-model",
+          "module:11-cloud#deep-dive"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 69.76859504132231,
+        "allocatedCharacters": 1256
+      },
+      {
+        "title": "The replication mismatch that breaks RPO promises",
+        "intent": "Walk through the production example of a 15-minute RTO and 1-minute RPO commitment undercut by asynchronous replication lag, and the sync-vs-async trade-off that has to be chosen alongside the target, not independently.",
+        "excerptIds": [
+          "module:11-cloud#production-example",
+          "module:11-cloud#trade-offs",
+          "module:11-cloud#failure-modes"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.78512396694215,
+        "allocatedCharacters": 1460
+      },
+      {
+        "title": "Proving failover actually works",
+        "intent": "Bring in the FailoverController implementation and the hands-on lab exercise for testing it, tying the RTO number to executable logic rather than a diagram label — plus why multi-region is also a latency/scaling story, not just disaster recovery.",
+        "excerptIds": [
+          "module:11-cloud#implementation",
+          "module:11-cloud#hands-on-lab",
+          "module:11-cloud#scaling",
+          "module:11-cloud#performance"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 59.80165289256199,
+        "allocatedCharacters": 2910
+      },
+      {
+        "title": "Cost attribution before the GPU bill becomes a crisis",
+        "intent": "Close on cost attribution — tagging vs. dedicated accounts, why it has to exist before a cloud bill becomes unaccountable, and how it scales with team growth and connects to Module 4's per-request cost tracking.",
+        "excerptIds": [
+          "module:11-cloud#deep-dive",
+          "module:11-cloud#trade-offs",
+          "module:11-cloud#scaling"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 59.80165289256199,
+        "allocatedCharacters": 1355
+      }
+    ],
+    "requestedSeconds": 603,
+    "plannedSeconds": 603,
+    "unsupported": [
+      "A live walkthrough of an actual multi-region failover incident with real timestamps and outcomes",
+      "Specific cloud provider pricing comparisons for managed vs. self-hosted services",
+      "A step-by-step tutorial for configuring VPC peering or transit gateways"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 81,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.979,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "660dd25782e6205f9d34bd0a2633d349008a8022466bb8b402ff28f11a3ebb2d",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Welcome back. This module is called Cloud, and the subtitle I keep coming back to is 'decisions you can't refactor away.' If you ship bad code, you fix it in the next sprint. If you bake in the wrong network topology or the wrong IAM boundary, that mistake outlives every team that inherits it."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and that's really the whole premise. A region layout or a VPC boundary isn't a line you change later — it's the foundation everything else gets built on top of. By the time you notice it's wrong, it's already baked into every service built on top of it."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So walk me through what we're actually covering, because I know this isn't just 'cloud is scary, be careful.'"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Four decisions, and they all reduce to the same trade — control versus operational burden. When to pay the premium for a managed service instead of self-hosting. How VPC and IAM actually contain a breach instead of just describing good intentions. What multi-region has to mean operationally — a tested recovery time and recovery point, not just a diagram with two regions on it. And cost attribution existing before the GPU bill becomes the reason the project gets killed."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Let's start with the first one, then, because it sounds like the simplest and it's probably the most argued-about in every planning meeting: managed versus self-hosted. Vector database, Kubernetes control plane — where do you land by default?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Managed, by default, until a specific measured reason says otherwise. A managed vector database or a managed control plane takes patching, high-availability maintenance, and backup mechanics off your plate entirely, and you pay a real per-unit premium for that plus less control over tuning. Self-hosting gets you full control and usually lower steady-state cost at scale, but now every operational failure mode is yours to own."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So what actually counts as a good enough reason to flip that default — 'it feels expensive' doesn't qualify, I assume?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right, it has to be measured, not felt. Cost at a scale you've actually reached, not a projection — or a tuning requirement the managed tier genuinely can't expose, something you've hit in practice, not anticipated. Absent one of those two, self-hosting is just buying yourself an operations problem you didn't need."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so once you've decided managed versus self-hosted, the next question is basically who can even reach the thing. Where does network segmentation come in?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "It's the baseline layer everyone assumes is already handled and sometimes isn't. Public subnets are for load balancers and NAT gateways, the stuff that has to face the internet — everything else, your application tier, your database tier, belongs in a private subnet reachable only from inside the VPC. The concrete failure this prevents is exactly what it sounds like: a database or service that was never actually moved into a private subnet, sitting directly reachable from the internet, and nobody finds out until it gets scanned and exploited."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So say that database tier is safely tucked into a private subnet like you described. Are we done? Is the network boundary the thing that actually contains a breach?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "No, and this is the part people underrate — network topology controls reachability, but IAM controls capability. If the app tier gets compromised, the question isn't whether the attacker can see other machines on the network, it's what that service's role actually permits it to do: which S3 prefix, which database table, which KMS key. That's the real blast radius."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So it's the same idea as Module 6's tool permissions, just applied to cloud identity instead of an AI agent's toolset."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Exactly the same principle. A per-service role scoped to exactly what that service needs means compromising it only gets you that narrow slice. But a shared, broadly-scoped role used across many services means compromising any one of them effectively compromises all of them — the network segmentation you just built doesn't save you at that point."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Let's make that concrete then, because 'scoped to exactly what it needs' can sound vague until you see the actual policy. Walk me through what this looks like in practice for something like a model-serving role."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "So the policy has two statements, and that's the whole point — it grants s3 GetObject against one bucket path for model artifacts, and it grants DynamoDB GetItem and PutItem against one specific table for session state. Nothing else in the account is reachable through this role, no other bucket, no other table, no admin actions — so if this service gets compromised, the attacker inherits exactly those two narrow capabilities and nothing more. That's what containment actually looks like written down, as opposed to just asserted in an architecture review."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "Okay so you just showed the narrow version done right. What does it look like when a team skips that and just reuses one role everywhere?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "It looks convenient right up until it doesn't. Someone sets up a role with broad access once, attaches it to many services because writing scoped policies for each one is more work, and now the network segmentation you built earlier doesn't matter. If the least-secure of those services gets popped, the attacker inherits everything all of them could touch — plus, if one of those services also happens to sit in a public subnet by oversight rather than design, they didn't even need to work for that initial foothold."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "Let's move to the third axis: recovery. You've got a multi-region setup in the diagram, replicated database, load balancer ready to redirect traffic. Isn't that the whole point of building it that way?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "It's the point of the diagram, not the point of the system. What actually matters are two numbers, RTO and RPO — how long you can be down, and how much data you can afford to lose, measured in time since the last successful replication. And here's the part people skip: those numbers should come from business impact, not from whatever the architecture happens to already deliver. You don't ask the system what it can do and call that the target."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So you set the target first, based on business impact, and then build to hit it. What's the failure mode if a team skips that and just trusts the diagram?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "The failure mode is that a secondary region with a replicated database that's never actually been failed over to isn't a capability, it's an assumption. Replication lag might make that RPO target physically impossible, and you genuinely don't know until you've exercised the failover under realistic conditions — not a scheduled maintenance window where everyone's already watching and ready to intervene. Until then, it's a diagram, not a guarantee."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "Let's make that concrete. Walk me through the case where a team commits to a 15-minute RTO and a 1-minute RPO for a production model-serving system — where does that actually break?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "The RTO is often achievable. The problem is the RPO — it requires synchronous or near-synchronous replication. If the team actually built it on asynchronous replication running 10 minutes behind, no failover mechanism on earth fixes that, because the data you'd recover to is already 10 minutes stale before the failover even starts."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So the target and the replication strategy have to be chosen together, not one after the other."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Exactly — sync replication can hit that tight RPO but it costs you write latency and even availability, since a write can't complete if the remote region is unreachable. Async keeps writes fast and local but caps your RPO at whatever the real-world lag turns out to be, not whatever number sounded reasonable in a planning doc — and you only find out which one you actually built during a real incident."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "So you're saying that RTO number needs to live in code, not just in a runbook. Walk me through what that actually looks like."
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Right, look at the FailoverController — should_failover doesn't fire on one bad health check, it only triggers if every check inside the RTO window came back unhealthy. That's the whole point: the trigger is wired directly to the RTO you promised, not to some arbitrary retry count. And the lab makes you prove it — feed it checks spanning just under the RTO with one healthy blip in the middle, confirm it stays False, then feed it a full RTO window of nothing but failures and confirm it flips True. If you haven't written that test, you don't actually know your RTO is real, you just know it's written down somewhere."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "And that same multi-region setup you'd build for failover — you're saying it's not purely insurance, it's pulling double duty."
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Exactly, serving users out of the nearest region cuts latency every single day, whether or not you ever failover — that's often the stronger business case than the disaster-recovery story alone. But it cuts both ways: cross-region latency is physics, so the instant a failover sends traffic to a standby region in another geography, every user routed there gets a different latency profile, not just for the incident but for as long as they stay pinned there."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "Let's land on cost, then, because I think this is the one that sneaks up on teams. When does an unattributed cloud bill actually become a crisis?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "The moment someone asks 'why did spend jump' and nobody can answer without a week of forensic digging. Tagging every resource by team or service, or better, putting each team in its own account or project, is what turns 'the bill went up' into 'team X's GPU usage went up, and here's why.' Without that, you can't even start optimizing, because you don't know what to optimize or who owns it."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "And that's the bridge back to Module 4's per-request cost tracking — you need attribution at the account level before that per-request number means anything organizationally."
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "Exactly, and it has to scale as more teams and more GPU-heavy workloads land in the same footprint — a tagging scheme that worked for one team erodes fast without deliberate extension. That's really the thread through all four of these decisions: managed-versus-self-hosted, blast radius, recovery, cost — none of them are diagrams you draw once. They're commitments you have to keep proving, or they quietly stop being true."
+      }
+    ]
+  }
+}

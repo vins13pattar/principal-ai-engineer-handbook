@@ -1,0 +1,134 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-agent-identity-broker",
+  "meta": {
+    "documentId": "lab:agent-identity-broker",
+    "url": "/build/labs/agent-identity-broker/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 259
+  },
+  "plan": {
+    "topic": "Agent Identity Broker",
+    "title": "The Token That Can't Widen: Inside the Agent Identity Broker",
+    "throughLine": "A credential exchange that narrows audience, scope, and lifetime together is a control; anything less is a design review passing on vibes — and the lab proves it by making its own tests fail.",
+    "beats": [
+      {
+        "title": "Narrowing is three things, not one",
+        "intent": "Establish the core discipline: an exchange must bind audience, scope, and lifetime together, not just the easy one. Show the counterfactual where narrowing only audience still opens the refund tool, and the hard refusal to launder a token not addressed to the broker.",
+        "excerptIds": [
+          "lab:agent-identity-broker#what-it-demonstrates"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 55.99999999999999,
+        "allocatedCharacters": 1002
+      },
+      {
+        "title": "What one token actually opens",
+        "intent": "Walk through the blast-radius measurement across the three-server, six-tool fleet: the agent-scoped credential opens one tool, the audience-only narrowed one opens two including the refund, and — the counterintuitive result — the raw forwarded user token opens nothing here because its audience names the identity provider, not because it's safe.",
+        "excerptIds": [
+          "lab:agent-identity-broker#the-measurement"
+        ],
+        "weight": 1.6,
+        "targetSeconds": 64,
+        "allocatedCharacters": 819
+      },
+      {
+        "title": "A protection that has never failed can't be trusted",
+        "intent": "Close on the mutation test: flipping verify_aud off breaks six tests across all three files precisely because audience verification has no runtime symptom when missing. CI runs that mutation as its own job, failing the build if the suite doesn't go red — the only way to know the control is actually load-bearing.",
+        "excerptIds": [
+          "lab:agent-identity-broker#prove-the-tests-can-fail"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 60,
+        "allocatedCharacters": 721
+      }
+    ],
+    "requestedSeconds": 180,
+    "plannedSeconds": 180,
+    "unsupported": [
+      "How the broker would integrate with a real, non-simulated identity provider in production",
+      "The principal-level design questions about where the exchange should live (host vs. sidecar) and who decides minimum scope"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.54,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "0ec9ba3dc994f7c595b6c109be07df0f429bcc6487a39862bf1aeb93c4fccde7",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we're digging into this agent identity broker lab today, and the headline claim is almost provocative: narrowing isn't one thing, it's three things, and if you only do one of them, you don't actually have a control. Walk me through why that split even matters."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, the instinct is to think of a token exchange as 'shrinking' access, like there's a single dial you turn down. But the lab shows audience, scope, and lifetime are independent axes, and there's a test that asserts all three move together. The reason that matters is the counterfactual: take a token that's correctly bound to one server, so audience looks perfectly narrowed, but let it still carry every scope the user originally held. That token opens both of that server's tools — including the refund tool — because audience only decided where the token can go, not what it's allowed to do once it's there."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So a design review could look at that audience binding, see it's tight, and sign off — while the refund tool is sitting wide open behind it. That's the trap. So what does the broker actually do when it's asked to hand out scopes the caller was never granted, or handed a token that wasn't even addressed to it in the first place?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "It refuses, flatly, at exchange time. Ask for a scope the subject doesn't hold and the request is denied — a narrowing mechanism that can widen isn't a control, it's a suggestion. And the harder refusal is the second one: the broker checks that the presented subject token was actually addressed to it before minting anything, because without that check it's just an escalation service — hand it any stolen token and walk away with a correctly signed credential for whatever target you like."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So walk me through the actual measurement — you built a fleet, three servers, six tools total, and you ran real tokens against it to see what opens. What's the headline number for the properly scoped credential?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "One tool, out of six. That's the agent-scoped credential — one audience, one scope, and it opens exactly the door it was minted for and nothing else. But narrow only the audience and leave scope alone, and the number jumps to two, because now it's both tools on that server, refund included, since scope never said no."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And the row everyone wants to misread is the raw forwarded user token opening zero — that sounds like a win for passthrough, doesn't it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "It sounds that way, and it's exactly backwards. It opens zero here because its audience names the identity provider, not this fleet — every server here happens to reject it, but hand that same token to whoever's on the other end of that forward and it's still a fully live user credential wherever it does match. The zero measures this fleet's luck, not the token's safety."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So if that zero was really just luck, how do you actually prove the audience check is doing anything at all, rather than just sitting there looking like a control?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "You break it on purpose. Set verify_aud to False in the resource server's decode options, the exact thing a tired engineer might flip during a debugging session, and run the suite — six tests fail across all three files. Flip it back and they all pass again, and that flip is the whole point, because audience verification has no runtime symptom when it's missing. The system keeps running, keeps serving requests, looks completely healthy, it's just unprotected, so a test suite that doesn't visibly die when the check disappears was never testing the check in the first place."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So the mutation itself has to be a permanent part of CI, not a one-time exercise you ran once and trusted forever."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Exactly, it's its own job in the pipeline — disable the check, assert the suite goes red, and fail the build if it doesn't. Because a security test that has never once failed is indistinguishable from a test that can't fail, and that's the whole thesis: narrowing audience, scope, and lifetime is only a control if something breaks loudly the moment it's gone, otherwise it's a design review that passed on vibes."
+      }
+    ]
+  }
+}

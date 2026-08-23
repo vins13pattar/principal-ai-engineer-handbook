@@ -1,0 +1,148 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-policy-gated-tool-runtime",
+  "meta": {
+    "documentId": "lab:policy-gated-tool-runtime",
+    "url": "/build/labs/policy-gated-tool-runtime/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 326
+  },
+  "plan": {
+    "topic": "Policy-Gated Tool Runtime",
+    "title": "Policy-Gated Tool Runtime: Enforcement Before Autonomy",
+    "throughLine": "Letting a model decide to call a tool is not the same as authorizing that call — this lab shows the five-check pipeline that stands between a request and an action, why the order of those checks is load-bearing, and how it survives untouched even as the protocol wrapping it changes underneath.",
+    "beats": [
+      {
+        "title": "Five separate questions, not one filter",
+        "intent": "Introduce the runtime's core claim: scope, schema validation, per-tool rate limits, bounded approval gates, and audit logging each answer a different question and none can substitute for another. Ground this in the concrete design choices — rate limits keyed on (tenant, tool), approval with a timeout instead of an unbounded queue, denials logged as first-class events — and the discipline of testing time-dependent policy deterministically.",
+        "excerptIds": [
+          "lab:policy-gated-tool-runtime#what-it-demonstrates",
+          "lab:policy-gated-tool-runtime#principal-level-discussion-points"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 59.91304347826088,
+        "allocatedCharacters": 1552
+      },
+      {
+        "title": "Why the checks run in this exact order",
+        "intent": "Walk through the pipeline ordering as an argument, not a list: scope first because it's cheapest and prevents leaking which tools exist, validation before rate limiting so malformed calls can't burn a good caller's budget, approval last because it's the only stage that pays human latency. Frame 'validate then authorize' versus 'authorize then validate' as materially different systems.",
+        "excerptIds": [
+          "lab:policy-gated-tool-runtime#why-the-order-of-the-checks-matters"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 55.30434782608695,
+        "allocatedCharacters": 1043
+      },
+      {
+        "title": "Protocol-independent by design — and why that held up under MCP's rewrite",
+        "intent": "Explain that this is the policy layer an MCP server (or any transport) sits behind, and demonstrate the payoff: MCP's 2026-07-28 revision tore out the initialize handshake and protocol sessions, deprecating a whole generation of code, while none of it touched this enforcement pipeline because none of these were ever protocol concerns.",
+        "excerptIds": [
+          "lab:policy-gated-tool-runtime#relationship-to-mcp",
+          "module:06-mcp#executive-summary"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 50.695652173913054,
+        "allocatedCharacters": 2314
+      },
+      {
+        "title": "Where the runtime still leans on trust — identity",
+        "intent": "Close on the honest limitation raised in the discussion points: every control is scoped by caller, but this lab binds calls to a declared header identity rather than a cryptographically verified one, which becomes a real problem once agent actions stop mapping one-to-one to a single human request. Point at running it and reading the audit log as the way to see the pipeline's behavior directly.",
+        "excerptIds": [
+          "lab:policy-gated-tool-runtime#principal-level-discussion-points",
+          "lab:policy-gated-tool-runtime#run-it"
+        ],
+        "weight": 1,
+        "targetSeconds": 46.08695652173913,
+        "allocatedCharacters": 1093
+      }
+    ],
+    "requestedSeconds": 212,
+    "plannedSeconds": 212,
+    "unsupported": [
+      "A live walkthrough of the async-ai-gateway's Redis-backed limiter replacing this lab's in-process buckets",
+      "A deep dive into MCP's Multi-Round-Trip Requests or requestState signing, since this lab deliberately doesn't implement MCP",
+      "Comparing this runtime's approval gate to the agent loop's step/cost budget mechanics in Module 5"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 90,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.87600000000003,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "f31d5df34a27f310113c73a8f776de509ee8242186f3cb510fe981a56c088106",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "There's a moment in a lot of agent systems where the model decides to call a tool, and everyone quietly treats that decision as the authorization. Today we're pulling apart a runtime that refuses to make that leap — it says deciding to call and being allowed to call are two entirely different events, gated separately. Walk me through what actually sits between the request and the action."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "There are five checks, and the whole point is that none of them can cover for another. Scope answers whether this caller may use this tool at all. Schema validation answers whether this particular call is well-formed. Rate limiting answers whether this tool, for this tenant, has budget left right now. Approval answers whether a human needs to sign off before anything happens. And audit logging answers what actually happened, including every time the answer was no. Collapse scope and schema into one check, for instance, and you get something too permissive in one direction and too brittle in the other."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Give me a concrete case where keeping them separate actually changes behavior — not just conceptually cleaner, but a design decision that would break if you merged them."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Rate limits are the clearest one — they're keyed on tenant and tool together, not on the gateway as a whole, because a read-only search and a fund-moving action sharing one budget is a real hazard. And approval gates block with a timeout instead of an unbounded queue, since a queue with no timeout is just an outage waiting for one unavailable operator. Denials get logged as first-class events too, so a tool nobody ever approves shows up in the audit trail instead of vanishing into application logs — and all of that is tested deterministically, with a mocked clock making token-bucket refills and timeouts instant, so forty-four tests across every enforcement stage run in under a second."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So the five checks aren't just five boxes to tick — the sequence itself is doing work. Why does scope have to be first, before anything else even looks at the call?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Because it's the cheapest possible rejection and the most absolute one. If a caller has no grant on a tool, you want them bounced before they ever reach argument validation — otherwise you're doing schema work for someone who shouldn't even learn the tool exists, and a validation error message can leak that existence. Scope first means an unauthorized caller gets a flat no, not a clue."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And that same logic carries through the rest of the chain — validation before rate limiting, approval dead last?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Exactly, and it's worth stating plainly: validate-then-authorize and authorize-then-validate are not the same system wearing different clothes, they disclose different information and spend different people's budget. Rate limiting sits after validation so a malformed, garbage call can't burn down a well-behaved caller's quota. And approval is last because it's the only stage that pays human latency — there's no reason to wake up an approver for a call that a cheaper check would've killed anyway."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So where does this actually live relative to something like MCP? Because we've been describing five checks and an order, but I haven't heard the word protocol once."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "That's deliberate — this lab isn't an MCP implementation, it's the policy layer any MCP server would sit behind, and it doesn't care whether the call arrived over MCP, a plain HTTP API, or an in-process tool interface. The proof is the 2026-07-28 revision, which tore out MCP's initialize handshake and protocol-level sessions and deprecated the old HTTP+SSE transport entirely, invalidating a huge amount of 2025-era MCP code. None of that touched this pipeline, because validation, authorization, rate limiting and approval were never protocol concerns — wiring this up to a real MCP host just means putting an SDK in front of the gateway's call method, with zero change underneath."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So where's the honest crack in all this? Every check you've described is scoped by caller, so how solid is that caller identity actually?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Not solid at all, honestly — it's a declared header, x-agent-id, not a cryptographically verified credential, so the gateway trusts whoever sets that header rather than proving who's behind it. That's fine while each call maps cleanly to one human request, but the moment an agent is chaining actions across a session on someone else's behalf, that one-to-one mapping breaks and the header stops meaning what you want it to mean — which is exactly the point where you'd need real per-request identity, not a static label, and exactly when an agent platform becomes worth building rather than a lab. Don't take my word for any of this, though — spin it up, hit search_docs and issue_refund with that header, then pull the audit log and watch what got allowed, what got blocked pending approval, and what got refused outright, because the log is where the pipeline actually tells you the truth about itself."
+      }
+    ]
+  }
+}

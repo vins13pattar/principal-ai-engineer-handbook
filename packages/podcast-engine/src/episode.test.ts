@@ -68,6 +68,21 @@ const script: DialogueScript = {
 const cast = { voices: { host: "af_heart", guest: "am_michael" }, language: "en-US" } as const;
 
 describe("renderEpisode", () => {
+  it("speaks the script's own words, not the transcript's escaped ones", async () => {
+    // The transcript escapes Markdown delimiters so a spoken `__del__` does not
+    // render as bold. Synthesis must never see those backslashes: it reads
+    // `script.json`, and a voice would pronounce them. This is the guard on
+    // that separation -- routing synthesis through the transcript, or escaping
+    // at the script level, fails here rather than in an audible episode.
+    const tts = new WavTts();
+    const spoken = "__del__ runs at exit, and `_meta` carries the version";
+
+    await renderEpisode({ turns: [{ speaker: "host", beat: 1, text: spoken }] }, tts, cast);
+
+    expect(tts.requests[0]?.text).toBe(spoken);
+    expect(tts.requests[0]?.text).not.toContain("\\");
+  });
+
   it("casts each speaker to its own voice", async () => {
     const tts = new WavTts();
 

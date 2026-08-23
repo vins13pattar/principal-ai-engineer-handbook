@@ -1,0 +1,168 @@
+{
+  "archiveVersion": 1,
+  "slug": "reference-kubernetes",
+  "meta": {
+    "documentId": "reference:kubernetes",
+    "url": "/reference/lookups/kubernetes/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-23",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 365
+  },
+  "plan": {
+    "topic": "Kubernetes",
+    "title": "Kubernetes: The Reconciliation Layer Under Your GPUs",
+    "throughLine": "Kubernetes never executes anything directly — it reconciles declared state toward observed state forever — and almost every AI-platform failure mode traces back to that loop misreading requests, limits, probes, or disruption budgets.",
+    "beats": [
+      {
+        "title": "Declare it, don't command it",
+        "intent": "Establish the core mental model: kubectl apply records intent, controllers reconcile asynchronously, and the handful of objects (Pod, Deployment, Service, Operator, etcd) that compose the system.",
+        "excerptIds": [
+          "reference:kubernetes#at-a-glance",
+          "reference:kubernetes#key-concepts"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 54.04347826086956,
+        "allocatedCharacters": 968
+      },
+      {
+        "title": "Requests, limits, and why GPUs don't play by CPU rules",
+        "intent": "Dig into the mechanics that actually matter for AI workloads: requests drive scheduling while limits drive enforcement, QoS class is derived not set, CPU throttles but memory OOMKills, and GPUs allocate as whole devices with taints keeping nodes reserved.",
+        "excerptIds": [
+          "reference:kubernetes#key-concepts",
+          "reference:kubernetes#numbers-that-matter",
+          "reference:kubernetes#common-gotchas"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 63.8695652173913,
+        "allocatedCharacters": 1532
+      },
+      {
+        "title": "Probes, drains, and the disruption budget deadlock",
+        "intent": "Walk through the failure-mode cluster around liveness/readiness conflation, the 30-second grace period, and how a PodDisruptionBudget stricter than a rollout can afford stalls it indefinitely.",
+        "excerptIds": [
+          "reference:kubernetes#common-gotchas",
+          "reference:kubernetes#numbers-that-matter",
+          "reference:kubernetes#key-concepts"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 58.95652173913042,
+        "allocatedCharacters": 1413
+      },
+      {
+        "title": "Where the assumptions break, and what's underneath",
+        "intent": "Close on why autoscaling built for stateless web services fails for accelerator workloads (cold start, wrong HPA signal), plus point to the deeper layers — etcd's Raft foundation and the module/model-serving material — for anyone who needs the full mechanics.",
+        "excerptIds": [
+          "reference:kubernetes#common-gotchas",
+          "reference:kubernetes#where-to-go-deeper",
+          "reference:kubernetes#numbers-that-matter"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.13043478260869,
+        "allocatedCharacters": 1276
+      }
+    ],
+    "requestedSeconds": 226,
+    "plannedSeconds": 225.99999999999997,
+    "unsupported": [
+      "A worked kubectl/YAML walkthrough of the GPU Deployment/HPA/PDB manifest",
+      "StatefulSet ordinal identity and stable-storage mechanics in depth",
+      "The full model-serving cold-start and batching argument",
+      "Raft's quorum arithmetic and election-timing details"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 89,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 297.738,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "d3f4f60bf1a83f5ce2436c2544adf65383082aa82cb991fe5ac9370c67776e57",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So let's start with the thing that trips up almost everyone coming from a more traditional infrastructure background: Kubernetes never actually does anything. You run kubectl apply and it feels like a command, but it's not — it's a memo you're leaving for the cluster."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly right. That apply just writes your desired state into etcd, the cluster's backing store, and then a whole set of controllers spend forever comparing that desired state to what's actually running and nudging reality toward it. There's no moment where 'creating the pod' happens as a single atomic action you can point to — it's a loop, and it either converges quickly, converges slowly, or never converges and you're left wondering why."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Which is why half of debugging Kubernetes is really just asking 'which controller owns this, and what can it even see.' So walk me through the small set of objects that actually make up this system — the ones we'll keep coming back to."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "It's a short list. A Pod is the actual scheduling unit, a Deployment manages a ReplicaSet which manages pods and gives you rolling updates, a Service is a stable address that load-balances across whatever pods match its selector, and an Operator is just this same reconciliation pattern applied to your own custom objects. Underneath all of it sits etcd, holding the one source of truth everything else is reconciling against — and for AI workloads specifically, the parts that matter most are how the scheduler places pods and what requests and limits actually enforce, because that's where GPU workloads start breaking assumptions built for ordinary web services."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So let's get concrete on requests and limits, because I think most people assume they're basically the same number expressed two ways. What's actually different about the job each one does?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "They're doing completely different jobs. The scheduler only looks at requests when deciding which node a pod lands on — if you skip requests, the scheduler assumes near-zero and happily packs that node until everything on it is starving together. Limits only kick in after the pod is running, and here's the part people miss: CPU limits throttle you, memory limits kill you. Blow past your CPU limit and the kernel just slows your process down, which shows up as mysterious latency that looks like slow code, not a config problem. Blow past your memory limit and the OOM killer ends the container outright, no warning."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "And that's where QoS class comes in, right — Guaranteed, Burstable, BestEffort? How does a pod actually end up in one of those?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "You don't set it, Kubernetes derives it from whether your requests equal your limits, for every resource, every container. Set both equal and you're Guaranteed, the last to get evicted under pressure; set one and not the other and you silently drop to Burstable without noticing. And GPUs break the whole mental model further — there's no fractional request by default, you get a whole device or none, no overcommit, which is why GPU nodes carry taints. Without that taint, a random CPU-only pod schedules onto your expensive GPU box, occupies it, and now you're paying for an accelerator that nothing running there can even use."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Let's talk about probes, because I've seen teams write a liveness check that pings the database, and it feels responsible right up until the database has a bad five minutes. What actually happens there?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "You get a cascading restart storm exactly when you can least afford it. Liveness is only supposed to answer 'is this process wedged and needs a restart' — readiness answers 'is this pod ready for traffic,' and startup just tells Kubernetes to hold off on both while the thing boots. Conflate liveness with a dependency check and a slow database turns into Kubernetes killing every healthy pod that talks to it, which is strictly worse than the original incident."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And that restart isn't instant either — there's a grace period in play. Where does that collide with disruption budgets during a rollout?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Default grace period is thirty seconds — SIGTERM, then SIGKILL if you haven't shut down cleanly, so your drain logic has to finish inside that window or it gets forced. Now put a PodDisruptionBudget on top that's stricter than what the rollout can afford, and it simply can't proceed — it's not an error, it just stalls forever, quietly waiting on a constraint you wrote for a different scenario."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Last thing, because I think it's the one that bites teams the hardest when they try to autoscale these workloads like they would a web tier. What actually goes wrong?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Two things stack on top of each other. First, HPA on CPU is just the wrong signal for anything I/O-bound — CPU sits flat while requests queue up, so by the time it triggers, the service has already fallen over; you want queue depth or latency instead. Second, even if you fix the signal, cold start for a model workload is minutes, not seconds — image pull, model download, accelerator init — so any autoscaler reacting to current load is reacting too late by definition, and that's really a model-serving design problem more than a Kubernetes knob. If you want the deeper mechanics, the etcd Raft consensus underneath the control plane and the full accelerator and scheduling story are in the Kubernetes module and the model-serving architecture writeup — everything we covered today is really just the reconciliation loop meeting reality at each of those layers."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Declare it, let it reconcile, and know exactly which assumption breaks first. That's the episode — thanks for walking through all of it."
+      }
+    ]
+  }
+}

@@ -26,7 +26,9 @@ if [ $# -lt 2 ]; then
   exit 2
 fi
 
-run_dir="$1"
+# Absolute from the start: the archive step runs from the repository root, and a
+# run directory given relative to the caller's shell would not survive that.
+run_dir="$(cd "$1" && pwd)"
 slug="$2"
 upload=1
 [ "${3:-}" = "--no-upload" ] && upload=0
@@ -58,6 +60,13 @@ seconds=$(afinfo "$out" | awk '/estimated duration/ { printf "%.0f", $3 }')
 printf -v runtime '%d:%02d' $((seconds / 60)) $((seconds % 60))
 
 "$(dirname "$0")/page-transcript.sh" "$source_md" "$transcript_out"
+
+# Archive before the upload, not after: the run directory is git-ignored scratch,
+# and an episode that is published but unarchived can only be re-rendered by
+# generating it again. Cheap enough to do on every publish so it cannot be
+# forgotten on the one episode that later needs it.
+(cd "$root" && node --experimental-strip-types scripts/archive-episode.ts "$run_dir" "$slug")
+cp "$source_md" "$root/episodes/$slug.md"
 
 if [ "$upload" -eq 1 ]; then
   npx wrangler r2 object put "handbook-podcast/$slug.m4a" \
