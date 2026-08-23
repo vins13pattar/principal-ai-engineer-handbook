@@ -38,15 +38,32 @@ function runtime(seconds: number | null): string {
 
 const SPEAKER: Record<string, string> = { host: "Host", guest: "Guest" };
 
+/**
+ * Spoken words, escaped so Markdown renders them and does not interpret them.
+ *
+ * A guest explaining Python said `__del__`, and the page showed a bold **del**:
+ * the transcript is a record of speech, so anything that looks like formatting
+ * is a coincidence of the vocabulary, never an instruction. Prettier made the
+ * same mistake on the same word, which is why these files are unformatted.
+ *
+ * Escapes every delimiter rather than guessing intent from position. Across the
+ * first sixty-two episodes this touches four characters in total -- the cost in
+ * readability is nil, and a consumer feeding the text to another synthesiser
+ * strips backslashes with one substitution.
+ */
+export function escapeMarkdown(text: string): string {
+  return text.replace(/[\\`*_[\]<]/g, (character) => `\\${character}`);
+}
+
 export function renderTranscript(
   plan: EpisodePlan,
   script: DialogueScript,
   meta: TranscriptMeta,
 ): string {
   const lines = [
-    `# ${plan.title}`,
+    `# ${escapeMarkdown(plan.title)}`,
     "",
-    `_${plan.throughLine}_`,
+    `_${escapeMarkdown(plan.throughLine)}_`,
     "",
     `- **Source:** [${meta.documentId}](${meta.url})`,
     `- **Runtime:** ${runtime(meta.audioSeconds)} · ${script.turns.length} turns · ${plan.beats.length} beats`,
@@ -65,9 +82,9 @@ export function renderTranscript(
     // would promise a segment the episode does not contain.
     if (turns.length === 0) return;
 
-    lines.push("---", "", `## ${index + 1}. ${beat.title}`, "");
+    lines.push("---", "", `## ${index + 1}. ${escapeMarkdown(beat.title)}`, "");
     for (const turn of turns) {
-      lines.push(`**${SPEAKER[turn.speaker] ?? turn.speaker}:** ${turn.text}`, "");
+      lines.push(`**${SPEAKER[turn.speaker] ?? turn.speaker}:** ${escapeMarkdown(turn.text)}`, "");
     }
   });
 
@@ -79,7 +96,7 @@ export function renderTranscript(
       "",
       "The planner wanted these and found nothing in the source to support them:",
       "",
-      ...plan.unsupported.map((gap) => `- ${gap}`),
+      ...plan.unsupported.map((gap) => `- ${escapeMarkdown(gap)}`),
       "",
     );
   }

@@ -1,4 +1,4 @@
-### 1. The intuitive mistake: a credential in `_meta`
+### 1. The intuitive mistake: a credential in \`\_meta\`
 
 **Host:** So you're building a multi-tenant MCP server, and the whole spec under 2026-07-28 tells you every request is self-describing — protocol version, client info, capabilities, all riding along in this metadata field on every single call. So the natural move is, well, if identity travels per-request anyway, just drop the tenant token in there too. It feels like the design is basically inviting you to do that.
 

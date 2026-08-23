@@ -22,7 +22,7 @@
 
 **Host:** So if that zero was really just luck, how do you actually prove the audience check is doing anything at all, rather than just sitting there looking like a control?
 
-**Guest:** You break it on purpose. Set verify_aud to False in the resource server's decode options, the exact thing a tired engineer might flip during a debugging session, and run the suite — six tests fail across all three files. Flip it back and they all pass again, and that flip is the whole point, because audience verification has no runtime symptom when it's missing. The system keeps running, keeps serving requests, looks completely healthy, it's just unprotected, so a test suite that doesn't visibly die when the check disappears was never testing the check in the first place.
+**Guest:** You break it on purpose. Set verify\_aud to False in the resource server's decode options, the exact thing a tired engineer might flip during a debugging session, and run the suite — six tests fail across all three files. Flip it back and they all pass again, and that flip is the whole point, because audience verification has no runtime symptom when it's missing. The system keeps running, keeps serving requests, looks completely healthy, it's just unprotected, so a test suite that doesn't visibly die when the check disappears was never testing the check in the first place.
 
 **Host:** So the mutation itself has to be a permanent part of CI, not a one-time exercise you ran once and trusted forever.
 

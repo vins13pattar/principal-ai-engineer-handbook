@@ -12,7 +12,7 @@
 
 **Host:** You said the order of operations is the architecture, not an implementation detail. Walk me through what that actually looks like inside the code, because I think people assume request handling is just 'try the thing, catch errors.'
 
-**Guest:** Look at generate() in the gateway: it calls _admit() first, and inside _admit, rate limiting happens before the semaphore acquire. That ordering matters because a rejected-for-quota request should never occupy a concurrency slot — that's capacity a legitimate request needed. Then once admitted, the whole retry loop sits inside a single asyncio.timeout wrapping every attempt, not one timeout per attempt, so a caller's 15-second budget is a budget for the entire operation, retries included, not 45 seconds nobody asked for.
+**Guest:** Look at generate() in the gateway: it calls \_admit() first, and inside \_admit, rate limiting happens before the semaphore acquire. That ordering matters because a rejected-for-quota request should never occupy a concurrency slot — that's capacity a legitimate request needed. Then once admitted, the whole retry loop sits inside a single asyncio.timeout wrapping every attempt, not one timeout per attempt, so a caller's 15-second budget is a budget for the entire operation, retries included, not 45 seconds nobody asked for.
 
 **Host:** And what happens to that concurrency slot if something inside the loop blows up — a timeout, a cancellation, a raw exception?
 
@@ -32,7 +32,7 @@
 
 **Host:** So you scale the gateway horizontally, spin up more replicas to handle load — and that's exactly when the rate limiter quietly stops working. Walk me through what breaks.
 
-**Guest:** The in-process token bucket is per-replica state, but it thinks it's the whole truth. If you run multiple replicas behind a load balancer, each replica independently enforces the same limit, so the tenant's real effective quota becomes replica_count times their real limit. Nobody set that limit — it just fell out of how many pods happened to be running that day.
+**Guest:** The in-process token bucket is per-replica state, but it thinks it's the whole truth. If you run multiple replicas behind a load balancer, each replica independently enforces the same limit, so the tenant's real effective quota becomes replica\_count times their real limit. Nobody set that limit — it just fell out of how many pods happened to be running that day.
 
 **Host:** Which means your quota isn't a business decision anymore, it's an infrastructure accident. So the fix is moving that state out to Redis — but you were just telling me Redis going down is a designed failure mode in itself.
 
@@ -46,13 +46,13 @@
 
 **Host:** That's a clean way to make shutdown honest instead of hopeful. Now, separately — I noticed the lab ships two apps, one with just a header for tenant identity and one with real JWT verification. Isn't that a security hole?
 
-**Guest:** It would be if anyone deployed it that way, which is exactly why the docs are blunt about it — the unauthenticated x-tenant-id path exists so you can run bounded concurrency, deadlines, retries, and health-aware routing without also standing up an identity provider just to see the demo work. The secure_app is the one to actually read as the reference: JWT-verified identity, tier-scoped policy at the routing layer, Redis-backed rate limiting shared across replicas. A real deployment collapses these into a single app with the security layer always on — the split is a teaching artifact, not a topology anyone should ship.
+**Guest:** It would be if anyone deployed it that way, which is exactly why the docs are blunt about it — the unauthenticated x-tenant-id path exists so you can run bounded concurrency, deadlines, retries, and health-aware routing without also standing up an identity provider just to see the demo work. The secure\_app is the one to actually read as the reference: JWT-verified identity, tier-scoped policy at the routing layer, Redis-backed rate limiting shared across replicas. A real deployment collapses these into a single app with the security layer always on — the split is a teaching artifact, not a topology anyone should ship.
 
 ### 6. Streaming changes the cost and observability equation
 
 **Host:** So we've talked about the security split and the demo-versus-real deployment question. Let's talk about streaming, because I think people assume streaming is just a UX nicety — smoother typing effect — and not something that touches cost or observability at all.
 
-**Guest:** That assumption falls apart fast at scale. If a user closes the tab three seconds into a ten-second response and the gateway doesn't notice, it keeps pulling tokens from the provider for the full ten seconds — and every one of those tokens is metered, billed compute for a response literally nobody will see. The fix is checking is_disconnected on every chunk, not just once at the start, because a client can vanish at any point in a long stream. And that's not a rounding error either — upstream provider cost is almost always the dominant line item in the whole system, way past whatever Redis or the gateway's own compute costs you, so a lever that stops wasted provider calls has outsized leverage compared to tuning the gateway itself.
+**Guest:** That assumption falls apart fast at scale. If a user closes the tab three seconds into a ten-second response and the gateway doesn't notice, it keeps pulling tokens from the provider for the full ten seconds — and every one of those tokens is metered, billed compute for a response literally nobody will see. The fix is checking is\_disconnected on every chunk, not just once at the start, because a client can vanish at any point in a long stream. And that's not a rounding error either — upstream provider cost is almost always the dominant line item in the whole system, way past whatever Redis or the gateway's own compute costs you, so a lever that stops wasted provider calls has outsized leverage compared to tuning the gateway itself.
 
 **Host:** And presumably you're not just fixing the cost, you're watching for it too — so how does that show up in what you measure?
 

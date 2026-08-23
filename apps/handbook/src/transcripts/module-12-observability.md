@@ -12,7 +12,7 @@
 
 **Host:** So walk me through the actual mental model here, because 'observability' gets thrown around like it's one thing. It's really three separate signals, right?
 
-**Guest:** Right — metrics, logs, and traces, and they're stitched together by a shared request_id. Metrics are the aggregated numbers, request rate, error rate, latency percentiles, cheap to store and great for spotting that something's wrong right now. Logs are the discrete timestamped events, structured key-value ideally, and that request_id is what lets you pull every log line across every service that touched one specific request. Traces are the tree of timed spans showing the actual path that request took, every downstream call, in sequence — it's the only one of the three that shows you causality directly.
+**Guest:** Right — metrics, logs, and traces, and they're stitched together by a shared request\_id. Metrics are the aggregated numbers, request rate, error rate, latency percentiles, cheap to store and great for spotting that something's wrong right now. Logs are the discrete timestamped events, structured key-value ideally, and that request\_id is what lets you pull every log line across every service that touched one specific request. Traces are the tree of timed spans showing the actual path that request took, every downstream call, in sequence — it's the only one of the three that shows you causality directly.
 
 **Host:** Okay, so between the three of them you can reconstruct exactly what a request did, end to end. But you just said none of that tells you if the answer was right.
 
@@ -60,7 +60,7 @@
 
 **Host:** Okay, so let's go from the tracing gap to the logs themselves. Why is a structured log line actually different from just writing a good sentence to a file?
 
-**Guest:** Because during an incident nobody has time for regex archaeology. If every log is a JSON object with consistent fields — request_id, tenant_id, latency_ms — you can query it instantly, filter it, join it with the trace. Free text means someone's grepping and guessing at 2am, and for AI systems you want token counts, model identifiers, and cost sitting as structured fields on that same line, not stashed in a separate billing system you have to manually correlate after the fact.
+**Guest:** Because during an incident nobody has time for regex archaeology. If every log is a JSON object with consistent fields — request\_id, tenant\_id, latency\_ms — you can query it instantly, filter it, join it with the trace. Free text means someone's grepping and guessing at 2am, and for AI systems you want token counts, model identifiers, and cost sitting as structured fields on that same line, not stashed in a separate billing system you have to manually correlate after the fact.
 
 **Host:** And prompts and responses themselves — you'd think logging the full content is exactly what you want for debugging, so where's the catch?
 
@@ -70,11 +70,11 @@
 
 **Host:** So let's make that redact-before-storage promise concrete. Walk me through what this tracer actually looks like in code.
 
-**Guest:** It's small on purpose. You've got a Span that's just a name plus a dictionary of attributes, and a Tracer whose start_span context manager opens a span, times it, and appends it to a list of finished spans when it closes. The interesting part is inside call_model — before anything gets set on the span, the prompt goes through redact, which does a straight substring replace of anything sensitive with a literal '[redacted]' marker. Only the redacted version ever gets assigned to llm.prompt_redacted, alongside llm.model, token counts, and an estimated cost computed straight from the token count. So one span attribute set gives you what happened, how much it cost, and what model did it — no separate cost system to join against.
+**Guest:** It's small on purpose. You've got a Span that's just a name plus a dictionary of attributes, and a Tracer whose start\_span context manager opens a span, times it, and appends it to a list of finished spans when it closes. The interesting part is inside call\_model — before anything gets set on the span, the prompt goes through redact, which does a straight substring replace of anything sensitive with a literal '\[redacted\]' marker. Only the redacted version ever gets assigned to llm.prompt\_redacted, alongside llm.model, token counts, and an estimated cost computed straight from the token count. So one span attribute set gives you what happened, how much it cost, and what model did it — no separate cost system to join against.
 
 **Host:** And the lab makes you prove that redaction actually held, not just that the function exists somewhere.
 
-**Guest:** Right — the test calls call_model with a prompt containing a marker like 'api_key: sk-test-123' in the sensitive_substrings list, then it doesn't check the return value, it inspects tracer.finished_spans and asserts that marker string doesn't appear in any attribute on any span. That's a materially different claim than 'we have a redact function' — it's checking the artifact that actually gets persisted and queried later.
+**Guest:** Right — the test calls call\_model with a prompt containing a marker like 'api\_key: sk-test-123' in the sensitive\_substrings list, then it doesn't check the return value, it inspects tracer.finished\_spans and asserts that marker string doesn't appear in any attribute on any span. That's a materially different claim than 'we have a redact function' — it's checking the artifact that actually gets persisted and queried later.
 
 ### 9. Case study: chasing a latency regression into one tool call
 

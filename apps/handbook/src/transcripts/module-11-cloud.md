@@ -70,7 +70,7 @@
 
 **Host:** So you're saying that RTO number needs to live in code, not just in a runbook. Walk me through what that actually looks like.
 
-**Guest:** Right, look at the FailoverController — should_failover doesn't fire on one bad health check, it only triggers if every check inside the RTO window came back unhealthy. That's the whole point: the trigger is wired directly to the RTO you promised, not to some arbitrary retry count. And the lab makes you prove it — feed it checks spanning just under the RTO with one healthy blip in the middle, confirm it stays False, then feed it a full RTO window of nothing but failures and confirm it flips True. If you haven't written that test, you don't actually know your RTO is real, you just know it's written down somewhere.
+**Guest:** Right, look at the FailoverController — should\_failover doesn't fire on one bad health check, it only triggers if every check inside the RTO window came back unhealthy. That's the whole point: the trigger is wired directly to the RTO you promised, not to some arbitrary retry count. And the lab makes you prove it — feed it checks spanning just under the RTO with one healthy blip in the middle, confirm it stays False, then feed it a full RTO window of nothing but failures and confirm it flips True. If you haven't written that test, you don't actually know your RTO is real, you just know it's written down somewhere.
 
 **Host:** And that same multi-region setup you'd build for failover — you're saying it's not purely insurance, it's pulling double duty.
 

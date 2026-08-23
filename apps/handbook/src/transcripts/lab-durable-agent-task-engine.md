@@ -16,7 +16,7 @@
 
 ### 3. The subtle bug: counting failures vs counting deliveries
 
-**Host:** Okay, so the fencing token stops the zombie from corrupting a finished task. But what stops the zombie's *task* from just being retried forever? Isn't that also a crash-driven loop the budget should catch?
+**Host:** Okay, so the fencing token stops the zombie from corrupting a finished task. But what stops the zombie's \*task\* from just being retried forever? Isn't that also a crash-driven loop the budget should catch?
 
 **Guest:** That's the bug that only shows up under fire, and it's a subtle one. If your retry budget only decrements on an explicit failure — a handler catching an error and reporting it — then a handler that gets its whole process killed never reports anything. The lease just expires, the task goes back to pending with its budget completely untouched, and it gets redelivered forever. A task that reliably segfaults its worker becomes an infinite loop that also takes a worker down with it every single pass.
 

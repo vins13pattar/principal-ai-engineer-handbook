@@ -58,7 +58,7 @@
 
 ### 8. Inside the Disconnect-Aware Streaming Loop
 
-**Host:** So let's actually look at the code that lives at the bottom of all this theory. There's this is_disconnected check inside the streaming loop — walk me through why it's called on every single chunk instead of just once when the connection opens.
+**Host:** So let's actually look at the code that lives at the bottom of all this theory. There's this is\_disconnected check inside the streaming loop — walk me through why it's called on every single chunk instead of just once when the connection opens.
 
 **Guest:** Because a client can vanish at any point in a long stream, not just at the start. If you only checked once, you'd catch the person who closes the tab immediately, but you'd completely miss someone who bails halfway through a long generation. So the check sits inside the async for loop, right before you yield each chunk, and the moment it comes back true you break and stop pulling from the provider entirely.
 

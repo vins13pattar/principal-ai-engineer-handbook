@@ -54,9 +54,9 @@
 
 ### 7. The framework becomes code: async-ai-gateway
 
-**Host:** So walk me through the lab itself. You've got production_app and secure_app sitting side by side in async-ai-gateway — why not just one app with everything turned on?
+**Host:** So walk me through the lab itself. You've got production\_app and secure\_app sitting side by side in async-ai-gateway — why not just one app with everything turned on?
 
-**Guest:** Because collapsing them would bury the identity and quota layer inside every reliability example, and you'd never see it on its own. production_app gives you bounded concurrency, retries, deadlines, health-aware fallback — everything except who's asking. secure_app adds JWT-verified tenant identity and the Redis-backed limiter, and that limiter is the whole point: it's a single Lua script doing refill-and-consume atomically, because at capacity twenty with two replicas, a naive get-then-set lets both replicas think they have the full quota and you end up serving forty.
+**Guest:** Because collapsing them would bury the identity and quota layer inside every reliability example, and you'd never see it on its own. production\_app gives you bounded concurrency, retries, deadlines, health-aware fallback — everything except who's asking. secure\_app adds JWT-verified tenant identity and the Redis-backed limiter, and that limiter is the whole point: it's a single Lua script doing refill-and-consume atomically, because at capacity twenty with two replicas, a naive get-then-set lets both replicas think they have the full quota and you end up serving forty.
 
 **Host:** That's a great one to sit with — the atomic Lua script is exactly what stops the double-quota bug. Before we move on, keep two more tensions from that lab in your head, because we're about to hit them head-on: semaphores bound concurrency while token buckets bound arrival rate, and readiness is not liveness — conflating either pair is how a correct design still takes down a rolling deploy.
 

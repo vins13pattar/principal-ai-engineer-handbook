@@ -42,17 +42,17 @@
 
 **Host:** Okay, let's actually look at code, because I think 'state plus checkpoints plus conditional edges' is a bit abstract until you see it laid out. Walk me through the pieces.
 
-**Guest:** Sure. The state is a TypedDict with a messages list and a steps_taken counter, and messages is annotated with the add reducer, which we covered already. Then decide calls the model, appends its output, and increments steps_taken; execute_tool runs whatever was requested and appends the observation; and route decides where to go next based on that state.
+**Guest:** Sure. The state is a TypedDict with a messages list and a steps\_taken counter, and messages is annotated with the add reducer, which we covered already. Then decide calls the model, appends its output, and increments steps\_taken; execute\_tool runs whatever was requested and appends the observation; and route decides where to go next based on that state.
 
-**Host:** And that route function has a hard check — if steps_taken is eight or more, it ends the run — before it even looks at whether a tool was requested. That's just BoundedAgentLoop's runaway guard from Module 5, wearing a graph costume.
+**Host:** And that route function has a hard check — if steps\_taken is eight or more, it ends the run — before it even looks at whether a tool was requested. That's just BoundedAgentLoop's runaway guard from Module 5, wearing a graph costume.
 
 **Guest:** Exactly, and it matters because LangGraph has its own recursion limit as a backstop, but leaning on that instead of writing your own budget check is the same mistake as trusting the model to know when to stop — you're outsourcing a decision that should be explicit. Then you wire up the edges between nodes, including the conditional ones for routing, and the only new line is compiling the graph with a memory-based checkpointer — that one argument is what turns this from a plain function graph into something that persists state at every super-step.
 
-### 6. Human-in-the-loop in production: interrupt_before send_email
+### 6. Human-in-the-loop in production: interrupt\_before send\_email
 
-**Host:** Let's make that persistence mechanism concrete, because 'checkpointing enables human approval' is abstract until you see the actual gate. Walk me through interrupt_before on a send_email node.
+**Host:** Let's make that persistence mechanism concrete, because 'checkpointing enables human approval' is abstract until you see the actual gate. Walk me through interrupt\_before on a send\_email node.
 
-**Guest:** You compile the graph with interrupt_before equal to send_email, and now the run will pause immediately before that node fires, no matter what path got it there. When it hits that point, the checkpointer persists the full state — including the drafted email sitting in messages — and the run just stops and waits. A human looks at exactly what's persisted, exactly what would be sent and to whom, and either approves it, which resumes the run straight into send_email, or rejects it, which updates the state and routes elsewhere instead.
+**Guest:** You compile the graph with interrupt\_before equal to send\_email, and now the run will pause immediately before that node fires, no matter what path got it there. When it hits that point, the checkpointer persists the full state — including the drafted email sitting in messages — and the run just stops and waits. A human looks at exactly what's persisted, exactly what would be sent and to whom, and either approves it, which resumes the run straight into send\_email, or rejects it, which updates the state and routes elsewhere instead.
 
 **Host:** Does that same conditional-edge trick show up anywhere besides approval gates?
 
@@ -62,7 +62,7 @@
 
 **Host:** Okay, before we wrap, let's talk about how this actually breaks in practice, because I imagine the graph structure can hide bugs just as easily as it prevents them. What's the one that bites people first?
 
-**Guest:** The silent reducer bug. If you forget to attach an append reducer like add_messages to your messages field, a node's update overwrites the existing list instead of extending it — the agent just quietly loses its whole message history on the next step. And the nasty part is it's invisible in testing, because if you're running a single-node graph to check your prompt, there's nothing to overwrite yet, so it looks perfectly fine until you wire up the full loop.
+**Guest:** The silent reducer bug. If you forget to attach an append reducer like add\_messages to your messages field, a node's update overwrites the existing list instead of extending it — the agent just quietly loses its whole message history on the next step. And the nasty part is it's invisible in testing, because if you're running a single-node graph to check your prompt, there's nothing to overwrite yet, so it looks perfectly fine until you wire up the full loop.
 
 **Host:** That's the kind of bug that only shows up in production at the worst moment. What about the operational failure modes — you mentioned MemorySaver earlier as the toy version?
 
@@ -76,7 +76,7 @@
 
 **Host:** And the durable backend point from before — that's not optional once you're actually shipping this, right? Same as the rate limiter conversation from Module 2?
 
-**Guest:** Exactly the same shape — MemorySaver is fine for development, but production or anything long-running needs Postgres or similar underneath, and a thread paused for days waiting on human approval is precisely the case where 'in-memory is fine for now' stops being true even for low-traffic use cases. That's a new dependency and a new failure mode, not a free upgrade. And worth saying plainly: tool permission scoping and least privilege still apply exactly as in Module 5 — LangGraph changes how the loop is structured and gives interrupt_before as the concrete enforcement point for that approval-gate requirement, but it doesn't change what a tool is allowed to do, and the checkpointed state itself, since it can hold full conversation history and tool arguments, needs the same access control as any other datastore holding sensitive data.
+**Guest:** Exactly the same shape — MemorySaver is fine for development, but production or anything long-running needs Postgres or similar underneath, and a thread paused for days waiting on human approval is precisely the case where 'in-memory is fine for now' stops being true even for low-traffic use cases. That's a new dependency and a new failure mode, not a free upgrade. And worth saying plainly: tool permission scoping and least privilege still apply exactly as in Module 5 — LangGraph changes how the loop is structured and gives interrupt\_before as the concrete enforcement point for that approval-gate requirement, but it doesn't change what a tool is allowed to do, and the checkpointed state itself, since it can hold full conversation history and tool arguments, needs the same access control as any other datastore holding sensitive data.
 
 ### 9. Closing: what's next and how to prove it to yourself
 

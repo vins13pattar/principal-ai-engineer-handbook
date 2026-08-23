@@ -32,7 +32,7 @@
 
 **Host:** So we've got the mechanism, the canary as routing, the honest curve — what's the last piece? You mentioned something about the app itself being built differently than you'd expect.
 
-**Guest:** Right, create_app builds a fresh router and batchers every time you call it, instead of one shared instance for the whole process — because a DynamicBatcher can't restart once shutdown has run, same as a real batching worker once its background task dies. That's not theoretical: httpx's ASGITransport doesn't drive the lifespan protocol, so in early tests the batcher's background loop never started, and every request to infer just awaited a batch that nothing would ever flush. The suite didn't fail, it hung — which is its own lesson, that a missing lifespan doesn't throw an error, it just quietly starves you, and the fix was making the app a factory and making tests enter the lifespan explicitly rather than assuming it's there.
+**Guest:** Right, create\_app builds a fresh router and batchers every time you call it, instead of one shared instance for the whole process — because a DynamicBatcher can't restart once shutdown has run, same as a real batching worker once its background task dies. That's not theoretical: httpx's ASGITransport doesn't drive the lifespan protocol, so in early tests the batcher's background loop never started, and every request to infer just awaited a batch that nothing would ever flush. The suite didn't fail, it hung — which is its own lesson, that a missing lifespan doesn't throw an error, it just quietly starves you, and the fix was making the app a factory and making tests enter the lifespan explicitly rather than assuming it's there.
 
 ### Not covered
 

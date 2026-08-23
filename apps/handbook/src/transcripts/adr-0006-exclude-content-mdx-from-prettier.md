@@ -2,7 +2,7 @@
 
 **Host:** So we're digging into ADR-0006 today, and the setup is almost comic if it weren't so nasty: six pages across your Learn module — Modules 1, 2, 4, 5, 6, and 7 — had Python code examples that just silently stopped being valid Python. Not a crash, not a warning, just quietly broken. Walk me through what actually happened.
 
-**Guest:** Right, so these code examples weren't sitting at the top level of an MDX file — they were nested inside a custom JSX/MDX component we use for walkthroughs. Someone ran pnpm format, which runs Prettier across the repo, and Prettier rewrote several of these nested fences: it stripped indentation off lines that came after a blank line inside the fence, merged comments onto the previous line of code, and it backslash-escaped underscores and asterisks in identifiers like __init__ and self._admit because it treated them as Markdown emphasis syntax instead of code.
+**Guest:** Right, so these code examples weren't sitting at the top level of an MDX file — they were nested inside a custom JSX/MDX component we use for walkthroughs. Someone ran pnpm format, which runs Prettier across the repo, and Prettier rewrote several of these nested fences: it stripped indentation off lines that came after a blank line inside the fence, merged comments onto the previous line of code, and it backslash-escaped underscores and asterisks in identifiers like \_\_init\_\_ and self.\_admit because it treated them as Markdown emphasis syntax instead of code.
 
 **Host:** And none of that got caught anywhere in CI, which is the part that really stings — pnpm format and pnpm build ran fine, right through it.
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { renderTranscript } from "./transcript.ts";
+import { escapeMarkdown, renderTranscript } from "./transcript.ts";
 import type { DialogueScript } from "./dialogue.ts";
 import type { EpisodePlan } from "./schema.ts";
 
@@ -60,7 +60,31 @@ const meta = {
   audioSeconds: 1346.7,
 };
 
+describe("escapeMarkdown", () => {
+  it("keeps a dunder a dunder", () => {
+    // The defect this exists for: a guest explaining Python said `__del__` and
+    // the page rendered a bold "del".
+    expect(escapeMarkdown("__del__ runs at exit")).toBe("\\_\\_del\\_\\_ runs at exit");
+  });
+
+  it("escapes its own escape character first", () => {
+    expect(escapeMarkdown("a\\b")).toBe("a\\\\b");
+  });
+
+  it("leaves ordinary speech untouched", () => {
+    const spoken = "So it's not free though — where's the cost hiding?";
+    expect(escapeMarkdown(spoken)).toBe(spoken);
+  });
+});
+
 describe("renderTranscript", () => {
+  it("escapes formatting characters in what was spoken", () => {
+    const spoken = { turns: [{ speaker: "guest" as const, beat: 1, text: "__init__ and `x`" }] };
+    const text = renderTranscript(plan(), spoken, meta);
+
+    expect(text).toContain("**Guest:** \\_\\_init\\_\\_ and \\`x\\`");
+  });
+
   it("labels every turn so another provider can split by speaker", () => {
     // The one hard requirement of the format. ElevenLabs and Sarvam take plain
     // text per voice, so a script must be able to extract one speaker's lines

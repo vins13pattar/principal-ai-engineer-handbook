@@ -22,7 +22,7 @@
 
 **Host:** So before we walk through the seven requirements one by one, you said there are constraints nobody designs for on paper. What's the first one that trips teams up?
 
-**Guest:** Credential placement — and it's counterintuitive because the protocol makes every request self-describing, so putting the tenant token in per-request metadata feels right. But the SDK issues calls your application code never writes, like an internal tools/list to validate an output schema after call_tool, and that internal call has no way to carry your application's metadata. So a server authorizing on request metadata ends up rejecting its own client's internal call, and the only fix is putting the credential on the transport's Authorization header so it covers everything the transport carries, not just what your code explicitly sends.
+**Guest:** Credential placement — and it's counterintuitive because the protocol makes every request self-describing, so putting the tenant token in per-request metadata feels right. But the SDK issues calls your application code never writes, like an internal tools/list to validate an output schema after call\_tool, and that internal call has no way to carry your application's metadata. So a server authorizing on request metadata ends up rejecting its own client's internal call, and the only fix is putting the credential on the transport's Authorization header so it covers everything the transport carries, not just what your code explicitly sends.
 
 **Host:** That's a rough one to discover in production. What about the other constraints — discovery, filtering, and registration?
 

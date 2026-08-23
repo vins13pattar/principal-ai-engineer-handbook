@@ -32,7 +32,7 @@
 
 **Host:** Let's go through the traps in the order they actually bite people. What's number one, the thing that shows up before anyone even gets to concurrency logic?
 
-**Guest:** Blocking the event loop. A time.sleep, a synchronous HTTP client, requests, a CPU-heavy loop dropped inside an async def — it freezes every coroutine sharing that loop, not just the slow one. Interviewers plant this on purpose, sometimes hand you code that already has it, and the fix is loop.run_in_executor or a separate process, never inline.
+**Guest:** Blocking the event loop. A time.sleep, a synchronous HTTP client, requests, a CPU-heavy loop dropped inside an async def — it freezes every coroutine sharing that loop, not just the slow one. Interviewers plant this on purpose, sometimes hand you code that already has it, and the fix is loop.run\_in\_executor or a separate process, never inline.
 
 **Host:** And once someone's past that, where's the next one waiting?
 

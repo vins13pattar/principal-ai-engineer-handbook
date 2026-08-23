@@ -8,11 +8,11 @@
 
 **Host:** Okay, so say you just point the same repo at Workers Builds and don't touch anything else. Walk me through what actually breaks.
 
-**Guest:** Three things, and none of them throw an obvious error at you. First, wrangler deploy just refuses outright, because the config still has pages_build_output_dir in it, which marks the project as Pages, and the Workers deploy command isn't valid against that. Second, even if you strip that out, bare wrangler deploy at the root of a pnpm workspace flat out declines to run — it says application detection has been run at the root of a workspace instead of targeting a specific project, because it won't guess which package you mean, and that's a monorepo-specific failure you won't find in a single-package tutorial.
+**Guest:** Three things, and none of them throw an obvious error at you. First, wrangler deploy just refuses outright, because the config still has pages\_build\_output\_dir in it, which marks the project as Pages, and the Workers deploy command isn't valid against that. Second, even if you strip that out, bare wrangler deploy at the root of a pnpm workspace flat out declines to run — it says application detection has been run at the root of a workspace instead of targeting a specific project, because it won't guess which package you mean, and that's a monorepo-specific failure you won't find in a single-package tutorial.
 
 **Host:** And the third one — that's the one that doesn't even fail, right? It just quietly does the wrong thing.
 
-**Guest:** Exactly, and it's the worst of the three. CF_PAGES_URL simply doesn't exist on Workers Builds, it's a Pages-only variable, but the site config was reading it to derive the canonical site URL. So on Workers it silently falls through to the hard-coded fallback, the build goes green, the site renders fine to a human — and every one of the fifty pages plus every entry in sitemap-0.xml gets stamped with the wrong canonical URL.
+**Guest:** Exactly, and it's the worst of the three. CF\_PAGES\_URL simply doesn't exist on Workers Builds, it's a Pages-only variable, but the site config was reading it to derive the canonical site URL. So on Workers it silently falls through to the hard-coded fallback, the build goes green, the site renders fine to a human — and every one of the fifty pages plus every entry in sitemap-0.xml gets stamped with the wrong canonical URL.
 
 ### 3. Weighing the way out: legacy flow, split repo, or static-assets Worker
 
@@ -28,7 +28,7 @@
 
 **Host:** So walk me through what actually landed. It's an assets block pointing at the dist folder, no main entry point, and a deploy command that names the config file explicitly — why does that last part matter so much?
 
-**Guest:** Because without naming wrangler.toml, the CLI tries to auto-detect a workspace and gets confused inside a monorepo, and it only breaks here, which is exactly the kind of failure someone simplifies away without noticing. That's why the explanation lives in the config file itself, right next to the flag, instead of in an ADR nobody rereads. Same logic applies to SITE_URL — we set it explicitly now instead of trusting CF_PAGES_URL to be there, because a silent absence is fine but a silently wrong value isn't.
+**Guest:** Because without naming wrangler.toml, the CLI tries to auto-detect a workspace and gets confused inside a monorepo, and it only breaks here, which is exactly the kind of failure someone simplifies away without noticing. That's why the explanation lives in the config file itself, right next to the flag, instead of in an ADR nobody rereads. Same logic applies to SITE\_URL — we set it explicitly now instead of trusting CF\_PAGES\_URL to be there, because a silent absence is fine but a silently wrong value isn't.
 
 **Host:** And the tradeoffs ride along with it — preview URLs look different now, but you've bought yourself an easier path if real server logic ever shows up, and CI still can't confirm any of this actually worked, only that it built. That last part feels like the honest ending to this whole story: the config can be right and you still have to go look. Which is exactly why that post-deploy checklist exists.
 

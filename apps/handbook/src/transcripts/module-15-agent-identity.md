@@ -38,11 +38,11 @@
 
 **Host:** So OBO is out because the assumptions don't hold anymore. What actually replaces it — what does an agent get instead when it needs to call a downstream server?
 
-**Guest:** A distinct grant type, RFC 8693 token exchange. The client hands over the user's token as a subject_token, optionally an actor_token identifying the agent itself, and asks for something scoped to one specific resource. What comes back still has the user as subject, but the audience, scope, and lifetime are all narrowed to that one hop.
+**Guest:** A distinct grant type, RFC 8693 token exchange. The client hands over the user's token as a subject\_token, optionally an actor\_token identifying the agent itself, and asks for something scoped to one specific resource. What comes back still has the user as subject, but the audience, scope, and lifetime are all narrowed to that one hop.
 
 **Host:** Narrowed audience solves the blast-radius problem, but does it solve attribution? If something goes wrong at 3am, how do you tell an agent's decision apart from the user actually clicking something?
 
-**Guest:** That's what the act claim is for. It records that delegation happened and names the actor that's exercising the authority, so the log shows the user underneath and the agent on top, not one blurred identity. There's a companion, may_act, sitting in the user's own token, listing which actors are even allowed to act for them — checked at exchange time, not discovered after the fact when something's already gone wrong.
+**Guest:** That's what the act claim is for. It records that delegation happened and names the actor that's exercising the authority, so the log shows the user underneath and the agent on top, not one blurred identity. There's a companion, may\_act, sitting in the user's own token, listing which actors are even allowed to act for them — checked at exchange time, not discovered after the fact when something's already gone wrong.
 
 **Host:** And the resource side — how does the authorization server know which server this narrowed token is even supposed to be good for?
 

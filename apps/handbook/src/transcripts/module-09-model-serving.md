@@ -48,7 +48,7 @@
 
 **Host:** Okay, let's make this concrete, because I think people nod along to 'admission control' without picturing what actually runs. Walk me through what happens when this scheduler's step function fires on a single tick.
 
-**Guest:** Sure. First it looks at the queue and asks, for each waiting request in order, would admitting this one push total tokens in flight over the KV budget? If yes, it stops right there — it doesn't skip ahead to a smaller request behind it, so ordering matters. If a request fits, it moves from queue into in_flight and that same tick it gets its one prefill pass, which just flips a flag and does nothing else that tick, before it starts decoding.
+**Guest:** Sure. First it looks at the queue and asks, for each waiting request in order, would admitting this one push total tokens in flight over the KV budget? If yes, it stops right there — it doesn't skip ahead to a smaller request behind it, so ordering matters. If a request fits, it moves from queue into in\_flight and that same tick it gets its one prefill pass, which just flips a flag and does nothing else that tick, before it starts decoding.
 
 **Host:** And that's the part that surprised me — prefill is its own tick, separate from decode, even though it's the same loop. Then eviction is just as blunt: hit your max tokens, you're deleted and your budget's back on the table.
 

@@ -33,4 +33,4 @@
 The planner wanted these and found nothing in the source to support them:
 
 - A deep dive into the Astro/Starlight framework choice itself (ADR-0001) beyond the base-path trade-off it documents
-- Full walkthrough of ADR-0007's three Workers Builds breakages (Pages config rejection, monorepo auto-detection failure, missing CF_PAGES_URL) since the episode is scoped to ADR-0005's own reasoning
+- Full walkthrough of ADR-0007's three Workers Builds breakages (Pages config rejection, monorepo auto-detection failure, missing CF\_PAGES\_URL) since the episode is scoped to ADR-0005's own reasoning

@@ -50,15 +50,15 @@
 
 **Host:** Okay, so let's get concrete about what actually got ripped out. Before, you connect, you do this initialize and initialized handshake, the server learns who you are and what you support, and that sets up a session. What replaces that?
 
-**Guest:** Nothing replaces the handshake, in the sense that there isn't one anymore. There's no initialize, no initialized, no protocol-level session sitting on the connection. Instead, three pieces of information that used to travel once — protocol version, client info, client capabilities — now ride in a _meta block on every single request.
+**Guest:** Nothing replaces the handshake, in the sense that there isn't one anymore. There's no initialize, no initialized, no protocol-level session sitting on the connection. Instead, three pieces of information that used to travel once — protocol version, client info, client capabilities — now ride in a \_meta block on every single request.
 
 **Host:** Every request. So if I'm the server, I'm re-learning who's talking to me on every call instead of once at the start.
 
-**Guest:** Right, and if you want the server's capabilities up front the way you used to get them for free from the handshake response, you ask explicitly — there's a server/discover call for that now. I actually checked this against the official Python SDK rather than just taking the spec's word for it, and it's exactly as described: a modern connection issues zero initialize calls, the first thing on the wire is server/discover, and the three _meta keys are literally namespaced as io.modelcontextprotocol/protocolVersion, clientInfo, and clientCapabilities.
+**Guest:** Right, and if you want the server's capabilities up front the way you used to get them for free from the handshake response, you ask explicitly — there's a server/discover call for that now. I actually checked this against the official Python SDK rather than just taking the spec's word for it, and it's exactly as described: a modern connection issues zero initialize calls, the first thing on the wire is server/discover, and the three \_meta keys are literally namespaced as io.modelcontextprotocol/protocolVersion, clientInfo, and clientCapabilities.
 
 **Host:** And that SDK only speaks the new revision, or does it still know the old handshake?
 
-**Guest:** It keeps 2026-07-28 as the one modern version, but 2024-11-05 through 2025-11-25 are retained as legacy handshake versions — so old clients aren't stranded, they just get routed down a different, older code path. But for anything built fresh, the handshake is just gone, and that per-request _meta plus server/discover is the whole replacement.
+**Guest:** It keeps 2026-07-28 as the one modern version, but 2024-11-05 through 2025-11-25 are retained as legacy handshake versions — so old clients aren't stranded, they just get routed down a different, older code path. But for anything built fresh, the handshake is just gone, and that per-request \_meta plus server/discover is the whole replacement.
 
 ### 6. Routing headers and multi-round-trip requests
 
@@ -68,7 +68,7 @@
 
 **Host:** That sounds efficient, but also like an obvious place to lie — put one thing in the header and something else in the body.
 
-**Guest:** Exactly the gap, and the spec closes it explicitly: servers must reject any request where the header and body disagree. If that check is missing, a caller can route as a cheap, permitted operation while the body actually executes something expensive or restricted — and a hand-rolled server is exactly where that check gets skipped. There's a related seam in SEP-2322 for calls that need more than one round trip — a tool returns input_required with a requestState string, the client gathers input and echoes it back, and the server resumes from there.
+**Guest:** Exactly the gap, and the spec closes it explicitly: servers must reject any request where the header and body disagree. If that check is missing, a caller can route as a cheap, permitted operation while the body actually executes something expensive or restricted — and a hand-rolled server is exactly where that check gets skipped. There's a related seam in SEP-2322 for calls that need more than one round trip — a tool returns input\_required with a requestState string, the client gathers input and echoes it back, and the server resumes from there.
 
 **Host:** So the protocol stopped holding session state, but that state didn't disappear — it just moved into a token the client is now responsible for carrying.
 
@@ -98,7 +98,7 @@
 
 **Host:** Let's ground this in something concrete. Walk me through an actual coding task where a host is talking to two servers at once.
 
-**Guest:** Say you're in an IDE working on a bug fix. The IDE host is connected to a filesystem server that exposes your project as resources, and a remote GitHub server that exposes tools like create_pull_request and search_issues. You attach a specific file as context — that's a resource, so you or the host chose it, not the model — the model reads it, understands the bug, then once it has a fix, it decides on its own to call create_pull_request. Resource in, tool call out, two different servers, two different trust boundaries, exactly like we've been describing.
+**Guest:** Say you're in an IDE working on a bug fix. The IDE host is connected to a filesystem server that exposes your project as resources, and a remote GitHub server that exposes tools like create\_pull\_request and search\_issues. You attach a specific file as context — that's a resource, so you or the host chose it, not the model — the model reads it, understands the bug, then once it has a fix, it decides on its own to call create\_pull\_request. Resource in, tool call out, two different servers, two different trust boundaries, exactly like we've been describing.
 
 **Host:** So that's the workflow. Now what does statelessness actually buy the team running that GitHub server?
 
@@ -152,4 +152,4 @@
 
 **Host:** So the takeaway isn't 'stateless is simpler,' it's 'stateless relocates the state, and now you have to know exactly where it landed.'
 
-**Guest:** That's the whole skill. The session store didn't disappear, it moved into the client's _meta and requestState; the tenant boundary didn't disappear, it moved into per-request checks instead of per-connection ones. Anyone can recite that MCP went stateless — the engineer worth listening to can point at each piece of state and tell you exactly where it lives now.
+**Guest:** That's the whole skill. The session store didn't disappear, it moved into the client's \_meta and requestState; the tenant boundary didn't disappear, it moved into per-request checks instead of per-connection ones. Anyone can recite that MCP went stateless — the engineer worth listening to can point at each piece of state and tell you exactly where it lives now.

@@ -50,7 +50,7 @@
 
 **Host:** Let's make this concrete with actual code, because I think the two guards you described — the step budget and the permission check — sound abstract until you see where they live. Walk me through this BoundedAgentLoop.
 
-**Guest:** Sure. The run method loops up to max_steps times, calling decide with the observations so far, and if the model returns a final answer, you're done. But look at what happens on a tool call — it goes to an execute step, and every single failure path in there, an unknown tool name, a permission denial, a tool that literally throws an exception, all of them return a string observation instead of raising. Nothing crashes the loop.
+**Guest:** Sure. The run method loops up to max\_steps times, calling decide with the observations so far, and if the model returns a final answer, you're done. But look at what happens on a tool call — it goes to an execute step, and every single failure path in there, an unknown tool name, a permission denial, a tool that literally throws an exception, all of them return a string observation instead of raising. Nothing crashes the loop.
 
 **Host:** So a tool blowing up doesn't end the task, it just becomes another line of text the model reads on the next step. That's a deliberate design choice, not just error handling for its own sake.
 
@@ -60,11 +60,11 @@
 
 **Host:** Let's walk through an actual ticket so this stops being abstract. What does one clean iteration look like end to end?
 
-**Guest:** The model gets a ticket with some error message, decides to call search_kb with that error text, and the tool comes back with three matching articles as the observation. Now the model has real context, so on the next step it calls draft_reply, pointing at one of those articles as the source. Two tool calls, each result fed back in before the next decision — nothing exotic, just the loop doing its job.
+**Guest:** The model gets a ticket with some error message, decides to call search\_kb with that error text, and the tool comes back with three matching articles as the observation. Now the model has real context, so on the next step it calls draft\_reply, pointing at one of those articles as the source. Two tool calls, each result fed back in before the next decision — nothing exotic, just the loop doing its job.
 
-**Host:** Okay, now break it. What happens when draft_reply actually fails?
+**Host:** Okay, now break it. What happens when draft\_reply actually fails?
 
-**Guest:** Say the templating service is down and draft_reply raises. That exception doesn't crash the task, it just becomes another observation — literally a string saying the tool failed and why — and the model sees that like it sees any other result. It might retry, it might escalate to a human tool instead, or it might burn through its step budget without resolving anything, and at that point the loop's own fallback fires: incomplete, step budget exhausted, handing off to a human. That's the whole point of the guard — a graceful, informative stop instead of a silent hang or the model hammering the same broken call forever.
+**Guest:** Say the templating service is down and draft\_reply raises. That exception doesn't crash the task, it just becomes another observation — literally a string saying the tool failed and why — and the model sees that like it sees any other result. It might retry, it might escalate to a human tool instead, or it might burn through its step budget without resolving anything, and at that point the loop's own fallback fires: incomplete, step budget exhausted, handing off to a human. That's the whole point of the guard — a graceful, informative stop instead of a silent hang or the model hammering the same broken call forever.
 
 ### 9. Where Agents Actually Break
 

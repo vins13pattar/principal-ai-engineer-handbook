@@ -52,7 +52,7 @@
 
 **Host:** So the fix isn't a permissions check somewhere in the application layer that a developer has to remember to call. It's structural.
 
-**Guest:** Exactly — in the implementation we walk through, tenant_id is a required parameter on the vector index's search method itself, not an optional filter tacked on afterward. That means forgetting to scope a query by tenant isn't a bug someone has to catch in code review, it's a type error that fails before the code even runs — the query can't compile without saying whose data it's allowed to touch.
+**Guest:** Exactly — in the implementation we walk through, tenant\_id is a required parameter on the vector index's search method itself, not an optional filter tacked on afterward. That means forgetting to scope a query by tenant isn't a bug someone has to catch in code review, it's a type error that fails before the code even runs — the query can't compile without saying whose data it's allowed to touch.
 
 ### 7. When retrieval quietly breaks: confident wrong answers and silent embedding drift
 

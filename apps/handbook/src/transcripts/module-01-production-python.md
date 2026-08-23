@@ -34,19 +34,19 @@
 
 **Guest:** Exactly. gather() will happily keep awaiting the remaining tasks even after one of them blows up, so you get a silent straggler. TaskGroup ties tasks to a lifecycle scope — first failure cancels its siblings predictably, and that cancellation isn't an error state, it's just CancelledError propagating through every await point, which your finally blocks should clean up after and then re-raise, never swallow.
 
-### 5. Reading the real code: _admit, generate, and the circuit breaker
+### 5. Reading the real code: \_admit, generate, and the circuit breaker
 
-**Host:** Let's ground this in the actual code, because _admit is doing something a lot of people get backwards. Walk me through the order of operations there.
+**Host:** Let's ground this in the actual code, because \_admit is doing something a lot of people get backwards. Walk me through the order of operations there.
 
-**Guest:** We actually walked through that ordering and the wait_for timeout behavior in the earlier segment on the gateway's admission-and-execution path, so I won't retread it here — same logic applies in _admit.
+**Guest:** We actually walked through that ordering and the wait\_for timeout behavior in the earlier segment on the gateway's admission-and-execution path, so I won't retread it here — same logic applies in \_admit.
 
-**Host:** And then inside generate, there's this branch where a pinned provider_name skips the whole retry loop. That feels like it'd be tempting to 'fix' by just retrying anyway.
+**Host:** And then inside generate, there's this branch where a pinned provider\_name skips the whole retry loop. That feels like it'd be tempting to 'fix' by just retrying anyway.
 
 **Guest:** Tempting and wrong. If a caller explicitly asked for provider X, silently retrying into a fallback and returning a response from provider Y is a correctness bug wearing a resilience costume — they'd get an answer, just not the one they thought they were getting. So a pinned request gets one shot and an honest, fast failure. Everyone else gets the jittered backoff, base times two to the attempt minus one, randomized so concurrent retries don't all slam the provider on the same beat — and that whole per-request loop lives inside asyncio.timeout, so retries can't quietly outlive the deadline.
 
 **Host:** That backoff protects one provider from one client's retries. What stops every client's retries from hammering a provider that's already down?
 
-**Guest:** That's the circuit breaker, and the clever bit is the state property is computed, not stored. When it's OPEN it checks time.monotonic() minus when it opened against the recovery timeout, and if enough time's passed it just reports HALF_OPEN on that read — no background task, no timer thread, nothing to leak or forget to cancel. HALF_OPEN then lets exactly one probe through, gated by a lock, so you test whether the provider's healthy again without every waiting caller piling onto it the instant the window opens.
+**Guest:** That's the circuit breaker, and the clever bit is the state property is computed, not stored. When it's OPEN it checks time.monotonic() minus when it opened against the recovery timeout, and if enough time's passed it just reports HALF\_OPEN on that read — no background task, no timer thread, nothing to leak or forget to cancel. HALF\_OPEN then lets exactly one probe through, gated by a lock, so you test whether the provider's healthy again without every waiting caller piling onto it the instant the window opens.
 
 ### 6. Draining without dropping requests on deploy
 
@@ -62,15 +62,15 @@
 
 **Host:** Okay, so we've built all this careful machinery — timeouts, draining, the breaker. Where does it actually break in practice? What's the first failure mode you see in real deployments?
 
-**Guest:** The classic one is a blocking call hiding inside an async function — a synchronous HTTP client, a file read, some CPU-heavy parsing loop. That doesn't just slow down its own request, it freezes the entire event loop, so every other coroutine sharing that loop stalls too. The fix is boring but non-negotiable: blocking work goes through run_in_executor or a separate process, never inline.
+**Guest:** The classic one is a blocking call hiding inside an async function — a synchronous HTTP client, a file read, some CPU-heavy parsing loop. That doesn't just slow down its own request, it freezes the entire event loop, so every other coroutine sharing that loop stalls too. The fix is boring but non-negotiable: blocking work goes through run\_in\_executor or a separate process, never inline.
 
 **Host:** And that semaphore we talked about for admission control — I assume people find ways around it without meaning to?
 
-**Guest:** Constantly. Someone calls asyncio dot gather over a big unbounded list of coroutines, and if those tasks aren't each individually going through _admit, you've just bypassed the semaphore entirely and blown through your connection limits and provider quotas in one shot. Same family of bug as a leaked semaphore acquire with no release on some exit path — works fine in testing, then hours later under real load you get connection exhaustion and a shutdown that behaves nothing like you expect. And separately, synchronized retries without jitter turn a blip into an outage, which is why gateway.py uses random.uniform backoff and trips the circuit breaker instead of just hammering a struggling provider harder — and why your dashboard can lie to you: p50 looks fine while p99 and queue-wait time are quietly climbing, so you have to track those, and saturation and cancellations, as first-class numbers, not averages.
+**Guest:** Constantly. Someone calls asyncio dot gather over a big unbounded list of coroutines, and if those tasks aren't each individually going through \_admit, you've just bypassed the semaphore entirely and blown through your connection limits and provider quotas in one shot. Same family of bug as a leaked semaphore acquire with no release on some exit path — works fine in testing, then hours later under real load you get connection exhaustion and a shutdown that behaves nothing like you expect. And separately, synchronized retries without jitter turn a blip into an outage, which is why gateway.py uses random.uniform backoff and trips the circuit breaker instead of just hammering a struggling provider harder — and why your dashboard can lie to you: p50 looks fine while p99 and queue-wait time are quietly climbing, so you have to track those, and saturation and cancellations, as first-class numbers, not averages.
 
 ### 8. Trade-offs: there is no universally correct default
 
-**Host:** Let's talk about the rate limiter, because I noticed TenantRateLimiter in rate_limit.py is just an in-process token bucket. That feels like it'd fall apart the second you run more than one replica.
+**Host:** Let's talk about the rate limiter, because I noticed TenantRateLimiter in rate\_limit.py is just an in-process token bucket. That feels like it'd fall apart the second you run more than one replica.
 
 **Guest:** It does, and that's the point worth internalizing: it's correct and fast for exactly the lab's single-process setup, and wrong the moment you scale out, because each replica enforces the quota independently — a tenant effectively gets a multiple of their real limit proportional to the number of replicas running. The lab actually includes the fix too, a Redis-backed limiter that does an atomic refill-and-consume in one Lua script, but that trades the correctness problem for a new dependency and a new failure mode: what does enforcement even mean when Redis itself is unavailable. Neither one is strictly better, the in-process version is just the right default until you actually have more than one replica, and you swap it out when reality demands it, not before.
 
@@ -82,7 +82,7 @@
 
 **Host:** Let's talk security, because a gateway is basically a funnel for external input, and Python has a few loaded guns lying around that 'quick script' habits leave lying around too. Where do you even start — the code, or something more boring than that?
 
-**Guest:** Boring first, always — dependency supply chain. A lockfile, uv.lock or poetry.lock, with a CI step that actually verifies it rather than just running pip install with no pins, because an unpinned transitive dependency is how someone else's compromised package becomes your RCE. Then secrets: never in code or committed config, always injected at runtime from env vars or a secrets manager — the lab's SECURITY_AND_RUNTIME doc shows exactly how the JWT secret is handled that way. From there it's Pydantic models validating every request body at the boundary instead of manual dict parsing, so garbage gets rejected before it touches business logic; never pickle untrusted input or run eval or exec anywhere near user data, both are classic RCE traps that sneak in through 'quick' scripts; and lock down outbound HTTP so a caller can't steer which upstream URL you call, directly or through a redirect, or your gateway becomes a free port scanner into your own internal network.
+**Guest:** Boring first, always — dependency supply chain. A lockfile, uv.lock or poetry.lock, with a CI step that actually verifies it rather than just running pip install with no pins, because an unpinned transitive dependency is how someone else's compromised package becomes your RCE. Then secrets: never in code or committed config, always injected at runtime from env vars or a secrets manager — the lab's SECURITY\_AND\_RUNTIME doc shows exactly how the JWT secret is handled that way. From there it's Pydantic models validating every request body at the boundary instead of manual dict parsing, so garbage gets rejected before it touches business logic; never pickle untrusted input or run eval or exec anywhere near user data, both are classic RCE traps that sneak in through 'quick' scripts; and lock down outbound HTTP so a caller can't steer which upstream URL you call, directly or through a redirect, or your gateway becomes a free port scanner into your own internal network.
 
 ### 10. Profiling, pooling, uvloop, and scaling on the right signals
 
@@ -98,7 +98,7 @@
 
 **Host:** Let's do a quick lightning round, because these are the exact questions that come up when someone's screening for this kind of role. First one: why does time.sleep in an async handler bring everything down, not just that one request?
 
-**Guest:** That one we already covered, so let's jump to the follow-ups, since they travel together: semaphore versus token bucket is 'in-flight work' versus 'arrival rate' — a semaphore of 32 with no rate limiter still queues a burst of a thousand requests instead of rejecting any; TaskGroup over gather when one failure should cancel its siblings, gather with return_exceptions only when you're deliberately inspecting partial results; and shutdown follows that same sequence we already walked through, with an explicit signal that draining actually finished rather than a silent kill.
+**Guest:** That one we already covered, so let's jump to the follow-ups, since they travel together: semaphore versus token bucket is 'in-flight work' versus 'arrival rate' — a semaphore of 32 with no rate limiter still queues a burst of a thousand requests instead of rejecting any; TaskGroup over gather when one failure should cancel its siblings, gather with return\_exceptions only when you're deliberately inspecting partial results; and shutdown follows that same sequence we already walked through, with an explicit signal that draining actually finished rather than a silent kill.
 
 **Host:** That last one is basically the DrainManager we already read. So if someone wants to internalize all of this instead of just reciting it back in an interview, what's the actual hands-on move?
 
@@ -106,17 +106,17 @@
 
 ### 12. Inside the lab: running it, the CI job that tested nothing, and principal-level questions
 
-**Host:** So let's get concrete about the lab itself. There are two entry points in there, production_app and secure_app — walk me through why you'd split them instead of just shipping one gateway.
+**Host:** So let's get concrete about the lab itself. There are two entry points in there, production\_app and secure\_app — walk me through why you'd split them instead of just shipping one gateway.
 
-**Guest:** production_app has everything we've talked about — bounded concurrency, deadlines, retries with jitter, health-aware fallback, RED metrics. secure_app layers JWT-verified tenant identity, tier-based policy, and a Redis-backed distributed rate limiter on top of that. We kept them separate so the identity and quota layer is legible on its own, but if you're deploying this for real, you collapse them into one app with security always on — secure_app is the one to read as the reference.
+**Guest:** production\_app has everything we've talked about — bounded concurrency, deadlines, retries with jitter, health-aware fallback, RED metrics. secure\_app layers JWT-verified tenant identity, tier-based policy, and a Redis-backed distributed rate limiter on top of that. We kept them separate so the identity and quota layer is legible on its own, but if you're deploying this for real, you collapse them into one app with security always on — secure\_app is the one to read as the reference.
 
 **Host:** You clone it, stand up the venv, run docker compose for the full stack with Redis and the collector, and then pytest, ruff, mypy. That's the standard loop. But you told me there's a story about a CI job that was green for the wrong reason — what happened there?
 
-**Guest:** The Redis integration job spun up a service container and then ran pytest -k redis, but the only tests matching that filter were backed by a FakeRedis stub — canned answers, no socket ever opened. The container sat there untouched; the job was green whether or not Redis existed, including if it had never started. The fix was a real test that fires two limiter instances at one Redis, capacity times two acquires concurrently, and checks that exactly capacity succeeds — swap the atomic Lua script for a naive get-then-set and 40 of 40 get through instead of 20, so the test actually measures the atomicity claim instead of restating it. The quieter part of the fix is REDIS_INTEGRATION_REQUIRED — under that flag a missing REDIS_URL fails the job instead of skipping it, because a skip doesn't turn a build red, and CI is set on every job including the broken one.
+**Guest:** The Redis integration job spun up a service container and then ran pytest -k redis, but the only tests matching that filter were backed by a FakeRedis stub — canned answers, no socket ever opened. The container sat there untouched; the job was green whether or not Redis existed, including if it had never started. The fix was a real test that fires two limiter instances at one Redis, capacity times two acquires concurrently, and checks that exactly capacity succeeds — swap the atomic Lua script for a naive get-then-set and 40 of 40 get through instead of 20, so the test actually measures the atomicity claim instead of restating it. The quieter part of the fix is REDIS\_INTEGRATION\_REQUIRED — under that flag a missing REDIS\_URL fails the job instead of skipping it, because a skip doesn't turn a build red, and CI is set on every job including the broken one.
 
 **Host:** That's a good note to end on — a green checkmark isn't proof of anything by itself. Last thing: if someone wants to go from this episode to sounding principal-level in an interview, what do they walk through?
 
-**Guest:** We've already covered the five things that matter here — the concurrency-versus-rate-limiting split, the atomic quota mutation, the health-routing feedback loop, the streaming fallback problem, and readiness versus liveness during a rolling deploy. Clone the lab, read PRODUCTION_READINESS.md against it, and treat every unchecked box as a gap you now know how to name.
+**Guest:** We've already covered the five things that matter here — the concurrency-versus-rate-limiting split, the atomic quota mutation, the health-routing feedback loop, the streaming fallback problem, and readiness versus liveness during a rolling deploy. Clone the lab, read PRODUCTION\_READINESS.md against it, and treat every unchecked box as a gap you now know how to name.
 
 ### Not covered
 

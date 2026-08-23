@@ -57,16 +57,7 @@ afconvert -f m4af -d aac -b 32000 "$source_wav" "$out"
 seconds=$(afinfo "$out" | awk '/estimated duration/ { printf "%.0f", $3 }')
 printf -v runtime '%d:%02d' $((seconds / 60)) $((seconds % 60))
 
-# The page copy drops the transcript's own header -- the player states all of it
-# already -- and demotes headings one level so the page keeps a single H1 and
-# its own outline.
-awk '
-  /^---$/ && !body { body = 1; next }        # skip everything down to the first rule
-  !body { next }
-  /^---$/ { next }                            # beat separators; the headings already separate
-  /^## / { sub(/^## /, "### ") }
-  { print }
-' "$source_md" | awk 'NF || prev { print; prev = NF }' > "$transcript_out"
+"$(dirname "$0")/page-transcript.sh" "$source_md" "$transcript_out"
 
 if [ "$upload" -eq 1 ]; then
   npx wrangler r2 object put "handbook-podcast/$slug.m4a" \
