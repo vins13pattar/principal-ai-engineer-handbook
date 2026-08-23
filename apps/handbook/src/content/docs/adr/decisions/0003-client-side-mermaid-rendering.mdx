@@ -15,7 +15,20 @@ adrNumber: 3
 adrStatus: accepted
 ---
 
-import { ADRSummary } from "@handbook/components";
+import {
+  ADRSummary,
+  EpisodePlayer,
+} from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/adr-0003-client-side-mermaid-rendering.md";
+
+<EpisodePlayer
+  file="adr-0003-client-side-mermaid-rendering.m4a"
+  duration="3:13"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 <ADRSummary adrNumber={3} status="accepted" date={new Date("2026-08-04")} />
 

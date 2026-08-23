@@ -86,10 +86,26 @@ for entry in "${queue[@]}"; do
 
   if ! out=$(node --env-file="$env_file" --experimental-strip-types \
       packages/podcast-engine/src/cli.ts create "$document_id" --run 2>&1); then
-    echo "  generate failed:" >&2
-    echo "$out" | tail -4 >&2
-    fail_streak=$((fail_streak + 1))
-    continue
+    # A dropped connection is not a bad page. Two evenings running, the laptop
+    # lost its network mid-series and the breaker read it as systemic -- which
+    # it was, but it healed on its own in minutes. Wait it out once before
+    # spending a strike on it.
+    if echo "$out" | grep -qE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed'; then
+      echo "  network dropped; waiting 120s and trying this page once more" >&2
+      sleep 120
+      out=$(node --env-file="$env_file" --experimental-strip-types \
+        packages/podcast-engine/src/cli.ts create "$document_id" --run 2>&1) || {
+        echo "  generate failed:" >&2
+        echo "$out" | tail -4 >&2
+        fail_streak=$((fail_streak + 1))
+        continue
+      }
+    else
+      echo "  generate failed:" >&2
+      echo "$out" | tail -4 >&2
+      fail_streak=$((fail_streak + 1))
+      continue
+    fi
   fi
 
   # Everything after "wrote ", not field 2: this repository lives under a path
@@ -106,11 +122,25 @@ for entry in "${queue[@]}"; do
     continue
   fi
 
+  # The upload gets the same grace as generation. When the network went, wrangler
+  # could not refresh its token and reported it as a missing CLOUDFLARE_API_TOKEN
+  # -- an authentication message for what was really a dead connection.
   if ! published=$(./scripts/publish-episode.sh "$run_dir" "$slug" 2>&1); then
-    echo "  publish failed:" >&2
-    echo "$published" | tail -4 >&2
-    fail_streak=$((fail_streak + 1))
-    continue
+    if echo "$published" | grep -qE 'ENOTFOUND|EAI_AGAIN|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|CLOUDFLARE_API_TOKEN'; then
+      echo "  upload failed; waiting 120s and trying once more" >&2
+      sleep 120
+      published=$(./scripts/publish-episode.sh "$run_dir" "$slug" 2>&1) || {
+        echo "  publish failed:" >&2
+        echo "$published" | tail -4 >&2
+        fail_streak=$((fail_streak + 1))
+        continue
+      }
+    else
+      echo "  publish failed:" >&2
+      echo "$published" | tail -4 >&2
+      fail_streak=$((fail_streak + 1))
+      continue
+    fi
   fi
 
   # Anchored, and stops at the first hit: publish-episode prints "duration" twice

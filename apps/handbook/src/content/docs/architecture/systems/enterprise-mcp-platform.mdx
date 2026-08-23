@@ -19,9 +19,27 @@ maturity: reference
 relatedAdrs: []
 ---
 
-import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff, Warning } from "@handbook/components";
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import requestPath from "../../build/labs/multi-tenant-mcp-server.request-path.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-enterprise-mcp-platform.md";
+
+<EpisodePlayer
+  file="architecture-enterprise-mcp-platform.m4a"
+  duration="16:10"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

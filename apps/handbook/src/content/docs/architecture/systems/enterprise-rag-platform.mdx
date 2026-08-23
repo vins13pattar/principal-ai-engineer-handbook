@@ -20,9 +20,26 @@ maturity: reference
 relatedAdrs: []
 ---
 
-import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+} from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import retrievalPipeline from "../../build/labs/hybrid-retrieval.retrieval-pipeline.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-enterprise-rag-platform.md";
+
+<EpisodePlayer
+  file="architecture-enterprise-rag-platform.m4a"
+  duration="16:40"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

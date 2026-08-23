@@ -15,7 +15,20 @@ adrNumber: 7
 adrStatus: accepted
 ---
 
-import { ADRSummary } from "@handbook/components";
+import {
+  ADRSummary,
+  EpisodePlayer,
+} from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/adr-0007-workers-static-assets-deployment.md";
+
+<EpisodePlayer
+  file="adr-0007-workers-static-assets-deployment.m4a"
+  duration="5:02"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 <ADRSummary adrNumber={7} status="accepted" date={new Date("2026-08-10")} />
 

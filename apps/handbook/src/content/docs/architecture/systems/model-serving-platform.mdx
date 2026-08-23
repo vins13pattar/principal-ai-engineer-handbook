@@ -20,9 +20,26 @@ maturity: reference
 relatedAdrs: []
 ---
 
-import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+} from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import batchFormation from "../../build/labs/dynamic-batching-inference.batch-formation.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-model-serving-platform.md";
+
+<EpisodePlayer
+  file="architecture-model-serving-platform.m4a"
+  duration="12:43"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

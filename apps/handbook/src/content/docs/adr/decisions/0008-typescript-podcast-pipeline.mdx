@@ -23,7 +23,20 @@ adrStatus: accepted
 ---
 
 import { Aside } from "@astrojs/starlight/components";
-import { ADRSummary } from "@handbook/components";
+import {
+  ADRSummary,
+  EpisodePlayer,
+} from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/adr-0008-typescript-podcast-pipeline.md";
+
+<EpisodePlayer
+  file="adr-0008-typescript-podcast-pipeline.m4a"
+  duration="12:07"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 <ADRSummary adrNumber={8} status="accepted" date={new Date("2026-08-15")} />
 

@@ -20,9 +20,26 @@ maturity: reference
 relatedAdrs: []
 ---
 
-import { Checklist, FailureMode, InterviewQuestion, LabCallout, TradeOff } from "@handbook/components";
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+} from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import taskLifecycle from "../../build/labs/durable-agent-task-engine.task-lifecycle.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-durable-agent-execution.md";
+
+<EpisodePlayer
+  file="architecture-durable-agent-execution.m4a"
+  duration="14:51"
+  model="Claude Sonnet 5"
+  generated="2026-08-23"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 
