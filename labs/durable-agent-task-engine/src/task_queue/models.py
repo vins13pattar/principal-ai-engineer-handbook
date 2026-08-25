@@ -7,6 +7,26 @@ from enum import StrEnum
 from typing import Any
 
 
+def now() -> float:
+    """The queue's clock, read through one indirection.
+
+    Every other reference to the clock -- ``touch`` below, and all four call
+    sites in ``store`` -- looks ``time.monotonic`` up on the module at the
+    moment it is called, so a test that replaces it is obeyed. A
+    ``default_factory`` is different: it captures the function *object* when
+    the class body executes, which is import time, and keeps calling the
+    original no matter what is patched afterwards.
+
+    The consequence was a suite that passed on a freshly booted machine and
+    failed 11 of 26 on one with real uptime: new tasks got a true monotonic
+    reading -- 2.9 million on a 43-day host -- while the store compared it
+    against a fake clock starting at 1,000, so nothing was ever visible enough
+    to lease. Routing the defaults through this function makes them resolve at
+    call time like everything else.
+    """
+    return time.monotonic()
+
+
 class TaskStatus(StrEnum):
     PENDING = "pending"
     LEASED = "leased"
@@ -31,16 +51,16 @@ class Task:
     max_attempts: int
     status: TaskStatus = TaskStatus.PENDING
     attempts: int = 0
-    available_at: float = field(default_factory=time.monotonic)
+    available_at: float = field(default_factory=now)
     lease_token: str | None = None
     leased_until: float | None = None
     checkpoint: dict[str, Any] | None = None
     last_error: str | None = None
-    created_at: float = field(default_factory=time.monotonic)
-    updated_at: float = field(default_factory=time.monotonic)
+    created_at: float = field(default_factory=now)
+    updated_at: float = field(default_factory=now)
 
     def touch(self) -> None:
-        self.updated_at = time.monotonic()
+        self.updated_at = now()
 
 
 @dataclass(frozen=True, slots=True)
