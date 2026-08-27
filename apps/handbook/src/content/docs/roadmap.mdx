@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.13.0
+version: 2.14.0
 lastUpdated: 2026-08-28
 revisionHistory:
   - version: 1.0.0
@@ -127,6 +127,13 @@ revisionHistory:
       roadmap had gone thirteen days without mentioning while claiming to say what does not exist
       yet.
     author: vinod
+  - version: 2.14.0
+    date: 2026-08-28
+    change: >-
+      Marked v0.12 shipped — the four missing design reviews. Every lab now has an architecture page,
+      which closes two of the three v1.0 criteria and leaves the third resting on a decision rather
+      than on writing. Recorded the four new pages as having no episode yet.
+    author: vinod
 category: section-overview
 ---
 
@@ -144,9 +151,9 @@ The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 13: System Design](/learn/modules/13-system-design/) ·
 [Module 14: Leadership](/learn/modules/14-leadership/) ·
 [Module 15: Agent Identity](/learn/modules/15-agent-identity/).
-The [Architecture](/architecture/) section has a design-review page for seven of the eleven labs,
-each with a running implementation behind it; the four newest labs have a Build page but no design
-review yet. [Build](/build/) documents every lab from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
+The [Architecture](/architecture/) section has a design-review page for **all eleven labs**, each
+with a running implementation behind it. [Build](/build/) documents every lab from a
+run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
 [Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) is
@@ -157,8 +164,9 @@ release it was verified against, on a 90-day review window CI fails once a page 
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
-Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped) is
-complete: 63 episodes, one per content page, ten hours in total.
+Almost every one of those pages can also be listened to. The [audio
+series](#the-audio-series-shipped) covers 63 of the 67 content pages — ten hours in total, with the
+four newest architecture pages awaiting a recording pass.
 
 ## What's next
 
@@ -174,17 +182,20 @@ complete: 63 episodes, one per content page, ten hours in total.
 | ~~`v0.9`~~ | ~~The four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB), each with a `freshness` block~~ — shipped 2026-08-12 |
 | ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
 | ~~`v0.11`~~ | ~~The audio series — a generated episode on every content page, with its transcript~~ — shipped 2026-08-23 |
+| ~~`v0.12`~~ | ~~The four missing design reviews — agent identity, model routing, semantic caching, model evaluation~~ — shipped 2026-08-28 |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
 
 ### What v1.0 still needs
 
-Two of the three v1.0 criteria are open, and one of them cannot be met as written:
+One criterion remains, and it cannot be met as written:
 
-- **Four Architecture pages.** Eleven labs, seven design reviews. The four newest —
-  [Agent Identity Broker](/build/labs/agent-identity-broker/),
-  [Model Router](/build/labs/model-router/), [Semantic Cache](/build/labs/semantic-cache/), and
-  [Evaluation Platform](/build/labs/evaluation-platform/) — have a module and a Build page but no
-  page arguing the design. This is the shortest path to v1.0 and the next thing being written.
+- **Architecture coverage is done.** All eleven labs have a design review, as of v0.12:
+  [Agent Identity Platform](/architecture/systems/agent-identity-platform/),
+  [Task-Based Model Routing](/architecture/systems/task-based-model-routing/),
+  [Semantic Response Caching](/architecture/systems/semantic-response-caching/), and
+  [Continuous Model Evaluation](/architecture/systems/continuous-model-evaluation/) closed the gap.
+- **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
+  have a track.
 - **Five modules without a lab**, which makes "every module has a lab" unreachable as stated.
   Modules [7](/learn/modules/07-langgraph/) and [11](/learn/modules/11-cloud/) are lab-shaped and
   could get one. Modules [0](/learn/modules/00-principal-engineer-mindset/),
@@ -192,8 +203,8 @@ Two of the three v1.0 criteria are open, and one of them cannot be met as writte
   about the Principal Engineer mindset would be a lab in name only. The criterion will be restated
   to cover the modules a lab can honestly serve, rather than left standing as a target that can only
   be hit by building three labs nobody should run.
-- **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
-  have a track.
+
+That leaves v1.0 waiting on one decision and at most two labs, rather than on a body of writing.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. As of
@@ -215,7 +226,7 @@ unit of work than a module and shouldn't gate a version bump the way a module do
 
 ### The audio series: shipped
 
-Every content page carries a player and a transcript. Sixty-three episodes, **ten hours** of audio,
+Sixty-three episodes, **ten hours** of audio,
 from 3:00 on the shortest ADR to 22:24 on [Module 6](/learn/modules/06-mcp/) — measured from the
 episode manifests, not estimated. The model plans the arc and writes the two-voice dialogue; a local
 text-to-speech model speaks it.
@@ -226,9 +237,13 @@ projected seven, from the handbook's 414 minutes of prose. Spoken dialogue expan
 covers rather than reading it aloud, and the estimate did not account for that. The number here is
 the measured one.
 
-The 63 are every page that says something. The ten pages that do not — [Start
+The 63 were every page that said something when the series ran. The ten pages that do not — [Start
 Here](/start-here/), this roadmap, and the eight section indexes — are navigation, and an episode
 narrating a table of contents would be filler. That is a deliberate exclusion, not a gap to close.
+
+The four architecture pages published in v0.12 have no episode yet, which is the ordinary state of a
+new page: writing and recording are separate passes, and the second costs money. **Four pending**,
+and this line is where that count is kept honest.
 
 Two things about the pipeline are recorded rather than assumed. Speech runs locally, so the only
 money the series spends is on the language model; and every transcript is committed next to its

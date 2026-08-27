@@ -1,0 +1,328 @@
+---
+title: "Architecture: Agent Identity Platform"
+sidebar:
+  label: "Agent Identity Platform"
+description: A reference architecture for giving an agent an identity of its own — token exchange that narrows audience, scope, and lifetime together, server-side validation at every resource server, and attribution that survives the hop.
+version: 1.0.0
+lastUpdated: 2026-08-28
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-28
+    change: >-
+      Initial publication, backed by the labs/agent-identity-broker implementation and its
+      blast-radius measurement.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "MCP 2026-07-28 authorization spec; RFC 8693 (Token Exchange), RFC 8707 (Resource Indicators), RFC 9068 (JWT access tokens), RFC 9728 (Protected Resource Metadata)"
+  verifiedOn: 2026-08-28
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import exchangePath from "../../build/labs/agent-identity-broker.exchange-path.mmd?raw";
+
+## Problem
+
+[Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/) answers what a
+caller may do. It assumes something it never supplies: a caller. Every control in that architecture
+is scoped by identity, which means the whole enforcement pipeline rests on a question it does not
+itself answer — *who is this?*
+
+The default answer is to forward the user's token. It is the easiest thing to build, it works
+immediately, and it makes the agent's effective permissions identical to the user's. An agent asked
+to summarise an inbox holds the credential that can also issue refunds, because that credential was
+never about the inbox — it was about the person.
+
+Three things break at once, and they break quietly:
+
+- **Blast radius.** A compromised or merely over-persuaded agent acts with the user's full
+  permission set, not with the permissions the task needed.
+- **Attribution.** The audit log says the user did it. Every action an agent takes is recorded as a
+  human action, which is exactly wrong at the moment anyone needs the log.
+- **Revocation.** The only lever is the user's own credential. Stopping the agent means locking out
+  the person.
+
+What is needed is a credential minted *for the agent*, narrowed to the task, validated by the server
+that receives it — and an architecture in which none of those three is optional.
+
+## Requirements
+
+- **Agent-scoped credentials.** Every agent call carries a token minted for that agent and that
+  task, not the user's token relayed onward.
+- **Narrowing in three dimensions together** — audience, scope, and lifetime. Narrowing one is not
+  narrowing.
+- **Server-side validation.** Each resource server verifies signature, issuer, expiry, audience, and
+  scope itself, on every request, regardless of what the caller claims.
+- **An exchange that cannot widen.** Requesting a scope the subject does not hold is refused at the
+  broker.
+- **A broker that will not launder.** The broker verifies the presented subject token was addressed
+  to *it* before minting anything.
+- **Attribution across the hop.** The resulting credential names both the agent and the user it acts
+  for, so the audit record distinguishes them.
+- **Revocation short of the user.** Stopping one agent must not require disabling the human.
+
+## Constraints
+
+- **The client's claim about itself is worth nothing.** A resource server that trusts the caller's
+  assertion of audience or scope has implemented no authorization at all — it has implemented a
+  suggestion box. MCP's `2026-07-28` authorization specification requires the server to validate the
+  audience; this architecture treats that as the load-bearing requirement it is.
+- **Short lifetimes and long tasks are in direct tension.** A five-minute token is a good security
+  property and an operational hazard for a task that runs for an hour. Expiry mid-task is either a
+  handled path or an outage; there is no third option.
+- **Audience verification has no runtime symptom.** Remove it and the system stays completely
+  functional and completely unprotected. Nothing degrades, no error surfaces, and no dashboard moves.
+- **The broker is on the hot path.** It sits between an agent deciding to act and the action, which
+  makes its availability and latency a property of every tool call in the platform.
+- **Narrowing depends on someone deciding what "narrow" means.** The minimum scope for a task is
+  design work that does not go away, and its failure mode is a slow drift back toward whatever the
+  user has.
+
+## Request Flow
+
+<Mermaid code={exchangePath} title="Three narrowings at the broker, five checks at the resource server, and a rejection path that tells the client nothing" />
+
+The shape is two stages with different jobs, and conflating them is the common mistake.
+
+**The broker narrows.** It takes a long-lived, broadly-scoped subject token and mints a credential
+bound to one audience, one scope, and a few minutes. Before it does, it checks three things: that
+the subject token was addressed to the broker itself, that the requested scopes are a subset of what
+the subject holds, and that this actor is permitted to act for this subject.
+
+**The resource server distrusts.** It re-derives everything from the token in front of it —
+signature, issuer, expiry, audience, scope — and shares nothing with the broker but the issuer's
+public key. It does not ask the broker whether a token is good. A validation that requires a network
+call to the authority is a validation that fails open the first time the authority is unreachable.
+
+Rejections return `401` or `403` and nothing else. The reason goes to the log, not to the client:
+telling a caller *which* of the five checks it failed is a free oracle for narrowing an attack.
+
+## Failure Modes
+
+<FailureMode title="Forwarding the user's token">
+  The agent's blast radius becomes the user's permission set, its actions are recorded as the user's,
+  and the only way to stop it is to stop the person. The danger is not that passthrough over-grants
+  at one server — it is what it hands to whoever receives it, which is a credential good everywhere
+  the user is.
+</FailureMode>
+
+<FailureMode title="Narrowing the audience but not the scope">
+  The measured case, and the most instructive one. A token bound to a single server but carrying
+  every scope the user holds opens **two of six tools** in the lab's fleet — both tools on that
+  server, including the refund. Half the discipline buys half the protection, and it reads as
+  compliant in a design review because "we scope tokens per service" is true.
+</FailureMode>
+
+<FailureMode title="A broker that does not check who the subject token was for">
+  Skip the audience check on the *incoming* token and the broker stops being an identity service and
+  becomes an escalation service: present any stolen token from anywhere, receive a correctly-signed
+  credential for a target of your choosing. The signature on what comes out is perfect. That is the
+  problem.
+</FailureMode>
+
+<FailureMode title="Audience verification disabled during debugging">
+  Someone sets `verify_aud` to false to get past a local error and does not set it back. Every test
+  still passes, every request still succeeds, and every server in the fleet now accepts tokens minted
+  for any other server. There is no symptom. The only thing that catches this is a test that fails
+  when the check disappears.
+</FailureMode>
+
+<FailureMode title="Token expiry mid-task">
+  A five-minute credential and a forty-minute agent run meet in the middle. Handled, this is a
+  re-exchange the agent barely notices. Unhandled, it is a task that dies most of the way through,
+  usually having already performed some of its side effects.
+</FailureMode>
+
+<FailureMode title="Scope drift">
+  The minimum scope is set once, then widened whenever a task fails for want of a permission.
+  Nothing ever narrows it back, because nothing breaks when it is too wide. Given eighteen months,
+  the agent token is the user token with extra steps.
+</FailureMode>
+
+## Scaling
+
+- **Short lifetimes multiply exchange volume.** Halving token lifetime roughly doubles broker QPS.
+  This is the central scaling tension of the design, and it is a security dial wired directly to a
+  capacity number.
+- **Exchanged tokens are cacheable, keyed by `(subject, actor, audience, scope)`** and evicted
+  before expiry rather than on it. This is what keeps lifetime short without making the broker's
+  load proportional to tool calls — but the cache is now a credential store, with everything that
+  implies.
+- **Resource servers scale independently because validation is local.** Signature, issuer, expiry,
+  audience, and scope all come from the token and a cached public key. No coordination, no shared
+  state, no call back to the broker.
+- **JWKS caching is the one place a resource server depends on the outside world.** Cache the keys,
+  refresh on unknown `kid`, and rate-limit that refresh — otherwise a key rotation turns every
+  server in the fleet into a thundering herd against the identity provider.
+- **The broker is a single point of failure for every agent action.** It needs the availability
+  budget of the platform's most critical path, because that is what it is on.
+
+## Security
+
+- **Validate audience server-side on every request**, and treat the check as load-bearing rather
+  than defensive.
+- **Verify the subject token's audience at the broker** before minting anything, so the broker
+  cannot be used to launder credentials.
+- **Refuse to widen.** Scopes requested must be a subset of scopes held; deny at exchange time, not
+  at use time.
+- **Bind audience, scope, and lifetime together**, and test that all three narrowed — a test
+  asserting only the easy one passes on a system that narrows only the easy one.
+- **Record the actor and the subject separately**, so the audit answers "which agent, acting for
+  whom" rather than "the user did it".
+- **Never return the rejection reason to the client.** Five checks and five distinct error messages
+  is a map.
+- **Keep lifetimes short enough that expiry is the primary revocation mechanism**, and treat any
+  design needing instant revocation as needing a real revocation path, not a shorter timeout.
+
+<Warning title="A security test that has never failed is indistinguishable from one that cannot">
+  Audience verification is the highest-value check here and the one with no runtime symptom when it
+  goes missing. The companion lab runs a mutation job in CI: it disables the check, asserts the suite
+  goes red, and fails the build if everything still passes. Any platform relying on server-side
+  audience validation should run the equivalent — otherwise the protection rests on a test whose
+  ability to detect its absence has never been demonstrated.
+</Warning>
+
+## Trade-offs
+
+<TradeOff title="Token lifetime: security window vs. broker load">
+  A shorter lifetime bounds the damage from a leaked credential and increases exchange volume
+  proportionally. Five minutes is defensible for high-consequence scopes; an hour is defensible for
+  read-only ones. Deciding per scope rather than globally is what keeps the dial honest, because a
+  single global lifetime is always simultaneously too long for the refund and too short for the
+  search.
+</TradeOff>
+
+<TradeOff title="Broker in the agent host vs. a sidecar every agent calls">
+  In-host is one fewer network hop and one fewer service to run. A sidecar is the only version that
+  gives you one place to enforce policy and one place to look during an incident — and the only one
+  where a fleet of agents written by different teams cannot each invent their own narrowing rules.
+  The cost is a hop on every tool call and a dependency with the availability profile of the
+  platform.
+</TradeOff>
+
+<TradeOff title="Audience per server vs. audience per tool">
+  Per-server audiences are what OAuth's resource indicators naturally express, and they are what
+  most identity providers make easy. They also mean the measured failure above — a token good for
+  every tool on the server it names. Per-tool audiences close that gap and multiply the number of
+  distinct credentials an agent holds during a single task. Scope, narrowed properly, is the cheaper
+  answer to the same problem.
+</TradeOff>
+
+<TradeOff title="Attribution vs. privacy">
+  Naming the agent and the human it acts for makes every action attributable, which is the security
+  win. It also produces a detailed record of what a specific person's agent did all day, in a system
+  whose retention policy was probably written for service logs. The security argument arrives first
+  and the data question arrives later, which is the wrong order.
+</TradeOff>
+
+## Cost
+
+- **An exchange per tool call is the naive cost**, and it is a network round trip on the critical
+  path of every action. Caching exchanged tokens within their lifetime is what makes short lifetimes
+  affordable.
+- **Broker availability is the real expense.** It sits in front of every agent action, so it carries
+  the platform's highest availability requirement and the redundancy bill that comes with it.
+- **Validation is nearly free.** Signature verification against a cached key is microseconds, which
+  is worth stating because "we validate on every request" sounds expensive and is not.
+- **Audit volume grows with agent actions, not user actions** — a ratio that is easy to underestimate
+  by an order of magnitude, since one user request can become dozens of agent calls.
+
+## Observability
+
+- **Exchange denials by reason** — wrong audience on the subject token, scope not a subset, actor not
+  permitted. These are three different incidents: a possible laundering attempt, a mis-scoped agent,
+  and a delegation misconfiguration.
+- **Resource-server rejections by which of the five checks failed.** An expiry rejection is
+  operational; an audience rejection is either a bug or an attack, and aggregating them into one
+  error rate destroys the distinction.
+- **Rejections clustered near expiry**, which is the signature of tasks outliving their tokens rather
+  than anything malicious.
+- **Scope breadth per agent over time.** The metric that catches scope drift, and the only one here
+  that has to be read as a trend rather than an alert.
+- **Exchange rate per agent**, where a sudden rise means either a cache that stopped working or an
+  agent in a loop — both worth knowing before the identity provider tells you.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - No path forwards a user token to a resource server.
+  - The broker verifies the subject token's audience names the broker.
+  - Requested scopes are checked as a subset of held scopes, and widening is denied at exchange time.
+  - Audience, scope, and lifetime are narrowed together, with a test asserting all three.
+  - Every resource server validates signature, issuer, expiry, audience, and scope locally.
+  - A test fails when audience verification is disabled, and CI runs that mutation rather than
+    trusting that it would.
+  - Rejection reasons go to the log and never to the client.
+  - Token lifetime is set per scope, and mid-task expiry has a handled re-exchange path.
+  - JWKS is cached, refreshed on unknown key ID, and that refresh is rate-limited.
+  - The audit record names the agent and the subject separately.
+</Checklist>
+
+<LabCallout repoPath="labs/agent-identity-broker" status="production-shaped">
+  A running implementation: token exchange that narrows audience, scope, and lifetime together,
+  five-check server-side validation, and a `blast_radius` measurement across a three-server,
+  six-tool fleet — one tool opened by a fully narrowed token, two when only the audience is narrowed.
+  CI runs a mutation job that disables audience verification and fails the build if the suite stays
+  green. The identity provider is simulated, and the README lists what that omits individually
+  rather than in summary.
+  [Read the lab documentation →](/build/labs/agent-identity-broker/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="An agent needs to call a tool on the user's behalf. Why not forward the user's token?">
+  Because it makes the agent's permissions identical to the user's, records every agent action as a
+  human action, and leaves revocation with no lever short of disabling the person. The specific
+  danger is not over-granting at one server — it is that a forwarded credential is good everywhere
+  the user is, so whoever receives it holds the user.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="You narrow the token's audience to one server. What have you actually bounded?">
+  Where the token works, and nothing about what it does there. A token bound to one server but
+  carrying the user's full scope set opens every tool on that server — in the companion lab's fleet,
+  two of six, including a refund. Audience limits where; only scope limits what. A candidate who
+  treats per-service tokens as the finished answer has stopped at the halfway point.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="What stops a token broker from becoming an escalation service?">
+  Verifying that the subject token presented to it was addressed to it. Without that check, anyone
+  holding any token from anywhere can exchange it for a correctly-signed credential aimed at a target
+  of their choosing — and the output is cryptographically perfect, so nothing downstream can tell.
+  The broker's own audience check is the thing standing between an identity service and a laundering
+  service.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Someone disables audience verification while debugging and forgets to restore it. How do you find out?">
+  Not from production, because there is no symptom: every request still succeeds and the system is
+  fully functional and completely unprotected. The only reliable detection is a test that fails when
+  the check is absent — and, because a security test that has never failed is indistinguishable from
+  one that cannot, a CI job that disables the check on purpose and fails the build if the suite stays
+  green.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Five-minute tokens, forty-minute agent tasks. Resolve it.">
+  Re-exchange mid-task, and design for it explicitly. The agent holds the subject credential and mints
+  a fresh short-lived token when the current one nears expiry, which keeps the security window small
+  without tying it to task duration. The wrong answers are lengthening the token to cover the worst
+  case — which sets the window by the longest task in the system — and leaving it unhandled, which
+  kills tasks partway through, typically after some side effects have landed.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Where does the broker belong, and what does that choice cost?">
+  In a sidecar every agent calls, if you want one place to enforce narrowing policy and one place to
+  look during an incident; in the agent host, if you want fewer hops and fewer services. The sidecar's
+  real cost is that it lands on the critical path of every tool call, which means it inherits the
+  platform's highest availability requirement. The in-host version's real cost is that narrowing
+  policy is now implemented once per team.
+</InterviewQuestion>

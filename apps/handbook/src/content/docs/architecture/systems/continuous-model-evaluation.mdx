@@ -1,0 +1,344 @@
+---
+title: "Architecture: Continuous Model Evaluation"
+sidebar:
+  label: "Continuous Model Evaluation"
+description: A reference architecture for deciding whether a change to an AI system actually improved it — graders that can fail, datasets with a known smallest detectable delta, and a significance test that is allowed to answer "this set cannot tell".
+version: 1.0.0
+lastUpdated: 2026-08-28
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-28
+    change: >-
+      Initial publication, backed by the labs/evaluation-platform implementation and the sample-size
+      tables it computes.
+    author: vinod
+freshness:
+  # The subject here is the statistics of comparing two systems and the harness
+  # around them -- sample size, power, graders that can fail, datasets with known
+  # provenance. None of that moves with a model generation. The vendor tooling
+  # for running evals churns constantly and is deliberately not what this page
+  # is about.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import significance from "../../build/labs/evaluation-platform.significance.mmd?raw";
+
+## Problem
+
+Every change to an AI system — a new model, an edited prompt, a different retrieval strategy, a
+routing policy — arrives with a claim that it is better. An evaluation platform exists to test that
+claim, and most of them do not, because they are built to produce a number rather than to support a
+comparison.
+
+The gap between those two jobs is where the real failures live. A harness that reports "84% → 88%"
+has produced two numbers and no decision. Whether that four-point movement is an improvement, noise,
+or a disguised regression depends on how many examples produced it — and at the dataset sizes teams
+actually use, the honest answer is usually that nobody can tell.
+
+Three things have to hold before an evaluation number means anything, and each fails silently on its
+own:
+
+- **The grader has to be able to fail.** A harness that scores everything highly is
+  indistinguishable from a system that works.
+- **The dataset has to be able to resolve the difference being claimed.** Below a certain size, a
+  set cannot see a small improvement no matter how real it is.
+- **The dataset has to measure correctness**, not agreement with the system's own past output.
+
+## Requirements
+
+- **A grader whose failure mode is tested**, with a deliberately broken system asserted to score
+  zero and a perfect one asserted to score 100%.
+- **Significance testing on every comparison**, reported as an interval rather than a point estimate.
+- **A published smallest detectable delta** for each evaluation set, so a claim can be checked
+  against what the set can actually see.
+- **Dataset provenance recorded per example** — who verified this answer, and against what.
+- **Instability named rather than averaged**, so flaky examples are visible as flaky.
+- **A path to the model that bypasses caches**, or the evaluation measures infrastructure instead of
+  the system.
+
+## Constraints
+
+- **Effect size enters the sample-size calculation squared.** Halving the delta you want to detect
+  more than quadruples the examples required. This is arithmetic, not a tooling limitation, and it
+  is the constraint that makes most evaluation sets too small.
+- **Small sets break the approximation itself.** Below roughly five expected outcomes per cell, a
+  normal approximation is not merely imprecise — it is inapplicable, which is a different statement
+  and demands a different answer.
+- **Graders are systems too.** A `contains` grader passes an output that states the right answer and
+  its opposite, which is what verbose model output looks like. An LLM-as-judge grader is the least
+  verifiable kind and needs its own evaluation before its verdicts mean anything.
+- **Datasets grown from production output drift toward measuring consistency.** An example whose
+  expected answer came from the system's earlier output cannot detect a regression that was always
+  there, and nothing in the resulting accuracy number reveals it.
+- **Comparing many variants multiplies the chance of a false positive.** Five prompt variants against
+  one baseline is five chances to get lucky, and correcting for that pushes the required sample size
+  up again.
+
+## Request Flow
+
+<Mermaid code={significance} title="From two runs to a decision — including the case where the honest answer is that this dataset cannot tell" />
+
+The path is a pipeline with one unusual property: it is allowed to refuse to answer.
+
+**Run both arms over the same dataset**, then grade each output against its expected answer. Both
+arms seeing identical examples is what makes a paired test available later, and paired tests need
+fewer examples for the same power.
+
+**Compare with an interval, not a difference.** The point estimate is the least informative output
+of the whole pipeline, and it is the one that gets quoted.
+
+**Return one of three verdicts.** Significant, not significant, or *undecidable* — the approximation
+is unusable at this size. That third state is the design decision that distinguishes an evaluation
+platform from a scoreboard, because collapsing it into "not significant" reports *no difference* when
+the truth is *this set cannot tell*. Those get acted on very differently: the first closes the
+investigation, and the second should open one into the eval set.
+
+## Failure Modes
+
+<FailureMode title="A harness that cannot fail">
+  If nothing in the suite asserts that a deliberately broken system scores zero, every other number
+  the platform produces is unverified. This is the meta-test, and it is the one most evaluation
+  code does not have — which means a grader silently returning "correct" on an exception looks
+  exactly like a system that works.
+</FailureMode>
+
+<FailureMode title="Reporting a point estimate">
+  "84% → 88% on 50 examples" is the shape of most improvement claims. The 95% interval on that
+  measurement runs from −9.6% to +17.6%: the same data is consistent with a ten-point *regression*.
+  The point estimate is not a measurement, and quoting it without the interval is how a regression
+  ships as an improvement.
+</FailureMode>
+
+<FailureMode title="A dataset that cannot see the claimed improvement">
+  At an 85% baseline, fifty examples cannot resolve anything below roughly twenty percentage points.
+  Every smaller movement such a set reports is noise being read as signal — and it will report them
+  consistently enough to build a quarter's worth of roadmap on.
+</FailureMode>
+
+<FailureMode title="Expected answers taken from the system's own output">
+  The set now measures agreement with a former self. It cannot detect a regression that was present
+  when the examples were captured, it rewards consistency over correctness, and the accuracy number
+  looks entirely normal. Provenance has to be a field, because it is invisible in the result.
+</FailureMode>
+
+<FailureMode title="Substring graders on verbose output">
+  A `contains` check scores an answer as correct when the output contains the right answer somewhere,
+  including when it also contains the opposite. Longer model outputs make this more likely over time,
+  so grader precision degrades quietly as models get chattier.
+</FailureMode>
+
+<FailureMode title="Averaging across repeats">
+  Running each example several times and averaging hides instability behind a plausible number. An
+  example that passes 50% of the time and one that always passes at 50% partial credit are different
+  problems; the average makes them identical.
+</FailureMode>
+
+<FailureMode title="Evaluating through a cache">
+  The suite measures the cache, not the system, and will keep reporting the previous model's scores
+  after an upgrade — which presents as a change that did nothing. See
+  [Semantic Response Caching](/architecture/systems/semantic-response-caching/).
+</FailureMode>
+
+## Scaling
+
+- **Cost scales with examples × arms × repeats**, and the sample-size table below is a direct
+  statement of how expensive a small claimed improvement is to verify. This is the number that
+  decides an evaluation platform's budget, and it is usually discovered after the platform is built.
+- **Runs are embarrassingly parallel** across examples, so wall-clock is a concurrency and
+  rate-limit question rather than an architectural one. The upstream provider's limits are the real
+  ceiling.
+- **Paired designs buy power for free.** Both arms already run the same examples, so a paired test
+  (McNemar's) is more powerful than the unpaired calculation and requires fewer examples for the same
+  confidence — worth doing, and worth checking whether it changes any decision, because it often does
+  not change the order of magnitude.
+- **Results storage grows with every run**, and its value is longitudinal: the ability to ask whether
+  a regression appeared three releases ago is the main thing a platform offers over a script.
+- **Dataset curation is the bottleneck that does not parallelise**, because every verified example
+  costs human attention, and that is precisely what the sample-size tables demand more of.
+
+## Security
+
+- **Evaluation datasets are a leak surface.** They are curated, high-value, and often contain real
+  customer data captured as examples, held in a system built for convenience rather than
+  confidentiality.
+- **Contamination is the integrity risk.** An evaluation set that reaches a training or fine-tuning
+  corpus stops measuring anything, and there is no signal when it happens — only scores that improve.
+- **Access to change expected answers is access to change the verdict**, so the dataset deserves
+  review on edit rather than write access for anyone running an experiment.
+- **A judge model is an injection surface.** If a graded output can address the judge, the system
+  under test can influence its own score.
+
+## Trade-offs
+
+<TradeOff title="Dataset size vs. what you are allowed to claim">
+  A small set is cheap, fast, and can only support large claims. A large set costs curation effort
+  proportional to the precision you want, and precision costs quadratically. The trade is not
+  "bigger is better" — it is choosing the smallest delta worth acting on and then paying for exactly
+  that, which is a decision most teams have never explicitly made.
+</TradeOff>
+
+<TradeOff title="Exact graders vs. judge models">
+  Exact and structural graders are verifiable, cheap, deterministic, and only work where the answer
+  has a checkable form. A judge model grades anything and is the least verifiable component in the
+  system — it needs its own evaluation, against its own verified set, before its verdicts carry
+  weight. The backing lab omits a judge grader entirely for that reason, which is a defensible
+  scoping decision and a real limitation.
+</TradeOff>
+
+<TradeOff title="Unpaired vs. paired tests">
+  The unpaired two-proportion test is simpler, more conservative, and easier to explain to a room.
+  A paired test exploits the fact that both arms saw the same examples and needs fewer of them. The
+  honest reason to reach for paired is power; the honest reason to stay unpaired is that a
+  conservative number that nobody disputes is worth something, and the difference rarely changes the
+  order of magnitude.
+</TradeOff>
+
+<TradeOff title="Offline evaluation vs. online measurement">
+  Offline evaluation is repeatable, safe, and measures a proxy. Online measurement — A/B on real
+  traffic — measures the thing you care about and costs exposure of real users to the worse arm, plus
+  the time to accumulate significance at your traffic level. The sample-size arithmetic is identical
+  in both; only the currency changes, from curated examples to user sessions.
+</TradeOff>
+
+## Cost
+
+The sample sizes are the cost, and stating them plainly is most of what this architecture is for.
+
+**Examples needed per arm** to detect an improvement at 95% confidence and 80% power:
+
+| Baseline | +1pt | +2pt | +3pt | +5pt | +10pt |
+| --- | --- | --- | --- | --- | --- |
+| 70% | 32,644 | 8,077 | 3,551 | 1,248 | 291 |
+| 80% | 24,638 | 6,036 | 2,626 | 903 | 197 |
+| 85% | 19,458 | 4,722 | **2,033** | 683 | 138 |
+| 90% | 13,493 | 3,211 | 1,353 | 432 | 71 |
+
+The inverse is the number that belongs on the dashboard — **the smallest delta a set can see**, at
+an 85% baseline:
+
+| n | Smallest visible delta |
+| --- | --- |
+| 30 | 25.8% |
+| 50 | 20.0% |
+| 100 | 14.1% |
+| 500 | 6.3% |
+| 1,000 | 4.5% |
+| 5,000 | 2.0% |
+
+Effect size enters squared, so halving the delta you want to see at least quadruples the dataset —
+measured at 4.95× rather than the naive 4×, because as the candidate rate approaches 1.0 its variance
+shrinks and the coarse measurement gets disproportionately cheap.
+
+The other costs follow from these: model spend is examples × arms × repeats, and curation is human
+time proportional to the same number. A platform that wants to detect three-point improvements at an
+85% baseline is committing to roughly two thousand verified examples per arm, and that commitment is
+the architecture's largest line item.
+
+<Warning title="Publish the smallest detectable delta next to the score">
+  An accuracy number without its set's resolution invites exactly the error the platform exists to
+  prevent. Reporting "88% (n=50, smallest detectable delta 20pt)" makes a four-point improvement
+  claim visibly unsupportable at the point where someone would otherwise act on it — which is
+  cheaper than the alternative, where the claim becomes a roadmap item first and a retraction later.
+</Warning>
+
+## Observability
+
+- **Smallest detectable delta per evaluation set**, published alongside every score it produces.
+- **Confidence intervals on every comparison**, with the point estimate deliberately never shown
+  alone.
+- **Undecidable-verdict rate.** A rising share of comparisons the statistics cannot resolve is a
+  dataset problem announcing itself before anyone acts on a bad number.
+- **Per-example stability across repeats**, with unstable examples named rather than averaged, so
+  they can be fixed or removed.
+- **Dataset provenance coverage** — what fraction of examples have a human-verified expected answer
+  versus one captured from system output. This is the metric that catches a set drifting toward
+  measuring consistency.
+- **Grader disagreement rate**, where more than one grader applies. Two graders diverging is the
+  earliest available signal that one of them is wrong.
+- **Score history per example, not just per run**, because a regression is usually a small set of
+  examples flipping rather than a uniform decline.
+
+## Production Deployment
+
+<Checklist title="Before anyone makes a decision on its output">
+  - A deliberately broken system is asserted to score 0%, and a perfect one 100%.
+  - Every comparison reports a confidence interval, and the point estimate never appears alone.
+  - Each evaluation set's smallest detectable delta is computed and published with its scores.
+  - The significance test can return "undecidable", and callers handle that distinctly from "not
+    significant".
+  - Every example records who verified its expected answer and against what.
+  - Examples captured from the system's own output are flagged as such.
+  - Graders are tested against verbose output that contains both an answer and its opposite.
+  - Repeated runs name unstable examples rather than averaging over them.
+  - The evaluation path bypasses response caches.
+  - Multiple-variant comparisons apply a correction, and the corrected sample size is what the set is
+    measured against.
+  - Dataset edits are reviewed, and the set is excluded from any training or fine-tuning corpus.
+</Checklist>
+
+<LabCallout repoPath="labs/evaluation-platform" status="production-shaped">
+  A running implementation: graders, a two-proportion significance test that returns `True`, `False`,
+  or `None`, and the sample-size tables above computed rather than quoted. Includes the meta-test —
+  a deliberately broken system asserted to score zero — because an eval that cannot fail is not an
+  eval. No model is called; systems under test are deterministic functions with a configured
+  accuracy, and the statistics are unpaired, which makes the sample sizes conservative.
+  [Read the lab documentation →](/build/labs/evaluation-platform/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="A teammate reports 84% → 88% on 50 examples. What do you say?">
+  That the interval on that measurement runs from about −9.6% to +17.6%, so the same data is
+  consistent with a ten-point regression. Fifty examples at that baseline cannot resolve anything
+  below roughly twenty percentage points. The right next question is not whether the change is good
+  but what the eval set's smallest detectable delta is — and if nobody knows, that is the finding.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="You want to detect a three-point improvement at an 85% baseline. What does that cost?">
+  Roughly two thousand examples per arm at 95% confidence and 80% power. The important part is why
+  the number is so large: effect size enters squared, so halving the delta you want to see more than
+  quadruples the dataset. That arithmetic is what makes most evaluation sets unable to support the
+  claims made from them, and it is a curation cost in human time, not a compute cost.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why should a significance test be allowed to return neither true nor false?">
+  Because "not significant" means *we found no difference* and small sets need to say *this set
+  cannot tell*, which is a different fact with a different response. Below about five expected
+  outcomes per cell the normal approximation is inapplicable rather than imprecise. Collapsing that
+  into `False` closes an investigation that should have been opened — into the dataset rather than
+  the change.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What is the first test you write for an evaluation harness?">
+  That a deliberately broken system scores 0%, and its twin, that a perfect one scores 100%. Every
+  other number the harness produces is unverified until those pass — a grader that silently returns
+  "correct" on an exception is indistinguishable from a system that works. An eval that cannot fail
+  is not an eval.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your eval set was built from production traffic and the system's own answers. What is wrong with it?">
+  It measures agreement with a former self rather than correctness. It cannot detect a regression
+  that was already present when the examples were captured, and it rewards consistency — including
+  consistent errors. Nothing in the accuracy number exposes this, which is why provenance has to be
+  a field on each example rather than an assumption about the set.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="You test five prompt variants against one baseline and one wins by four points. Do you ship it?">
+  Not on that evidence. Five comparisons is five chances to get lucky, so the threshold has to be
+  corrected for multiplicity — which raises the sample size the set needed in the first place. Ship
+  it only if the winner clears the corrected bar on a set whose smallest detectable delta is below
+  four points, and treat a result that clears an uncorrected threshold alone as a hypothesis to
+  re-test, not a finding.
+</InterviewQuestion>

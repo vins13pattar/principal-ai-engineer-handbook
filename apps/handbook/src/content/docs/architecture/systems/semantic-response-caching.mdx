@@ -1,0 +1,317 @@
+---
+title: "Architecture: Semantic Response Caching"
+sidebar:
+  label: "Semantic Response Caching"
+description: A reference architecture for caching LLM responses by meaning rather than by string — the scope key that makes a hit valid, why the scope filter belongs inside the query, and why the threshold is a correctness decision that cannot be inherited.
+version: 1.0.0
+lastUpdated: 2026-08-28
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-28
+    change: >-
+      Initial publication, backed by the labs/semantic-cache implementation and its threshold sweep,
+      including the sweep's dependence on a simulated embedding model.
+    author: vinod
+freshness:
+  # The scope key, the ordering of filter and search, and the precision/recall
+  # trade the threshold expresses are properties of the design. Embedding models
+  # change constantly and would change the numbers; they do not change the shape.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import thresholdTradeoff from "../../build/labs/semantic-cache.threshold-tradeoff.mmd?raw";
+
+## Problem
+
+Model calls are the dominant cost and the dominant latency in most AI products, and a large share of
+them are repeats. An exact-match cache captures almost none of that, because people do not ask
+questions the same way twice — "how do I reset my password" and "how can I reset my password" are
+one question and two cache keys.
+
+Semantic caching closes that gap by matching on embedding similarity instead of string equality. It
+is one of the highest-leverage cost levers available, and it is the one that most quietly changes
+what your system returns.
+
+The reason is a category difference the architecture has to take seriously: **an exact-match cache
+can only be slow or empty; a semantic cache can be wrong.** A miss costs a model call. A false hit
+serves a confidently incorrect answer, fast, in a form nothing downstream can distinguish from a
+correct one — not the caller, not the model, not the logs, not the evaluation suite. The engineering
+problem is not how to raise the hit rate. It is how to know what the hit rate is costing.
+
+## Requirements
+
+- **An exact tier before the semantic tier**, because a string match is free, certain, and answers a
+  large share of traffic on its own.
+- **A scope key that makes a hit valid** — at minimum model, prompt version, and tenant. An answer is
+  an answer *from a particular model, under a particular prompt, for a particular tenant*.
+- **Scope filtered before similarity search**, not after.
+- **False-hit rate measured, not just hit rate**, with a mechanism that keeps measuring it in
+  production.
+- **Invalidation on the things that change answers** — prompt edits, model changes — rather than
+  waiting for a TTL.
+- **A bypass path**, so evaluation and debugging can reach the model rather than the cache.
+
+## Constraints
+
+- **The threshold cannot be inherited.** It is a joint property of your corpus and your embedding
+  model. A number that works in someone's blog post, or in this architecture's backing lab, carries
+  no information about yours.
+- **False hits have no downstream symptom.** Nothing in the response distinguishes one. The only
+  detection is deliberately sampling cached answers against fresh ones, which almost nobody does.
+- **Entity swaps are a known hard case.** The token carrying the semantic difference — `EU` versus
+  `US`, `2025` versus `2026`, `free` versus `paid` — is short and low-weight, and it is swamped by
+  the long shared framing around it. Meanwhile paraphrases differ in function words, which are a
+  *larger* fraction of a short question. The pairs that must never be conflated can be more similar
+  than the pairs that should hit.
+- **Prompts change far more often than models do.** Weekly edits are normal, and every edit that
+  changes behaviour keeps serving the old behaviour until something invalidates it.
+- **The cache sits underneath your evaluation.** An eval suite running through the cache measures the
+  cache, and will keep reporting yesterday's scores after a model change.
+
+## Request Flow
+
+<Mermaid code={thresholdTradeoff} title="Exact tier first, scope filtered before similarity, and the two ways a semantic hit can turn out" />
+
+Two orderings carry the design.
+
+**Exact before semantic**, because it costs a hash lookup, has no false-hit risk at all, and takes a
+meaningful share of traffic off the expensive path before any similarity question is asked.
+
+**Scope filter before similarity search**, which is the one that matters most and is easiest to get
+backwards. Filtering after the search means the nearest neighbour was already read out of another
+tenant's data before you discarded it. The vector store's ANN index and the tenant boundary have to
+be the same query, not two steps — the
+[Vector DB](/reference/lookups/vector-db/) lookup's first gotcha, arriving here as a cache.
+
+Note what the diagram makes explicit: a semantic hit has *two* outcomes, and the system cannot tell
+them apart at serve time. Everything below follows from that.
+
+## Failure Modes
+
+<FailureMode title="Reporting hit rate without false-hit rate">
+  Hit rate is the number that gets a cache approved, and on its own it is an argument for lowering
+  the threshold until the cache is wrong most of the time. The two curves have to be read together,
+  because raising one raises the other, and only one of them appears on the cost dashboard.
+</FailureMode>
+
+<FailureMode title="Treating a tighter threshold as the fix">
+  Tightening trades false hits for misses. It does not separate the two populations, and where they
+  overlap badly there is no setting that gets one without the other. Tuning cannot fix a threshold
+  problem whose real cause is that similarity is not equivalence.
+</FailureMode>
+
+<FailureMode title="Filtering scope after the similarity search">
+  A post-filter means the search already crossed the tenant boundary and you are discarding the
+  evidence. It usually passes tests, because the filter does remove the wrong-tenant result — right
+  up until the day a result is returned before the filter runs, or a bug drops the filter entirely.
+  The isolation was never structural.
+</FailureMode>
+
+<FailureMode title="Prompt version missing from the scope key">
+  The most common real-world failure, because prompts are edited weekly and models change rarely. An
+  edit that changes the answer keeps serving the previous behaviour for the whole TTL, and the
+  symptom is a change that "did not deploy" — with a deploy log saying it did.
+</FailureMode>
+
+<FailureMode title="Evaluation running through the cache">
+  The eval suite reports the cache's answers, so scores stay flat across a model upgrade and a
+  regression is invisible until it reaches users. Evaluation needs a bypass, and the bypass needs to
+  be the default in that path rather than a flag someone remembers.
+</FailureMode>
+
+<FailureMode title="TTL as the only invalidation">
+  A TTL bounds staleness by time, which is unrelated to what actually changed. It answers "how old is
+  this" and never "is this still the answer" — so a prompt fix waits out an interval chosen for
+  unrelated reasons.
+</FailureMode>
+
+## Scaling
+
+- **Linear scan is fine for longer than people expect, and then suddenly is not.** Below a few
+  thousand entries per scope a brute-force cosine scan beats the operational cost of an index. Above
+  that, an ANN index becomes necessary — and it changes the failure surface, because approximate
+  search means the nearest neighbour is now itself approximate.
+- **Scope keys partition naturally**, which is what keeps the search space small: the candidate set
+  is one tenant's entries under one prompt version, not the whole corpus. This is a scaling property
+  and an isolation property at once, which is unusually convenient.
+- **Every lookup pays an embedding call.** The cache does not save a model call for free; it trades a
+  small model call for a large one. That trade is excellent, and it means the embedding endpoint
+  inherits the request rate of the entire product.
+- **Cache misses stampede.** A popular question that expires sends every concurrent caller to the
+  model at once. Single-flight the miss path, or the cache amplifies the load it exists to reduce.
+- **Write volume is proportional to misses**, so the cache is busiest writing exactly when it is
+  least useful, which is the first hour after a prompt change invalidates everything.
+
+## Security
+
+- **Cross-tenant leakage is the headline risk**, and the mitigation is structural rather than
+  procedural: the scope filter belongs inside the query the vector store executes.
+- **A cache is a store of answers, therefore a store of whatever was in them.** It inherits the data
+  classification of the responses it holds, and usually gets a retention policy written for
+  performance infrastructure.
+- **The prompt version in the key is a security control, not only a correctness one**, when the
+  prompt change was the fix for a jailbreak or a data-exposure bug.
+- **Timing is an oracle.** A fast answer means a cache hit, which means someone asked something
+  similar before; in a multi-tenant deployment that leaks the existence of other tenants' queries.
+  Usually acceptable, occasionally not, and worth deciding rather than discovering.
+
+## Trade-offs
+
+<TradeOff title="Threshold: false hits vs. missed savings">
+  The threshold is a dial between two costs, and the honest position is that it cannot be set without
+  a number for what a wrong answer costs. Set it by hit-rate targets and you have chosen a false-hit
+  rate by accident. On corpora where the two populations invert, the correct choice may be to serve
+  only the exact tier and take the smaller saving.
+</TradeOff>
+
+<TradeOff title="Exact-only vs. semantic">
+  Exact matching cannot be wrong and captures far less. Semantic matching captures the paraphrases —
+  which is most of the repeat traffic — and introduces a correctness surface that did not previously
+  exist. For a support assistant, that trade is usually worth making with care; for anything whose
+  answers turn on entities the user supplies, exact-only is a defensible final answer rather than a
+  failure to optimise.
+</TradeOff>
+
+<TradeOff title="TTL vs. versioned scope keys">
+  A TTL is one line and bounds staleness by time. Versioned keys invalidate on the thing that
+  actually changed, cost nothing at read time, and require the discipline of bumping a version on
+  every prompt edit. Running both is the practical answer: versions for correctness, a TTL as the
+  backstop for the edit somebody forgot to version.
+</TradeOff>
+
+<TradeOff title="Detecting false hits vs. paying for them">
+  Sampling a percentage of cache hits against a fresh model call gives you a real false-hit rate and
+  spends a fraction of the savings to get it. Skipping it keeps the full saving and leaves you
+  unable to answer how often the cache is wrong. Teams almost always choose the second, then discover
+  the rate during an incident.
+</TradeOff>
+
+## Cost
+
+- **The saving is real and large** — a hit replaces a full model call with an embedding call and a
+  vector lookup, typically two orders of magnitude cheaper and faster.
+- **The embedding call is the cost floor**, paid on every lookup including misses, so a cache with a
+  low hit rate is a small tax rather than a saving.
+- **Storage is the cheap part**; responses are text, and TTLs keep the working set bounded.
+- **The dominant cost is the one that never appears on an invoice.** A false hit costs whatever a
+  wrong answer costs in your product — a support deflection that misinforms, a policy quoted for the
+  wrong region. Until that has a number, every threshold discussion is a debate about a dashboard.
+
+<Warning title="A threshold from someone else's system is not evidence about yours">
+  The backing lab swept thresholds on its corpus and found no setting where the cache served a
+  genuine paraphrase before it served a wrong answer — at every threshold that served anything at
+  all, precision was below 100%. Two things about that result should travel and one should not.
+
+  Travelling: **tightening the threshold is not the fix**, and **a threshold cannot be inherited** —
+  it is a joint property of a corpus and an embedding model, and the only way to know yours is to
+  build a labelled set of near-duplicates and measure both curves.
+
+  Not travelling: the specific numbers, and the strength of the effect. That lab's embedding model is
+  a deterministic *lexical* stand-in, not a learned one, and a real dense model would separate these
+  populations better. The lab says so in its own tests rather than in a footnote — one exists
+  specifically so a reader reproducing the result with a real model knows which assertion is expected
+  to weaken.
+</Warning>
+
+## Observability
+
+- **False-hit rate from sampling**, produced by re-running a small percentage of hits against the
+  model and comparing. This is the only metric here that cannot be derived from the cache's own
+  behaviour, and it is the one the design turns on.
+- **Hit rate split by tier** — exact versus semantic. They have different risk profiles and averaging
+  them hides which one is growing.
+- **The distribution of similarity scores on hits**, not the mean. A cluster of hits sitting just
+  above the threshold is where the false hits live, and a mean of 0.94 says nothing about it.
+- **Miss reasons** — no scope match, below threshold, expired. A rise in scope misses after a deploy
+  is a prompt version bump working correctly; a rise with no deploy is a key being computed
+  inconsistently.
+- **Hit rate immediately after a prompt version bump**, which should drop to zero and recover. If it
+  does not drop, the version is not in the key.
+- **Age distribution of served entries**, which is how staleness becomes visible before someone
+  reports it.
+
+## Production Deployment
+
+<Checklist title="Before real traffic">
+  - The exact tier runs before the semantic tier.
+  - The scope key includes model identifier, prompt version, and tenant, with a test that changing
+    any one of them misses.
+  - The scope filter is applied inside the vector query, not after the results return.
+  - The threshold was chosen against a labelled set of near-duplicates from your own corpus, with
+    both curves measured — not inherited from a blog post or from this page.
+  - False-hit rate is sampled continuously in production, and someone owns the number.
+  - There is a bypass path, and evaluation uses it by default.
+  - Prompt edits bump the version as part of the deploy, not as a manual step.
+  - The miss path is single-flighted so an expiry does not stampede the model.
+  - The cache's retention and data classification match the responses it stores.
+  - What a wrong answer costs has been written down, because the threshold encodes an answer to it
+    either way.
+</Checklist>
+
+<LabCallout repoPath="labs/semantic-cache" status="production-shaped">
+  A running implementation: a two-tier lookup, scope keys covering model, prompt version, and tenant,
+  scope filtering ahead of the similarity search, and a threshold sweep reporting hit rate, false-hit
+  rate, and precision together. Its embedding model is a lexical stand-in, and the lab is explicit
+  about how much of the headline result that explains — including a test written so the assertion
+  expected to weaken under a real model is named.
+  [Read the lab documentation →](/build/labs/semantic-cache/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="What is in the cache key for an LLM response, and why?">
+  The normalised request, plus the model identifier, the prompt version, and the tenant. A cached
+  answer is an answer *from a particular model under a particular prompt for a particular tenant*, so
+  each of those changing must miss. Prompt version is the one people leave out, and it is the one
+  that changes weekly — omit it and every prompt fix keeps serving the old behaviour until the TTL
+  expires.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your semantic cache has a 60% hit rate. What do you need to know before shipping it?">
+  The false-hit rate. Hit rate on its own is an argument for lowering the threshold until the cache
+  is usually wrong, because both curves move together and only one is on the cost dashboard. And
+  since a false hit is downstream-indistinguishable from a correct answer, the number does not exist
+  unless you build it — by sampling hits against fresh model calls, continuously, in production.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Paraphrases score 0.45–0.83 and near-duplicates with different answers score 0.60–0.91. What threshold do you pick?">
+  None — that is the point of the question. The populations are inverted, so every threshold that
+  serves a paraphrase also serves a wrong answer, and tightening removes the right answers before the
+  wrong ones. The available moves are to serve only the exact tier, or to detect that two questions
+  differ on an entity that changes the answer. Threshold tuning trades one error for the other; it
+  cannot eliminate both.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Why does the tenant filter have to be inside the vector query?">
+  Because filtering afterwards means the nearest-neighbour search already read another tenant's
+  entries and you are discarding the result rather than never producing it. The isolation is
+  procedural instead of structural, so it holds only as long as every code path remembers to apply
+  it. Inside the query, the boundary is a property of the search.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Your evaluation scores did not move after a model upgrade. What would you check first?">
+  Whether the eval ran through the cache. If it did, it measured the cache and will keep reporting
+  the previous model's answers indefinitely — which looks exactly like a model change that did
+  nothing. Evaluation needs a bypass path, and it should be the default in that path rather than a
+  flag someone has to set.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Where did you get the threshold?">
+  From a labelled set of near-duplicates drawn from the product's own traffic, swept with both hit
+  rate and false-hit rate reported. A threshold is a joint property of a corpus and an embedding
+  model, so a number taken from anywhere else — a vendor default, a paper, another team — is not
+  evidence about this system. Answering with a number and no measurement behind it is the failure
+  mode this question is looking for.
+</InterviewQuestion>

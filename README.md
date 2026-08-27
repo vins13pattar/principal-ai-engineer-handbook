@@ -33,13 +33,12 @@ code, or from the code back to the reasoning.
 
 ## Status
 
-**Sixteen Learn modules, eleven labs, seven architecture pages, three interview tracks, thirteen
-reference lookups, five cheat sheets.** Seven of the eleven labs have a matching architecture page;
-the four newest have a module and a Build page but no design review yet. Every lab passes `ruff`,
-`mypy --strict`, and its own test suite in CI.
+**Sixteen Learn modules, eleven labs, eleven architecture pages, three interview tracks, thirteen
+reference lookups, five cheat sheets.** Every one of the eleven labs now has a matching architecture
+page. Every lab passes `ruff`, `mypy --strict`, and its own test suite in CI.
 
-Every one of those pages can also be heard: **63 episodes, ten hours**, one per content page, each
-with its transcript on the page. The model plans and writes a two-voice dialogue; speech is
+Most of those pages can also be heard: **63 episodes, ten hours**, each with its transcript on the
+page. The four newest architecture pages are awaiting a recording pass. The model plans and writes a two-voice dialogue; speech is
 synthesised locally. See [`docs/PODCAST.md`](docs/PODCAST.md) for the pipeline and
 [ADR-0008](apps/handbook/src/content/docs/adr/decisions/0008-typescript-podcast-pipeline.mdx) for
 why it is built the way it is.
