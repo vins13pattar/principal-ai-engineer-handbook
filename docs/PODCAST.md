@@ -5,8 +5,13 @@ reading it. The model plans the arc and writes the dialogue; a local text-to-spe
 the pipeline joins the segments into one file.
 
 An episode covers the whole page by default, aiming at the page's own reading time — 18 minutes for
-module 6, which is 3,918 words. Across all 63 documents the handbook is **414 minutes of prose**, so
-the complete series is about seven hours of audio for roughly **$30**.
+module 6, which is 3,918 words. Across all 63 documents the handbook is **414 minutes of prose**,
+which projected to about seven hours of audio.
+
+The finished series is **ten hours** — 63 episodes, 3:00 to 22:24, mean 9:30, summed from the
+`audioSeconds` field of the manifests in `episodes/`. The projection was low because two voices
+discussing a passage take longer than the passage takes to read, and the estimate treated reading
+time as speaking time. Budget against the measured number, not the projected one.
 
 Speech is local and therefore free. The only money this spends is on the language model — about
 **$1.04 for an 18-minute episode** at Claude Sonnet pricing, or a third of that with

@@ -37,6 +37,12 @@ code, or from the code back to the reasoning.
 reference lookups, five cheat sheets.** Seven of the eleven labs have a matching architecture page;
 the four newest have a module and a Build page but no design review yet. Every lab passes `ruff`,
 `mypy --strict`, and its own test suite in CI.
+
+Every one of those pages can also be heard: **63 episodes, ten hours**, one per content page, each
+with its transcript on the page. The model plans and writes a two-voice dialogue; speech is
+synthesised locally. See [`docs/PODCAST.md`](docs/PODCAST.md) for the pipeline and
+[ADR-0008](apps/handbook/src/content/docs/adr/decisions/0008-typescript-podcast-pipeline.mdx) for
+why it is built the way it is.
 The [Roadmap](https://handbook.vinodspattar.in/roadmap/) says what does not exist yet, and is kept
 honest by a linter that fails the build when a page is missing a required section — or when a page
 on a fast-moving topic goes unverified past its review window.

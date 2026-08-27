@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.12.0
-lastUpdated: 2026-08-15
+version: 2.13.0
+lastUpdated: 2026-08-28
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -120,10 +120,17 @@ revisionHistory:
       the size of the migrated lab cohort, and the SDK's internal tools/list, which does carry the
       protocol _meta stamp.
     author: vinod
+  - version: 2.13.0
+    date: 2026-08-28
+    change: >-
+      Recorded v0.11 — the audio series. Every one of the 63 content pages has an episode, which the
+      roadmap had gone thirteen days without mentioning while claiming to say what does not exist
+      yet.
+    author: vinod
 category: section-overview
 ---
 
-## Current version: v0.10.0 — Agent Identity and Access
+## Current version: v0.11.0 — The audio series
 
 The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 0](/learn/modules/00-principal-engineer-mindset/) · [Module 1](/learn/modules/01-production-python/) ·
@@ -150,6 +157,9 @@ release it was verified against, on a 90-day review window CI fails once a page 
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
+Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped) is
+complete: 63 episodes, one per content page, ten hours in total.
+
 ## What's next
 
 | Version    | Scope                                                                                                        |
@@ -163,7 +173,27 @@ contract CI enforces — three for interview rounds, two for the work itself.
 | ~~`v0.8`~~ | ~~Learn Module 14 (Leadership)~~ — shipped 2026-08-10                                                        |
 | ~~`v0.9`~~ | ~~The four fast-moving Reference lookups (MCP, LangGraph, RAG, Vector DB), each with a `freshness` block~~ — shipped 2026-08-12 |
 | ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
+| ~~`v0.11`~~ | ~~The audio series — a generated episode on every content page, with its transcript~~ — shipped 2026-08-23 |
 | `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
+
+### What v1.0 still needs
+
+Two of the three v1.0 criteria are open, and one of them cannot be met as written:
+
+- **Four Architecture pages.** Eleven labs, seven design reviews. The four newest —
+  [Agent Identity Broker](/build/labs/agent-identity-broker/),
+  [Model Router](/build/labs/model-router/), [Semantic Cache](/build/labs/semantic-cache/), and
+  [Evaluation Platform](/build/labs/evaluation-platform/) — have a module and a Build page but no
+  page arguing the design. This is the shortest path to v1.0 and the next thing being written.
+- **Five modules without a lab**, which makes "every module has a lab" unreachable as stated.
+  Modules [7](/learn/modules/07-langgraph/) and [11](/learn/modules/11-cloud/) are lab-shaped and
+  could get one. Modules [0](/learn/modules/00-principal-engineer-mindset/),
+  [13](/learn/modules/13-system-design/), and [14](/learn/modules/14-leadership/) are not — a lab
+  about the Principal Engineer mindset would be a lab in name only. The criterion will be restated
+  to cover the modules a lab can honestly serve, rather than left standing as a target that can only
+  be hit by building three labs nobody should run.
+- **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
+  have a track.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. As of
@@ -182,6 +212,33 @@ unit of work than a module and shouldn't gate a version bump the way a module do
 | [Model Router](/build/labs/model-router/)                         | Module 4         | Production-shaped |
 | [Semantic Cache](/build/labs/semantic-cache/)                     | Module 4         | Production-shaped |
 | [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
+
+### The audio series: shipped
+
+Every content page carries a player and a transcript. Sixty-three episodes, **ten hours** of audio,
+from 3:00 on the shortest ADR to 22:24 on [Module 6](/learn/modules/06-mcp/) — measured from the
+episode manifests, not estimated. The model plans the arc and writes the two-voice dialogue; a local
+text-to-speech model speaks it.
+
+The ten hours are worth stating plainly because
+[`docs/PODCAST.md`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/docs/PODCAST.md)
+projected seven, from the handbook's 414 minutes of prose. Spoken dialogue expands on the page it
+covers rather than reading it aloud, and the estimate did not account for that. The number here is
+the measured one.
+
+The 63 are every page that says something. The ten pages that do not — [Start
+Here](/start-here/), this roadmap, and the eight section indexes — are navigation, and an episode
+narrating a table of contents would be filler. That is a deliberate exclusion, not a gap to close.
+
+Two things about the pipeline are recorded rather than assumed. Speech runs locally, so the only
+money the series spends is on the language model; and every transcript is committed next to its
+manifest, so re-rendering a page's episode text never pays the model twice.
+[ADR-0008](/adr/decisions/0008-typescript-podcast-pipeline/) covers why the engine is built against
+two ports — `LlmPort` and `TtsPort` — with no vendor SDK imported anywhere behind them, which is
+what lets the whole pipeline be tested without a network or an API key.
+
+Audio is served from a separate origin and is not in the repository; the transcripts are, so the
+words survive independently of the hosting.
 
 ### Module 15 — Agent Identity and Access: shipped
 
