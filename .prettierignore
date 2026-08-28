@@ -10,6 +10,12 @@ pnpm-lock.yaml
 labs/
 CHANGELOG.md
 
+# Machine-local tool settings, written by Claude Code and ignored globally rather
+# than by this repo. Prettier does not skip a file just because git does, so
+# without this `pnpm verify` fails on any machine that has one and passes in CI,
+# which is the worst arrangement of the two.
+.claude/settings.local.json
+
 # Prettier's MDX/remark parser corrupts fenced code blocks that are children of a
 # custom JSX component (e.g. a Python code fence inside <CodeWalkthrough>...</CodeWalkthrough>):
 # it strips indentation from later statements in the block. Content pages routinely nest
