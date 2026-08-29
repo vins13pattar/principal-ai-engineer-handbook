@@ -1,0 +1,353 @@
+{
+  "archiveVersion": 1,
+  "slug": "architecture-task-based-model-routing",
+  "meta": {
+    "documentId": "architecture:task-based-model-routing",
+    "url": "/architecture/systems/task-based-model-routing/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-29",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 874
+  },
+  "plan": {
+    "topic": "Architecture: Task-Based Model Routing",
+    "title": "The Router That Does the Math: Task-Based Model Routing",
+    "throughLine": "A model router has to filter by capability before it ever thinks about cost, and even a well-built one can still be steered by the wrong metric — escalation looks like free savings until you measure cost per correct answer instead of cost per rescued answer, and the whole architecture is really about making that distinction explicit, ordered, and auditable.",
+    "beats": [
+      {
+        "title": "The static config and the backwards intuition",
+        "intent": "Open with the everyday failure: routing decided once at the top of a config file, the naive fix of sorting by price, and the deeper trap — escalation, which sounds obviously right and is measured against a metric that lies.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#problem"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 74.78260869565217,
+        "allocatedCharacters": 1107
+      },
+      {
+        "title": "What a real router has to guarantee",
+        "intent": "Lay out the non-negotiables: capability filtering before cost, a visible quality floor, a budget cap that doesn't silently degrade, deterministic selection, an auditable reason, and cost accounting that doesn't flatter the router's own strategy.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#requirements"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 44.869565217391305,
+        "allocatedCharacters": 573
+      },
+      {
+        "title": "Trust, decay, and the corner nobody accounts for",
+        "intent": "Walk through the constraints that survive good design: capability claims are trusted not verified, quality scores go stale invisibly, confidence signals can be swapped for noise without anything catching it, and escalation spends latency as well as money.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#constraints"
+        ],
+        "weight": 2,
+        "targetSeconds": 59.82608695652174,
+        "allocatedCharacters": 1135
+      },
+      {
+        "title": "Why the ordering is the design: capability, then policy, then escalation",
+        "intent": "Explain the request flow as an argument, not a pipeline diagram — capability as a hard filter first, floor and budget as policy over survivors, escalation treated as a separate, separately-billed call rather than a routing rule.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#request-flow"
+        ],
+        "weight": 2,
+        "targetSeconds": 59.82608695652174,
+        "allocatedCharacters": 771
+      },
+      {
+        "title": "The measurement that broke the assumption it was built to confirm",
+        "intent": "Present the core finding: a perfect confidence signal, escalation lifting accuracy 19% while cost per correct answer gets 11x worse, and why that's arithmetic — a cheap model already mostly right can only make the average go up — not a modelling failure.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#cost",
+          "lab:model-router#the-finding"
+        ],
+        "weight": 3,
+        "targetSeconds": 89.73913043478261,
+        "allocatedCharacters": 3090
+      },
+      {
+        "title": "The number that actually answers the question",
+        "intent": "Introduce marginal cost per rescued answer as the metric that replaces the trap, work through what it costs at different price ratios, and land on the point that whether it's worth paying is a product question about what a wrong answer costs — not something the router can answer for you.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#trade-offs",
+          "lab:model-router#the-number-that-actually-decides"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 74.78260869565217,
+        "allocatedCharacters": 1370
+      },
+      {
+        "title": "How this fails quietly in production",
+        "intent": "Go through the concrete failure modes: cheapest-incapable-model wins on price, budget-driven quality regressions that show up nowhere, decorative floors, ties that make cost reports unreconcilable, and a degraded confidence signal that's invisible in code review.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#failure-modes",
+          "lab:model-router#what-else-the-tests-pin"
+        ],
+        "weight": 2,
+        "targetSeconds": 59.82608695652174,
+        "allocatedCharacters": 2500
+      },
+      {
+        "title": "Escalate or go straight to the strong model — and who gets to decide",
+        "intent": "Cover the trade-offs beyond escalation itself: static versus measured quality scores and the underrated middle ground of a named owner, and the tension between a router that owns the decision globally versus a caller who wants to pin the model.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#trade-offs"
+        ],
+        "weight": 2.5,
+        "targetSeconds": 74.78260869565217,
+        "allocatedCharacters": 789
+      },
+      {
+        "title": "Locking down who can spend your money",
+        "intent": "Cover the security posture: capability declarations as a reviewed trust boundary, never letting callers name a model directly, per-tenant budget caps as abuse control, and the routing reason as the first thing anyone asks for after a bad answer.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#security"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 44.869565217391305,
+        "allocatedCharacters": 857
+      },
+      {
+        "title": "What scales, what doesn't, and what to watch",
+        "intent": "Note that the routing decision itself is essentially free and shouldn't be distributed, that escalation load shifts non-linearly onto the priciest tier when the cheap model's accuracy drifts, and tie this to the observability signals that catch it — escalation rate versus yield, quality-floor miss rate, model mix drift.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#scaling",
+          "architecture:task-based-model-routing#observability"
+        ],
+        "weight": 2,
+        "targetSeconds": 59.82608695652174,
+        "allocatedCharacters": 2039
+      },
+      {
+        "title": "Shipping it, and the evaluation pipeline it leans on",
+        "intent": "Close with the production checklist — ordering enforced in tests, escalation separately accounted and continuously justified, a named owner for quality scores — and point at why keeping those scores honest over time is itself a whole architecture, continuous model evaluation, rather than something the router can do alone.",
+        "excerptIds": [
+          "architecture:task-based-model-routing#production-deployment",
+          "architecture:continuous-model-evaluation#problem",
+          "lab:model-router#related"
+        ],
+        "weight": 1.5,
+        "targetSeconds": 44.869565217391305,
+        "allocatedCharacters": 3026
+      }
+    ],
+    "requestedSeconds": 688,
+    "plannedSeconds": 687.9999999999999,
+    "unsupported": [
+      "A concrete production case study of a company adopting this router and the before/after business impact",
+      "Details of how the confidence signal used for escalation is itself trained or calibrated",
+      "A worked example of setting a numeric value on 'what a wrong answer costs' for a specific business",
+      "Specific latency numbers (milliseconds) for an escalated double round trip versus a single strong-model call",
+      "Comparison of this architecture against named third-party routing frameworks or products"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 79,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.86400000000003,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "59042597c990123007ae5a7da0991c16b9d05b868fa9f531e7bc3eb0a4639081",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So picture the setup almost every team ends up with: you've got more than one model available, and somewhere at the top of a config file, someone made a decision about which one handles what. Once. And then that decision just quietly runs on every single request forever."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Right, and it fails in one of two directions. Either you've got a strong, expensive model answering questions a five-cent model would have nailed, or you've got the cheap model getting handed work it was never built to do, and just failing at it. Both are the same underlying mistake, just pointed opposite ways."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Okay, so the obvious fix seems easy — just sort your models by price and default to the cheapest one that's available. What's wrong with that?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Nothing, until you remember price has zero relationship to capability. That gives you a router that's fast and cheap and confidently wrong. And even once you fix that — even once you've got a system that genuinely checks capability first — there's a second trap waiting, one that sounds completely reasonable: escalation, try the cheap model first, fall back to the expensive one when it looks unsure. Everybody's intuition says that's obviously smart. Measured the right way, it's actually backwards."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, before we get into that escalation trap, let's nail down what a router actually has to promise. If you had to write the non-negotiables on a whiteboard, what's on the list?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Six things, and they're in order for a reason. Capability filtering before cost, because a model that can't do the task isn't a cheap option, it's not an option at all. Then a quality floor with a visible outcome when nothing in the fleet clears it — no silent shrug. A budget cap that doesn't silently degrade quality, deterministic selection so the same task and fleet always produce the same choice, an auditable reason attached to every decision rather than just a model name, and last, cost accounting the router doesn't get to flatter itself with — including the case where its own strategy turns out to be the expensive one."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so you've got six ordered checks, all deterministic and auditable. That sounds like it should be airtight. What breaks it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Trust, mostly. When a model gets registered as capable of reasoning, the router just believes it — there's no way to verify that claim, only to make it explicit so a failure is attributable instead of mysterious. And quality scores are the same problem in slow motion: they're a snapshot of a moving target, so the router can quietly optimize against numbers that stopped being true weeks ago, and nothing in the system throws an error when that happens."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So it can be confidently wrong and still look like it's working. What about the confidence signals themselves — can those degrade too?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Worse — you can swap an informative confidence signal for pure noise and nothing catches it. No type checker, no code review flags it, escalation still fires, still bills twice, and just returns less. And people forget escalation has a latency cost too — a task that escalates pays two round trips, and if there was a deadline, the cheap-then-expensive path can miss it when the single expensive call up front wouldn't have."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So let's zoom out from the failure modes for a second and just look at the shape of the thing. If I'm reading the request flow right, the order itself is basically the argument — capability first, then policy, then escalation. Why does that ordering matter so much that you'd call it the design rather than just a diagram?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Because capability is a hard filter, not a preference. Everything downstream is an optimization over whatever survives that filter, so if you run cost before capability you get exactly the failure we already talked about — picking the cheapest model that literally cannot do the task. That's not a tuning problem, it's a one-line ordering mistake, and it's the whole reason the flow is written the way it is."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Okay, so capability filters the field. Then policy — floor and budget — runs over survivors. What happens when policy itself can't be satisfied, when nothing left clears the floor or fits the budget?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Both have to fail loudly, but differently. A floor nothing clears still returns a decision — you can't serve nothing to the user — but it records that the floor was missed, so it's a logged failure, not a silent one. A budget cap is stricter: it raises an error instead of quietly downgrading to something worse. And escalation sits outside all of this — it's not a routing rule, it's a second call, accounted for separately, including in the billing. The architecture treats it as its own event because pretending it's just another branch in the router is how people lose track of what it actually costs."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So you ran the numbers on escalation itself, not just the plumbing around it, and I gather the test suite you wrote to prove it saves money actually failed. What happened?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "We gave it the best possible case — a perfect confidence signal, low exactly when the answer's wrong, which no real system gets. Over two hundred tasks, escalation pushed correct answers from 166 to 197, a 19% accuracy gain. But cost per correct answer went from 0.00024 to 0.00279 — eleven times worse."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Eleven times worse while accuracy went up? That sounds like it should be a contradiction, not just a bad tradeoff."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "It feels like one, but it's arithmetic, not a modelling failure. The cheap model is already right 83% of the time, so it's generating a huge pile of cheap correct answers. Escalation only adds a small number of expensive correct answers on top, so the average can only go up — even when the escalation policy is working perfectly. Cost per correct answer just isn't built to notice that a policy is succeeding; it punishes any expensive addition to an already-cheap base, which is why it's the metric everyone reaches for and the one that's lying to them."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So if cost per correct answer is lying to us, what's the number that actually tells the truth here?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Marginal cost per rescued answer. Instead of averaging over everything, you isolate what escalation specifically bought: the escalated cost minus the baseline cost, divided by the escalated correct minus the baseline correct. That ratio is just the price of the answers escalation actually fixed, nothing else mixed in."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "And when you actually run that math, what does it look like?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "At a 2x price ratio between the cheap and strong model, you're paying about 0.00044 per rescued answer. Push the ratio out to 75x and it's about 0.016. Both are real numbers you can defend, but neither one tells you if it's worth paying — that's a separate question about what a wrong answer costs your product, and the router has no opinion on that, it just hands you the honest bill."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So let's get concrete about how this actually breaks, because I don't think it breaks loudly. Walk me through the failure modes one at a time — where does it go wrong first?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "First one: cheapest model wins on price before anyone checks if it can do the job. Small is the cheapest thing in the fleet and it cannot write code, so a router that sorts by price first hands it code tasks anyway — fast, cheap, confidently wrong. And here's the quiet part: a budget cap that silently downgrades instead of raising an error is a quality regression that shows up in zero dashboards. It reads as a cost win. Then there's the floor nobody clears — if you set a quality bar above everything in the fleet and the router just shrugs and returns something anyway, that floor is decorative, unless you force it to record the miss in the reason string, which is the only thing that makes an unsatisfiable bar visible instead of silently ignored."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "And the tie-breaking one — that's the one that sounds small but corrupts your data, right?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Exactly, if two candidates are equal and the router picks based on dict iteration order or registration sequence, your cost reports don't reconcile run to run, and any A/B test you run on top of that is just noise dressed up as a result. But the worst one is the confidence signal going bad, because nothing in the code, the types, or a review catches it — escalation still fires, you still get billed twice, you just stop rescuing almost anything. It's identical on paper and completely different in reality, which is exactly why you have to measure it instead of trusting that it compiles."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So let's put escalation next to its blunt alternative: just send everything straight to the strong model. Why would anyone ever pick the two-hop route over the simpler one-hop route?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Because escalation buys the same accuracy for two round trips and two bills, while going straight there buys it for one of each but at a higher baseline cost every single time. The choice really turns on how often the cheap model is already right and what a wrong answer actually costs you. Most teams that adopt escalation have never written either number down, they just assumed the two-hop path was cheaper because it feels cheaper."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "And that's the same trap as before — cost per correct answer looks fine, but it's not the number that tells you whether escalation is pulling its weight."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Right — and once you've settled on the number that actually matters, there's a separate question of who gets to act on it. A router that owns the escalation decision can enforce floors, caps, and capability filtering globally, but it frustrates the caller who already knows their task needs the strong model. Letting callers pin a model directly is responsive and hands them the spend dial, but then you lose that central control. The version that keeps both properties is letting callers express requirements — capabilities, a quality floor — while the router still picks the actual model."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "So if callers only express requirements and never name a model, where does the actual security risk hide in that registry? It feels like the interesting failure mode isn't the caller anymore."
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Right, it moves upstream to whoever writes the capability entries. A model that claims a capability it doesn't have gets routed work it will fail, so that registry has to be reviewed like code, not edited like a config file. And separately, budget caps need to be per tenant, not global, or one runaway caller eats everyone's ceiling — that's abuse control as much as cost control. Then when something does go wrong, the routing reason for that specific request has to be sitting in the audit log, because which model served it and why is the very first question anyone asks once a bad answer reaches a customer."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "Let's talk scale, because I'd assumed the router itself was the expensive part — all that capability filtering and policy checking on every request. Is that actually a bottleneck?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "No, and that's worth saying plainly: the routing decision is basically free. It's a filter and a sort over a small in-memory registry, microseconds against a model call that takes seconds — nothing about that needs to be distributed. If your router has turned into a network hop, that better be justified by wanting one central place for policy, not by some performance need, because performance was never the problem. What does scale unpredictably is the load on the expensive tier, because the escalation rate is just a function of how accurate the cheap model is on live traffic right now, and if that drifts down even a little, you're quietly shoving a growing share of everything onto the smallest, priciest tier you have."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "So the router stays cheap, but the consequence of it making slightly worse calls doesn't stay small — it lands entirely on your most constrained capacity. How do you actually see that happening before the bill or the queue tells you?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "You watch escalation rate and escalation yield together, never rate alone — rate just tells you spend, yield tells you whether the escalations are still rescuing anything, and a rising rate with falling yield is exactly the degrading-signal pattern, invisible in either number by itself. Alongside that you want quality-floor miss rate, which tells you whether the fleet can't meet the bar or the bar's wrong, and model mix drift, which is the cleanest tell of all — traffic hasn't changed but more of it is landing on the expensive model, meaning the cheap model's real-world accuracy has moved out from under you."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "So if someone's shipping this tomorrow, what actually has to be in place before it goes out the door? Give me the checklist version."
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Three things, non-negotiable. The ordering is enforced by a test, not a comment, so a cheaper incapable model literally cannot be selected even by accident. Escalation gets its own line in the cost record, and that policy stays justified over time rather than just once. And the model spec's quality field has a named human owner with a review cadence, because a number nobody's accountable for just drifts until it's wrong. But none of that holds up on its own — the router only makes good decisions if the quality scores feeding it stay honest over time, and keeping them honest as models and prompts and traffic all shift underneath you is a whole separate discipline, continuous model evaluation, with its own hard problem of building a grader that can actually fail and a dataset big enough to see the difference you're claiming. The router assumes that problem is solved elsewhere. It has to be — that's this whole episode in one sentence."
+      }
+    ]
+  }
+}

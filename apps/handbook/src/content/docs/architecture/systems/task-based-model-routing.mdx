@@ -24,6 +24,7 @@ relatedAdrs: []
 
 import {
   Checklist,
+  EpisodePlayer,
   FailureMode,
   InterviewQuestion,
   LabCallout,
@@ -31,6 +32,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import routingPath from "../../build/labs/model-router.routing-path.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-task-based-model-routing.md";
+
+<EpisodePlayer
+  file="architecture-task-based-model-routing.m4a"
+  duration="14:34"
+  model="Claude Sonnet 5"
+  generated="2026-08-29"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 
