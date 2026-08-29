@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.14.0
+version: 2.15.0
 lastUpdated: 2026-08-28
 revisionHistory:
   - version: 1.0.0
@@ -134,6 +134,13 @@ revisionHistory:
       which closes two of the three v1.0 criteria and leaves the third resting on a decision rather
       than on writing. Recorded the four new pages as having no episode yet.
     author: vinod
+  - version: 2.15.0
+    date: 2026-08-28
+    change: >-
+      Recorded the four v0.12 episodes, closing the gap the previous revision opened. Sixty-seven
+      episodes, eleven measured hours — every content page. Also recorded what the run revealed about
+      the estimator, which is accurate on expensive episodes and over-quotes cheap ones.
+    author: vinod
 category: section-overview
 ---
 
@@ -164,9 +171,8 @@ release it was verified against, on a 90-day review window CI fails once a page 
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
-Almost every one of those pages can also be listened to. The [audio
-series](#the-audio-series-shipped) covers 63 of the 67 content pages — ten hours in total, with the
-four newest architecture pages awaiting a recording pass.
+Every one of those pages can also be listened to. The [audio
+series](#the-audio-series-shipped) covers all 67 content pages — eleven hours in total.
 
 ## What's next
 
@@ -226,24 +232,26 @@ unit of work than a module and shouldn't gate a version bump the way a module do
 
 ### The audio series: shipped
 
-Sixty-three episodes, **ten hours** of audio,
-from 3:00 on the shortest ADR to 22:24 on [Module 6](/learn/modules/06-mcp/) — measured from the
-episode manifests, not estimated. The model plans the arc and writes the two-voice dialogue; a local
-text-to-speech model speaks it.
+Sixty-seven episodes, **eleven hours** of audio, from 3:00 on the shortest ADR to 22:24 on
+[Module 6](/learn/modules/06-mcp/) — measured from the episode manifests, not estimated. The model
+plans the arc and writes the two-voice dialogue; a local text-to-speech model speaks it.
 
-The ten hours are worth stating plainly because
+The eleven hours are worth stating plainly because
 [`docs/PODCAST.md`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/docs/PODCAST.md)
 projected seven, from the handbook's 414 minutes of prose. Spoken dialogue expands on the page it
 covers rather than reading it aloud, and the estimate did not account for that. The number here is
 the measured one.
 
-The 63 were every page that said something when the series ran. The ten pages that do not — [Start
-Here](/start-here/), this roadmap, and the eight section indexes — are navigation, and an episode
-narrating a table of contents would be filler. That is a deliberate exclusion, not a gap to close.
+That is every page that says something. The ten pages that do not — [Start Here](/start-here/), this
+roadmap, and the eight section indexes — are navigation, and an episode narrating a table of contents
+would be filler. That is a deliberate exclusion, not a gap to close.
 
-The four architecture pages published in v0.12 have no episode yet, which is the ordinary state of a
-new page: writing and recording are separate passes, and the second costs money. **Four pending**,
-and this line is where that count is kept honest.
+The four v0.12 architecture pages were recorded on 2026-08-28, four days after the rest. The
+recordings are worth a note of their own, because the run measured the estimator: two episodes landed
+within 1% of their quoted expectation and two came in 8% and 28% *under* it. The engine's stated
+accuracy is about 7%, which is holding on the expensive side and not the cheap one. Every episode
+also overran its target length — 15:30 to 16:56 against targets near 12:00 — exactly as the engine's
+own documentation warns that models overrun the character budget.
 
 Two things about the pipeline are recorded rather than assumed. Speech runs locally, so the only
 money the series spends is on the language model; and every transcript is committed next to its

@@ -37,8 +37,8 @@ code, or from the code back to the reasoning.
 reference lookups, five cheat sheets.** Every one of the eleven labs now has a matching architecture
 page. Every lab passes `ruff`, `mypy --strict`, and its own test suite in CI.
 
-Most of those pages can also be heard: **63 episodes, ten hours**, each with its transcript on the
-page. The four newest architecture pages are awaiting a recording pass. The model plans and writes a two-voice dialogue; speech is
+Every one of those pages can also be heard: **67 episodes, eleven hours**, one per content page, each
+with its transcript on the page. The model plans and writes a two-voice dialogue; speech is
 synthesised locally. See [`docs/PODCAST.md`](docs/PODCAST.md) for the pipeline and
 [ADR-0008](apps/handbook/src/content/docs/adr/decisions/0008-typescript-podcast-pipeline.mdx) for
 why it is built the way it is.

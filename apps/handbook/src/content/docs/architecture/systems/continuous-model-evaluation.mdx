@@ -26,6 +26,7 @@ relatedAdrs: []
 
 import {
   Checklist,
+  EpisodePlayer,
   FailureMode,
   InterviewQuestion,
   LabCallout,
@@ -34,6 +35,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import significance from "../../build/labs/evaluation-platform.significance.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-continuous-model-evaluation.md";
+
+<EpisodePlayer
+  file="architecture-continuous-model-evaluation.m4a"
+  duration="15:30"
+  model="Claude Sonnet 5"
+  generated="2026-08-29"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

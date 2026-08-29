@@ -1,0 +1,367 @@
+{
+  "archiveVersion": 1,
+  "slug": "architecture-semantic-response-caching",
+  "meta": {
+    "documentId": "architecture:semantic-response-caching",
+    "url": "/architecture/systems/semantic-response-caching/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-08-29",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 1001
+  },
+  "plan": {
+    "topic": "Architecture: Semantic Response Caching",
+    "title": "Semantic Response Caching: The Cache That Can Be Wrong",
+    "throughLine": "An exact-match cache can only be slow or empty, but a semantic cache can serve a confidently wrong answer indistinguishably from a right one — so the entire design has to be built around measuring and bounding that risk, not just chasing hit rate.",
+    "beats": [
+      {
+        "title": "Why this is the highest-leverage lever, and the catch",
+        "intent": "Open with the cost/latency dominance of model calls, the repeat-question problem exact-match can't solve, and the category-defining line: exact caches can only be slow or empty, semantic caches can be wrong.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#problem"
+        ],
+        "weight": 1.2,
+        "targetSeconds": 59.08333333333333,
+        "allocatedCharacters": 1038
+      },
+      {
+        "title": "Two orderings that carry the whole design",
+        "intent": "Walk through exact-before-semantic and scope-filter-before-similarity-search as the two sequencing decisions that determine correctness, tying the tenant-boundary issue to the Vector DB post-filter gotcha.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#request-flow",
+          "reference:vector-db#common-gotchas"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.00694444444444,
+        "allocatedCharacters": 2620
+      },
+      {
+        "title": "What makes a cache hit valid",
+        "intent": "Lay out the requirements checklist — exact tier, scope key, false-hit measurement, invalidation on real change, bypass path — as the minimum contract for a defensible cache.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#requirements"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.23611111111111,
+        "allocatedCharacters": 706
+      },
+      {
+        "title": "The threshold you can't borrow, and the entity-swap trap",
+        "intent": "Explain why a similarity threshold is a joint property of corpus and embedding model, why false hits have no downstream symptom, and why short entity tokens get swamped by shared framing.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#constraints"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.00694444444444,
+        "allocatedCharacters": 1208
+      },
+      {
+        "title": "The lab's inverted curves",
+        "intent": "Present the concrete threshold sweep — hit rate, false-hit rate, precision — and the finding that the pair that must never be conflated (EU vs US) scores more similar than a genuine paraphrase.",
+        "excerptIds": [
+          "lab:semantic-cache#the-finding"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.00694444444444,
+        "allocatedCharacters": 1364
+      },
+      {
+        "title": "What survives a real embedding model, and what doesn't",
+        "intent": "Separate the mechanism (entity tokens are low-weight, function words dominate short paraphrases) from the specific inverted numbers, which are an artifact of a lexical stand-in embedding — and state the conclusion that does travel.",
+        "excerptIds": [
+          "lab:semantic-cache#how-much-of-that-is-the-simulation"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 54.15972222222223,
+        "allocatedCharacters": 1358
+      },
+      {
+        "title": "The scope key: model, prompt version, tenant",
+        "intent": "Detail why the scope key needs all three fields, why prompt version is the one people forget, and connect scope filtering inside the query to the vector store's metadata-filtering and namespace mechanics.",
+        "excerptIds": [
+          "lab:semantic-cache#the-other-half-the-scope-key",
+          "reference:vector-db#key-concepts"
+        ],
+        "weight": 1.1,
+        "targetSeconds": 54.15972222222223,
+        "allocatedCharacters": 2154
+      },
+      {
+        "title": "How this fails in production",
+        "intent": "Go through the concrete failure modes: threshold tuned by hit-rate dashboard, post-filter tenant leakage, stale prompt edits serving old behavior, eval suites measuring the cache instead of the model, TTLs that bound the wrong thing.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#failure-modes"
+        ],
+        "weight": 1.3,
+        "targetSeconds": 64.00694444444444,
+        "allocatedCharacters": 1650
+      },
+      {
+        "title": "Scaling the lookup path",
+        "intent": "Cover linear scan versus ANN indexes, scope keys as a natural partition, the embedding call as a cost floor on every lookup, and the stampede risk on expiry.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#scaling"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.23611111111111,
+        "allocatedCharacters": 1255
+      },
+      {
+        "title": "The security surface of a store of answers",
+        "intent": "Cover cross-tenant leakage as structural risk, the cache inheriting data classification, prompt version as a security control, and timing as an oracle revealing other tenants' activity.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#security"
+        ],
+        "weight": 1,
+        "targetSeconds": 49.23611111111111,
+        "allocatedCharacters": 842
+      },
+      {
+        "title": "Counting the real cost, and the trade-offs nobody wants to make explicit",
+        "intent": "Quantify the savings and the embedding-call floor, then confront the unpriced cost of a false hit, the exact-vs-semantic trade-off, TTL-versus-versioned-keys, and the choice to sample or not sample false-hit rate.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#cost",
+          "architecture:semantic-response-caching#trade-offs"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 68.93055555555554,
+        "allocatedCharacters": 3131
+      },
+      {
+        "title": "What good looks like: metrics, deployment checklist, and the interview questions that test for it",
+        "intent": "Close with the observability signals that make a cache auditable, the production checklist that operationalizes every earlier point, and the interview questions that probe whether someone actually understands the failure mode.",
+        "excerptIds": [
+          "architecture:semantic-response-caching#observability",
+          "architecture:semantic-response-caching#production-deployment",
+          "architecture:semantic-response-caching#interview-questions",
+          "lab:semantic-cache#principal-level-discussion-points"
+        ],
+        "weight": 1.4,
+        "targetSeconds": 68.93055555555554,
+        "allocatedCharacters": 5520
+      }
+    ],
+    "requestedSeconds": 709,
+    "plannedSeconds": 709,
+    "unsupported": [],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 78,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.237,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "1c853da8fcc3da10acb174f8389e2a7af67409bde2eb838575b78b6ec82cc72b",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So if you look at the cost and latency breakdown of pretty much any AI product, model calls dominate both. And a huge chunk of those calls are people asking something the system has already answered, just phrased a little differently. That feels like it should be an easy win."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "It should be, but exact-match caching basically can't touch it. 'How do I reset my password' and 'how can I reset my password' are the same question to a human and two completely different cache keys to a string comparison. So semantic caching comes in and matches on embedding similarity instead of exact text, and it becomes one of the highest-leverage cost levers you have."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "But you said it's also the one that quietly changes what the system returns. That sounds like the catch."
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "It is the catch, and it's a category difference, not just a tuning knob. An exact-match cache can only ever be slow or empty — worst case, you eat a model call. A semantic cache can be wrong. It can serve a confidently incorrect answer, fast, and nothing downstream can tell the difference: not the caller, not the model, not your logs, not your eval suite. So the real engineering question isn't how to push the hit rate up, it's how do you even know what that hit rate is costing you."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, so if the whole risk is a confidently wrong answer served indistinguishably from a right one, where do you even start controlling that? You said there are two orderings that carry the design — what are they?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "First one's cheap and obvious once you say it out loud: always check exact-match before you ever touch semantic. It's a hash lookup, zero false-hit risk, and it peels off a real chunk of traffic before you've asked any similarity question at all. The second ordering is the one that actually determines correctness, and it's easy to get backwards — scope filter before similarity search, not after."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Walk me through why the order there matters so much, because on the surface filtering feels like filtering either way."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "If you filter after the search, the nearest neighbor was already read out of another tenant's data before you discarded it — the read already happened, you're just deciding what to do about it afterward. That's the Vector DB lookup's first gotcha showing up here as a cache: the ANN index and the tenant boundary have to be the same query, not two sequential steps, or you've built a leak that looks like a filter."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So given that gotcha, what actually has to be true for you to trust a cache hit at all? Let's lay out the checklist, because it sounds like hit rate alone tells you nothing."
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Start with an exact tier before you even touch semantic — a string match is free and certain, so let it absorb whatever share of traffic it can before you take on any risk. Then you need a scope key that makes a hit valid: model, prompt version, and tenant at minimum, because an answer is only an answer from a particular model, under a particular prompt, for a particular tenant. Beyond that you need false-hit rate measured continuously in production, not just hit rate; invalidation triggered by prompt edits and model changes instead of a TTL clock that has no idea what changed; and a bypass path so eval and debugging can always reach the real model instead of getting served a cached answer."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So if I found a similarity threshold that works great in someone's blog post, or even in your own reference implementation, can I just use that number?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "No, and this trips people up constantly. The threshold is a joint property of your corpus and your embedding model — it's telling you where similar-meaning text tends to cluster for that specific model on that specific kind of question, and neither of those transfers. Worse, when the threshold is wrong in the risky direction, there's no symptom: nothing in the response distinguishes a false hit from a correct answer, so the only way to catch it is deliberately sampling cached answers against fresh ones, which almost nobody bothers to set up. And the case that breaks people's intuition hardest is the entity swap — 'pricing in the EU' versus 'pricing in the US,' or '2025' versus '2026' — because that swapped token is short and carries almost no weight against a long shared sentence of framing, while genuine paraphrases differ mostly in function words, which are a bigger fraction of a short question. So the pair you must never conflate can score more similar than the pair that should legitimately hit."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "That's a nasty inversion — the thing that actually matters least by length ends up mattering most by consequence. So how do you even start building a defense against something that leaves no trace once it's wrong?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "You start by actually sweeping the threshold and printing both curves side by side, not just the one that makes the dashboard look good. On this corpus, at 0.90 you get a 22% hit rate, and every single one of those hits is false — zero precision. Push down to 0.60 and you're hitting 89% of the time, but more than half of those hits are wrong answers served with total confidence."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So there's no dial you can turn where it's just... fine. Every setting that serves anything is serving some garbage."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, precision never touches 100% at any threshold that returns results, and that's before you get to the part that actually kept me up at night. The EU refund policy question scores 0.875 against the US version, and a genuine paraphrase — 'how do I' versus 'how can I' reset a password — scores 0.833. The pair that must never be conflated is literally more similar than the pair that's supposed to be a safe hit."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "Okay, before we all panic and swear off semantic caching forever — how much of that inversion is a real property of language, and how much of it is just an artifact of whatever embedding model you happened to run the lab with?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "The mechanism is real, the exact numbers aren't. The lab used a lexical stand-in, so it's basically counting shared words, and 'EU' versus 'US' is one short low-weight token drowning in a sea of identical framing, while 'how do I' versus 'how can I' changes function words that make up a huge fraction of a short question. A real dense model would likely separate those groups better, and the tests even name that expectation — there's an assertion checking the distributions are inverted, not merely overlapping, specifically flagging which result should weaken if you rerun this with a real embedding."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So if I swap in a proper model and the gap softens into overlap instead of a flip, does that mean the danger mostly goes away?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "No, and that's the conclusion that actually survives the swap — overlap is still fatal, it just looks like a harder tuning problem instead of an obvious inversion. Tightening the threshold trades false hits for false misses, it doesn't eliminate either, and on some corpora there's no usable point at all."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So we've got the threshold pinned down as best it can be. But you keep mentioning a 'scope key' alongside it — what actually goes into that, and why isn't the embedding similarity enough on its own?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Because a cached answer isn't just an answer, it's an answer from a specific model, under a specific prompt version, for a specific tenant — and the tests show that changing any one of those three invalidates the hit even if the embedding still lines up perfectly. Prompt version is the one everyone forgets, because prompts get edited constantly while models barely change, so a wording tweak that actually shifts the answer keeps quietly serving the old cached shape until the TTL finally expires."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "And where does that filtering actually happen relative to the similarity search itself?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "Before, always before — scope has to gate the candidate set going into the search, not clean up after it. If you filter afterward, the nearest neighbor was already read out of another tenant's vectors before you discarded it, which is exactly the vector store's metadata-filtering and namespace story showing up in cache form: filtering is supposed to be evaluated as part of the search, and namespaces are the usual unit of tenant isolation, so the cache needs to lean on those same mechanics rather than bolt scope on as a post-hoc check."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So let's walk through how this actually breaks in the wild, starting with the one everyone thinks they've solved: threshold tuning. Someone looks at a hit-rate dashboard, decides it's too low, and turns the dial."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Right, and that dial only moves in trade, not in improvement. Loosen the threshold and hit rate goes up, but so does the false-hit rate, and only the hit rate shows up on the cost dashboard someone's watching. Tightening doesn't fix it either — it just swaps false hits for misses, because if the two populations overlap, no single cutoff separates them; you're not solving a tuning problem, you're discovering that similarity was never equivalence."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "And that's separate from the tenant leakage failure we just covered — post-filtering looks fine in every test until the day it isn't."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "Exactly, it passes tests because the filter does remove the wrong-tenant result — until the day a result gets returned before the filter runs, or the filter itself gets dropped in a refactor. There was never structural isolation, just a check that happened to run every time until it didn't. Then there's the one that hits hardest because it's so mundane: someone edits the prompt, the model doesn't change, and the cache keeps serving the old answer for the full TTL — so you get a deploy log saying it shipped and a product behaving like it didn't. Worse, the eval suite is scoring the cache's answers, not the model's, so it stays flat right through a real regression, and a TTL only tells you how old an answer is, never whether it's still correct, so a fix just waits out an interval that was picked for reasons that have nothing to do with what changed."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "Let's talk about what happens as this thing actually grows, because a lookup path that works at a thousand entries isn't automatically the one that works at a million. Where's the line, and what changes when you cross it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Brute-force cosine scan is fine for longer than people expect — below a few thousand entries per scope, it's cheaper to just compare against everything than to run an index. Past that you need ANN, but you've traded exact nearest-neighbour for approximate nearest-neighbour, so now the closest match the cache finds might not actually be the closest match that exists. Scope keys help enormously here because they partition the search space naturally — you're scanning one tenant's entries under one prompt version, not the whole corpus, so the same key that gives you isolation also keeps the candidate set small. But two things bite regardless of index choice: every single lookup pays for an embedding call, so you've traded a small model call for a large one on every request, and the embedding endpoint now inherits the traffic of your entire product. And when a popular entry expires, every concurrent caller piles onto the model at once unless you single-flight that miss — otherwise the cache amplifies exactly the load spike it was built to absorb, right when write volume is already peaking from a prompt change invalidating everything at once."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "We've talked about this cache as a performance layer, but it's also just a database sitting there with real answers in it — so what does the security surface look like once you frame it that way?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "The headline risk is cross-tenant leakage, and the fix has to be structural, not a check you remember to add later — the scope filter belongs inside the query the vector store runs, not in application code you hope every call site respects. Beyond that, a cache is a store of answers, so it inherits the data classification of whatever's in those responses, even though it usually gets a retention policy written for performance infrastructure instead of sensitive data; and the prompt version in your key is doing security work too, because if that version bump was the fix for a jailbreak or a data-exposure bug, stale cached entries under the old version are stale vulnerabilities. There's also a subtler leak: timing itself is an oracle, since a fast response means a hit, which means somebody else asked something similar recently, and in a multi-tenant system that can reveal that another tenant exists or is active — usually fine to accept, but it's a decision you want to make on purpose rather than discover in an audit."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "Let's put a number on this. A hit swaps a full model call for an embedding call and a lookup — that's two orders of magnitude cheaper, but you're paying that embedding cost on every single request, hit or miss. So a cache with a low hit rate isn't free, it's just a small tax instead of a saving, right?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Exactly, and storage is basically free — it's text, TTLs keep it bounded, nobody loses sleep over that line item. The cost nobody puts on an invoice is a false hit: a wrong answer costs whatever it costs your product, a support deflection that misinforms, a policy quoted for the wrong region."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "So without a dollar figure for a wrong answer, every threshold conversation is really just people arguing about a dashboard. Given that, what's the actual defensible fallback — exact-only, and TTLs or versioned keys?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Exact-only is a legitimate final answer when correctness turns on entities the user supplies — you give up most of the savings but you can never be wrong, whereas semantic buys you the paraphrase traffic at the cost of a new correctness surface. For invalidation, run both: versioned keys for correctness since they cost nothing at read time, and a TTL as the backstop for the version bump somebody forgot. And the last honest question is whether you sample hits against a fresh call to get a real false-hit rate — it costs you a slice of the savings, but skip it and you won't know your error rate until an incident tells you."
+      },
+      {
+        "speaker": "host",
+        "beat": 12,
+        "text": "So if I'm standing in front of a dashboard trying to decide whether this thing is healthy, what actually earns a place on it — not hit rate, since we've spent this whole episode complicating that one?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 12,
+        "text": "False-hit rate from sampling is the one metric here that doesn't come for free from the cache's own logs — you have to manufacture it by re-running a slice of hits against a fresh model call, and it's the number the whole design turns on. Alongside it you want hit rate split by tier, the distribution of similarity scores on hits rather than the mean, miss reasons broken out by scope-versus-threshold-versus-expiry, hit rate crashing to zero right after a prompt bump, and the age distribution of what's being served. Each one is a different way of catching the same failure before a user does — a mean of 0.94 hides the cluster sitting just above threshold, and a version bump that doesn't zero out the hit rate means the version isn't actually in the key."
+      },
+      {
+        "speaker": "host",
+        "beat": 12,
+        "text": "And if someone's interviewing for a role where they'd own this, what question actually separates the person who's built one from the person who's read about one?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 12,
+        "text": "Ask what threshold eliminates both false hits and missed paraphrases, and the right answer is none, because the populations are inverted. And ask whether their eval suite runs through the cache — because if it does, it's grading the cache, not the model, and that's the same blind spot as the false-hit question wearing a different hat."
+      }
+    ]
+  }
+}

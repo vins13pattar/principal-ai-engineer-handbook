@@ -24,6 +24,7 @@ relatedAdrs: []
 
 import {
   Checklist,
+  EpisodePlayer,
   FailureMode,
   InterviewQuestion,
   LabCallout,
@@ -32,6 +33,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import thresholdTradeoff from "../../build/labs/semantic-cache.threshold-tradeoff.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-semantic-response-caching.md";
+
+<EpisodePlayer
+  file="architecture-semantic-response-caching.m4a"
+  duration="16:41"
+  model="Claude Sonnet 5"
+  generated="2026-08-29"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 

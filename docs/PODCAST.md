@@ -8,10 +8,19 @@ An episode covers the whole page by default, aiming at the page's own reading ti
 module 6, which is 3,918 words. Across all 63 documents the handbook is **414 minutes of prose**,
 which projected to about seven hours of audio.
 
-The finished series is **ten hours** — 63 episodes, 3:00 to 22:24, mean 9:30, summed from the
+The finished series is **eleven hours** — 67 episodes, 3:00 to 22:24, mean 9:54, summed from the
 `audioSeconds` field of the manifests in `episodes/`. The projection was low because two voices
 discussing a passage take longer than the passage takes to read, and the estimate treated reading
 time as speaking time. Budget against the measured number, not the projected one.
+
+The same gap shows up per episode: every one of the four recorded on 2026-08-28 overran its target,
+landing at 15:30–16:56 against targets near 12:00. Ask for a duration and expect roughly a third
+more.
+
+The cost estimator is more accurate, but asymmetrically. Across those four runs it quoted $0.42 and
+measured $0.42, quoted $0.41 and measured $0.40 — then quoted $0.41 and measured $0.29, and quoted
+$0.42 and measured $0.39. It predicts the expensive case within 1% and over-quotes the cheap one by
+up to 28%, so treat a quote as an upper-ish bound rather than the ±7% claimed above.
 
 Speech is local and therefore free. The only money this spends is on the language model — about
 **$1.04 for an 18-minute episode** at Claude Sonnet pricing, or a third of that with
