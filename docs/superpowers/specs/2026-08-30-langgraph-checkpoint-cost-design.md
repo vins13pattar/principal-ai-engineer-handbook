@@ -17,16 +17,38 @@ That is an assertion. Nothing in the repository measures it, and it carries a st
 recommendation — restructure your state model — on no published evidence. A lab is what turns that
 into a number.
 
-The lab measures two things the claim implies and does not quantify:
+The lab measures three things the claim implies and does not quantify:
 
 1. **The shape of the cost curve** for a graph whose state accumulates. Flat, linear, or
    superlinear, and from what state size the difference becomes operationally interesting.
-2. **What `DeltaChannel` actually buys**, including the case the lookup does not consider: whether
-   delta bookkeeping costs _more_ than full serialization below some state size. If it does, the
-   advice is conditional and the lookup should say so.
+2. **What `DeltaChannel` actually buys on the write path**, including the case the lookup does not
+   consider: whether delta bookkeeping costs _more_ than full serialization below some state size.
+3. **What it costs on the read path**, which is the half the lookup omits entirely.
 
-The second is the one worth building the lab for. "Use `DeltaChannel` for large state" is only
-useful advice if someone can say what large means.
+The third is the one worth building the lab for.
+
+### Why the read path is the point
+
+Inspecting the installed build changed this spec. `DeltaChannel`'s own docstring describes the
+mechanism:
+
+> Reducer channel that stores only a sentinel in checkpoint blobs and reconstructs state by
+> replaying ancestor writes through the reducer.
+
+It does not make the cost go away. It moves it from the write path to the read path, and bounds
+replay depth with periodic snapshots — every `snapshot_frequency` updates to the channel (default
+`1000`), or every `DELTA_MAX_SUPERSTEPS_SINCE_SNAPSHOT` supersteps (default `5000`), whichever comes
+first.
+
+So `snapshot_frequency` is an explicit dial between write cost and resume cost, and the honest
+finding is a curve in two dimensions rather than one number. **A lab that measured only bytes per
+step would report `DeltaChannel` as free and would be wrong** — the same half-measurement failure
+this repository keeps recording in other people's reasoning. Measuring one side of a trade is how
+`model-router`'s cost-per-correct-answer trap works, and this would be that trap with a different
+subject.
+
+"Use `DeltaChannel` for large state" is only useful advice if someone can say what large means and
+what resuming then costs.
 
 ## Why this is not `durable-agent-task-engine` again
 
@@ -90,6 +112,16 @@ Wrapping the checkpointer rather than timing the whole graph isolates serializat
 execution and from disk. Disk behaviour is a separate variable and would make the numbers a property
 of the test machine's filesystem.
 
+**And on the read path**, separately measured because it is where `DeltaChannel` sends the cost:
+
+- **time to reconstruct state** when resuming a thread at step _N_
+- **replay depth** — how many ancestor writes were folded to get there
+- the same two, swept across `snapshot_frequency`, which is the dial trading one path against the
+  other
+
+Resume cost is measured against run length, not just once. A single resume measurement cannot show
+whether reconstruct time grows with distance from the last snapshot, which is the entire mechanism.
+
 Two checkpointer configurations are measured:
 
 | Configuration          | What it isolates                                               |
@@ -148,6 +180,13 @@ Each of these is a claim Module 7 or the Reference lookup makes that nothing cur
   configured: one update survives, no error is raised, and nothing in the result distinguishes this
   from correct behaviour. This is the same failure class as `semantic-cache`'s false hits and
   `agent-identity-broker`'s disabled audience check — dangerous because it has no runtime symptom.
+- **A non-associative reducer silently reconstructs different state.** `DeltaChannel` requires its
+  reducer to be batching-invariant — `reducer(reducer(s, xs), ys)` must equal `reducer(s, xs + ys)` —
+  because replay folds writes in larger batches than they were produced in. A reducer that violates
+  this returns a different value after resume than before, with no error raised. The test builds one
+  deliberately and asserts the divergence, because this is the failure that makes `DeltaChannel`
+  dangerous rather than merely slow, and it is invisible in exactly the way this handbook keeps
+  flagging.
 - **Node retry re-runs the whole node.** The lookup states the retry unit is the node and that a
   partially-completed node re-runs from the top. The test asserts a node with a side effect executes
   it twice under retry, which is the concrete form of the idempotency requirement
@@ -211,6 +250,16 @@ suite reaches a service.
 marginal at realistic state sizes, that is the result and the Build page says so — and the Reference
 lookup's Common Gotchas entry gets corrected, because it would then be overstating a cost. A lab
 that can only confirm the claim it was built around is not evidence.
+
+**`DeltaChannel` is beta, and the lab's headline depends on it.** Its docstring is explicit: the API
+and on-disk representation may change, and the surrounding contract — `get_delta_channel_history`,
+the `_DeltaSnapshot` blob shape, the `counters_since_delta_snapshot` metadata field — "is not yet
+stable." Threads written today are expected to stay readable; nothing else is promised.
+
+Two consequences. The Build page must say so plainly, because a measurement of a beta API is a
+measurement with an expiry date. And the Reference lookup owes a correction independently of this
+lab: it recommends `DeltaChannel` as "the fix" for large accumulated state without mentioning that it
+is beta, which is advice a reader could act on and regret.
 
 **This is the repository's first heavyweight dependency.** Every existing lab is standard library
 plus something small — `pydantic`, `PyJWT`. `langgraph` pulls a substantial tree into CI, and its
