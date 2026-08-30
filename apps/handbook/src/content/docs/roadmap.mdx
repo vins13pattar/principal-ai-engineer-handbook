@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.15.0
-lastUpdated: 2026-08-28
+version: 2.16.0
+lastUpdated: 2026-08-30
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -141,6 +141,13 @@ revisionHistory:
       episodes, eleven measured hours — every content page. Also recorded what the run revealed about
       the estimator, which is accurate on expensive episodes and over-quotes cheap ones.
     author: vinod
+  - version: 2.16.0
+    date: 2026-08-30
+    change: >-
+      Built the LangGraph Checkpoint Cost lab, so Module 7 has one. Twelve labs. Recorded plainly
+      that it has neither an Architecture page nor an episode yet, which unmakes two claims this
+      roadmap made on 2026-08-28.
+    author: vinod
 category: section-overview
 ---
 
@@ -158,9 +165,10 @@ The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 13: System Design](/learn/modules/13-system-design/) ·
 [Module 14: Leadership](/learn/modules/14-leadership/) ·
 [Module 15: Agent Identity](/learn/modules/15-agent-identity/).
-The [Architecture](/architecture/) section has a design-review page for **all eleven labs**, each
-with a running implementation behind it. [Build](/build/) documents every lab from a
-run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
+The [Architecture](/architecture/) section has a design-review page for **eleven of the twelve
+labs**, each with a running implementation behind it; the twelfth,
+[LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/), has none yet. [Build](/build/)
+documents every lab from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
 [Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) is
@@ -171,8 +179,10 @@ release it was verified against, on a 90-day review window CI fails once a page 
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
-Every one of those pages can also be listened to. The [audio
-series](#the-audio-series-shipped) covers all 67 content pages — eleven hours in total.
+Almost every one of those pages can also be listened to. The [audio
+series](#the-audio-series-shipped) covers 67 content pages — eleven hours in total. There are now
+68: [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/), published 2026-08-30, has
+no episode yet.
 
 ## What's next
 
@@ -195,26 +205,29 @@ series](#the-audio-series-shipped) covers all 67 content pages — eleven hours 
 
 One criterion remains, and it cannot be met as written:
 
-- **Architecture coverage is done.** All eleven labs have a design review, as of v0.12:
+- **Architecture coverage went from done back to one short.** v0.12 closed the gap with
   [Agent Identity Platform](/architecture/systems/agent-identity-platform/),
   [Task-Based Model Routing](/architecture/systems/task-based-model-routing/),
   [Semantic Response Caching](/architecture/systems/semantic-response-caching/), and
-  [Continuous Model Evaluation](/architecture/systems/continuous-model-evaluation/) closed the gap.
+  [Continuous Model Evaluation](/architecture/systems/continuous-model-evaluation/) — and then a
+  twelfth lab shipped. [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) has no
+  design review, so eleven of twelve labs do.
 - **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
   have a track.
-- **Five modules without a lab**, which makes "every module has a lab" unreachable as stated.
-  Modules [7](/learn/modules/07-langgraph/) and [11](/learn/modules/11-cloud/) are lab-shaped and
-  could get one. Modules [0](/learn/modules/00-principal-engineer-mindset/),
-  [13](/learn/modules/13-system-design/), and [14](/learn/modules/14-leadership/) are not — a lab
-  about the Principal Engineer mindset would be a lab in name only. The criterion will be restated
-  to cover the modules a lab can honestly serve, rather than left standing as a target that can only
-  be hit by building three labs nobody should run.
+- **Four modules without a lab**, down from five: [Module 7](/learn/modules/07-langgraph/) now has
+  one. [Module 11](/learn/modules/11-cloud/) is lab-shaped and could get one. Modules
+  [0](/learn/modules/00-principal-engineer-mindset/), [13](/learn/modules/13-system-design/), and
+  [14](/learn/modules/14-leadership/) are not — a lab about the Principal Engineer mindset would be
+  a lab in name only. The criterion will be restated to cover the modules a lab can honestly serve,
+  rather than left standing as a target that can only be hit by building three labs nobody should
+  run.
 
-That leaves v1.0 waiting on one decision and at most two labs, rather than on a body of writing.
+That leaves v1.0 waiting on one decision, at most one further lab, and one design review — rather
+than on a body of writing.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
-unit of work than a module and shouldn't gate a version bump the way a module does. As of
-2026-08-14 the planned schedule is complete — every lab below is built:
+unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
+table is planned — every lab below is built:
 
 | Lab                                                               | Companion module | Status            |
 | ----------------------------------------------------------------- | ---------------- | ----------------- |
@@ -229,6 +242,29 @@ unit of work than a module and shouldn't gate a version bump the way a module do
 | [Model Router](/build/labs/model-router/)                         | Module 4         | Production-shaped |
 | [Semantic Cache](/build/labs/semantic-cache/)                     | Module 4         | Production-shaped |
 | [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
+| [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) | Module 7       | Production-shaped |
+
+### LangGraph Checkpoint Cost: shipped, with two pieces missing
+
+[Module 7](/learn/modules/07-langgraph/) was one of two lab-shaped modules with no lab. It has one
+now: [**LangGraph Checkpoint Cost**](/build/labs/langgraph-checkpoint-cost/), built against a pinned
+`langgraph==1.2.11` rather than against the API from memory.
+
+It measures what the module and the [LangGraph lookup](/reference/lookups/langgraph/) both assert
+without a number. A plain accumulating channel writes about **1.34 MB over 100 steps**; the same
+accumulation through `DeltaChannel` writes about **60 KB** — quadratic against linear. It also
+measures the read side that buys, records that `DeltaChannel` is beta with an explicitly unstable
+on-disk contract, and characterises a **real deadlock** in the pinned release's `DeltaChannel` write
+path that hung an unpatched 100-step sweep until it was killed.
+
+**Two things it does not have, stated here rather than left to be noticed later:**
+
+- **No Architecture page.** Every other lab has a design review. This one does not, which reopens a
+  criterion v0.12 had closed.
+- **No episode.** Every other content page has one. This is the 68th page and the first without
+  audio since the series shipped.
+
+Both are real gaps, not deliberate exclusions like the navigation pages below.
 
 ### The audio series: shipped
 
@@ -242,9 +278,11 @@ projected seven, from the handbook's 414 minutes of prose. Spoken dialogue expan
 covers rather than reading it aloud, and the estimate did not account for that. The number here is
 the measured one.
 
-That is every page that says something. The ten pages that do not — [Start Here](/start-here/), this
+That was every page that said something on 2026-08-28; the
+[LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) lab has been published since and
+is not covered. The ten pages that carry no episode by design — [Start Here](/start-here/), this
 roadmap, and the eight section indexes — are navigation, and an episode narrating a table of contents
-would be filler. That is a deliberate exclusion, not a gap to close.
+would be filler. That is a deliberate exclusion; the lab page is a gap to close.
 
 The four v0.12 architecture pages were recorded on 2026-08-28, four days after the rest. The
 recordings are worth a note of their own, because the run measured the estimator: two episodes landed

@@ -1,0 +1,256 @@
+---
+title: LangGraph Checkpoint Cost
+description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a real deadlock in the pinned release.
+version: 1.0.0
+lastUpdated: 2026-08-30
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-08-30
+    change: >-
+      Initial lab documentation. Published against a corrected measurement — the first instrument
+      counted only `put()` and missed the pending-writes table where DeltaChannel's state actually
+      lives, so the first set of numbers was retracted before it ever reached this page.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "langgraph==1.2.11, API surface inspected on an installed build"
+  verifiedOn: 2026-08-30
+category: lab
+repoPath: labs/langgraph-checkpoint-cost
+stack:
+  - Python 3.12+
+  - langgraph 1.2.11
+labStatus: production-shaped
+---
+
+import { Aside } from "@astrojs/starlight/components";
+
+[Module 7](/learn/modules/07-langgraph/) says a checkpointer persists state every step, and the
+[LangGraph lookup](/reference/lookups/langgraph/) says large accumulated state gets slower every
+step because the whole value is re-serialized per checkpoint. Both are claims about cost. This lab
+puts bytes on them, on the actual serialization path LangGraph uses, and then measures what the
+recommended fix costs on the other side.
+
+Source: [`labs/langgraph-checkpoint-cost`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/langgraph-checkpoint-cost)
+
+<Aside type="caution" title="production-shaped, and what is excluded matters here">
+  **No model is ever called.** Every node appends a fixed-size string, so state size at any step is
+  a deterministic function of step count and payload size and the byte counts reproduce exactly
+  between runs. **Disk is excluded**: `langgraph.checkpoint.sqlite` is a separate PyPI distribution
+  from `langgraph` — importing it against this lab's pinned environment raises `ModuleNotFoundError`
+  — and pulling it in would mean measuring another package's I/O path rather than the serialization
+  cost LangGraph itself controls. **`DeltaChannel` is beta**, with an on-disk representation its own
+  docstring says may change; the numbers below are a measurement of a trade, not an endorsement.
+</Aside>
+
+## The finding
+
+Three graphs, identical payloads, swept over step count. `put bytes` is what the checkpointer
+serializes through `put()`; `writes bytes` is what it serializes through `put_writes()` into the
+pending-writes table. They are reported separately and never pre-summed, for a reason the next
+section explains.
+
+**Accumulating — a plain reducer appending to a list in state:**
+
+```text
+ steps   put bytes   writes bytes   put+writes   final step bytes      items
+    10       17655           2612        20267               2869      10/10
+    25       92015           6527        98542               6756      25/25
+    50      345465          13052       358517              13231      50/50
+   100     1337990          26102      1364092              26181    100/100
+```
+
+**The same accumulation through `DeltaChannel`:**
+
+```text
+ steps   put bytes   writes bytes   put+writes   final step bytes      items
+    10        3879           2612         6491                318      10/10
+    25        8874           6527        15401                318      25/25
+    50       17199          13052        30251                318      50/50
+   100       33849          26102        59951                318    100/100
+```
+
+At 100 steps: **roughly 1.34 MB against roughly 60 KB — over 22× smaller.** And the shape differs,
+not just the constant. Between 50 and 100 steps the accumulating channel's `put bytes` roughly
+*quadruples* (345,465 → 1,337,990), which is what re-serializing an ever-growing list on every write
+costs. `DeltaChannel`'s honest total merely *doubles* (30,251 → 59,951). Quadratic against linear.
+
+This is the result to carry away, and it is the one that survives every accounting we tried.
+
+## The control, and what it is not for
+
+A third arm replaces state each step instead of accumulating it, so its per-step cost is flat by
+construction:
+
+```text
+ steps   put bytes   writes bytes   put+writes   final step bytes      items
+    10        6000           2612         8612                538        1/1
+    25       14295           6527        20822                538        1/1
+    50       28120          13052        41172                538        1/1
+   100       55770          26102        81872                538        1/1
+```
+
+Note the `final step bytes` column: 538 at every step count, against the accumulating arm's 26,181
+at 100 steps. That is the control doing its job — showing what a checkpoint costs when nothing
+accumulates, so the growth in the other two arms is attributable to accumulation rather than to
+LangGraph's fixed per-checkpoint overhead.
+
+**This page draws no verdict comparing `DeltaChannel` to that control**, in either direction. Under
+put-only, put-plus-writes, and actually-retained-bytes accountings, delta comes out *lower*; under
+one asymmetric accounting it comes out 7% *higher*. A 7% gap that flips sign with the accounting
+rule is not a finding, it is an artefact of the rule, and an earlier draft of this lab's report
+claimed it in each direction before that became clear. The control is here as a flat-cost baseline.
+It is not a contender.
+
+## Why put and writes are counted separately
+
+`DeltaChannel.checkpoint()` returns `MISSING`. Its committed state never appears in a checkpoint's
+`channel_values`, so `put()` sees only a sentinel, the checkpoint remainder, and metadata — the
+channel's actual per-step state lives in the pending-writes table, written through `put_writes()`.
+
+The first version of this lab's instrument measured `put()` alone. It produced a clean, plausible,
+**wrong** table, because it was totalling a number that was missing the majority of what it claimed
+to total. `test_delta_channel_state_is_captured_by_put_writes_not_put` exists specifically to fail
+against that blind instrument.
+
+The two columns are still not summed inside the measuring saver. For every channel here *except*
+`DeltaChannel`, `put_writes` re-serializes the same step's node output that `put()` already counted,
+so adding them double-counts. Only for `DeltaChannel` are the two disjoint and only there does the
+sum mean anything. A single "total bytes" column would have to be wrong for one arm or the other.
+
+## The other side of the trade: resume
+
+A channel that makes writes cheap by deferring work does that work somewhere. For `DeltaChannel`
+it is on read — reconstructing state means replaying ancestor writes through the reducer, unless a
+full snapshot is close enough behind. `snapshot_frequency` is the dial:
+
+```text
+ steps   snapshot freq     get_state ms   items
+   100               5             0.07     100
+   100              25             0.05     100
+   100             100             0.04     100
+   100           10000             0.20     100
+```
+
+Two cautions on that column, both load-bearing.
+
+**It is `get_state` latency, not replay time.** `ResumeResult.reconstruct_seconds` times the entire
+`get_state` call — checkpoint fetch, full deserialization, `channels_from_checkpoint` (the ancestor
+walk this lab cares about), `prepare_next_tasks`, and `dict(get_subgraphs())`. Ancestor replay is
+one component of a call with substantial fixed overhead, which is exactly why a large difference in
+replay depth does not produce a proportionally large difference in wall time.
+
+**Wall-clock here is noisy across runs in a way the byte columns are not.** The byte tables above
+are bit-for-bit identical between repeat runs on the same machine. This one is not: a later run of
+the same command on the same machine put the `snapshot_frequency=10000` row at 3.69 ms rather than
+0.20 ms. What reproduces is the *ordering* — never snapshotting is always the slowest row, because
+it is the deepest replay. Do not read a magnitude off this table.
+
+## `DeltaChannel` is beta, and the Reference page oversells it
+
+The [LangGraph lookup](/reference/lookups/langgraph/) currently calls `DeltaChannel` "the fix for
+large-state runs that get slower as they progress," with no qualification. The write-path
+measurement above supports the *effect*. It does not support the unqualified recommendation, and
+this lab's contact with the API says why:
+
+- The channel's own docstring states that its API and its **on-disk representation may change**.
+  Checkpoints it writes are not guaranteed to stay readable across LangGraph versions the way
+  checkpoints from stable channels are.
+- The contract this lab had to reach for to measure it — `get_delta_channel_history`, the
+  `_DeltaSnapshot` blob shape, `counters_since_delta_snapshot` — is not a stable public surface
+  either. Anything reading delta state back out is coupled to internals.
+- It requires a **batching-invariant reducer**, and cannot check that you gave it one. See below.
+- In the pinned release, its write path can deadlock. See below.
+
+None of that makes it the wrong choice. It makes it a choice that needs a migration plan for the
+checkpoint store, which "the fix" does not communicate.
+
+## A real deadlock in langgraph 1.2.11
+
+The `DeltaChannel` write path in `langgraph==1.2.11` can deadlock, and the mechanism is worth
+stating precisely because the obvious explanation is wrong.
+
+Node execution and checkpoint writes share one bounded `ThreadPoolExecutor`
+(`pregel/_runner.py:260` submits node work into the same pool). That alone does not deadlock
+anything: each step's checkpoint `put` waits on the *previous* step's put future, and in a
+strictly-FIFO pool the earliest task in that chain has nothing left to wait on, gets a worker, and
+unblocks the next. A reader who knows how `ThreadPoolExecutor` dispatches would correctly reject
+"both waits happen in the same bounded pool" as an explanation.
+
+The actual condition is an **order inversion**, and it is specific to `DeltaChannel`. Before waiting
+on its predecessor, `_checkpointer_put_after_previous` drains `self._delta_write_futs` and waits on
+whatever is in that list **at execution time, not at submission time**
+(`pregel/_loop.py:1538-1540`). The main loop keeps advancing while earlier put tasks sit queued, so
+a task that finally gets a worker can find itself waiting on `put_writes` futures that were
+submitted to the pool *after it was* — occupying a worker while blocked on something queued behind
+it. With enough of those parked at once, every worker is waiting on a future that cannot start.
+That is circular wait, not slow drain.
+
+This is not theoretical. **An unpatched 100-step delta sweep was run, hung, and was killed after
+five minutes.** The one-line `max_concurrency` on the delta arm's `invoke` config is a load-bearing
+workaround, not a precaution — and byte counts under it match unpatched runs at step counts where
+the unpatched run does finish, so the workaround does not perturb the measurement.
+
+The LangGraph issue tracker was searched for this and **nothing matching was found**. That is a
+statement about the search, not about the bug's reporting status.
+
+## What else the tests pin
+
+**A non-associative reducer silently reconstructs different state.** Replay folds writes in larger
+batches than they were produced in, so a reducer sensitive to batching returns something else after
+a resume. Measured on a 12-step run: **25 items live, 13 items after replay, no error raised
+anywhere.** `DeltaChannel` requires a batching-invariant reducer and has no way to check that you
+supplied one — the failure is silent, and it is silently *wrong state*, not a crash.
+
+**Human approval resumes through `interrupt()` and `Command(resume=...)`.** The graph pauses, the
+run returns with `__interrupt__` set, and the original compiled graph resumes it to completion.
+
+**Finished state survives into a completely fresh graph object.** A second graph, compiled
+independently against the same saver and sharing nothing in-process with the first, reads the
+completed values back through `get_state` alone — no `Command`, no `interrupt()`, its node functions
+never executed.
+
+Those are two pinned facts, and this page deliberately stops short of Module 7's fuller claim.
+**What the suite does *not* prove is that a still-pending interrupted checkpoint can be driven to
+completion by a fresh process with no `Command`.** The crash-recovery arm reads *finished* state
+from a fresh object; it does not resume a *pending* one. That is a narrower result than
+"human-in-the-loop and crash recovery are one mechanism," and the narrower result is the one the
+tests support.
+
+## Run it
+
+```bash
+cd labs/langgraph-checkpoint-cost
+uv venv .venv && uv pip install --python .venv/bin/python -e '.[dev]'
+./.venv/bin/python -m ruff check . && ./.venv/bin/python -m mypy src tests && ./.venv/bin/python -m pytest -q
+./.venv/bin/python -m checkpoint_cost.cli
+```
+
+19 tests, `ruff` clean, `mypy --strict` clean. Unlike this repo's other labs, `mypy` runs over
+`tests` as well as `src`: a chunk of this lab's value is "trust these numbers," so the code
+producing them is held to the same bar as the code under test. The last command prints all four
+tables above.
+
+## Principal-level discussion points
+
+- **The instrument is part of the result.** This lab's first table was arithmetically correct over
+  an incomplete number, and it read as a finding. Ask of any cost measurement: what call sites does
+  the meter wrap, and what does the system do that it never sees?
+- **"The fix" is a migration.** Adopting `DeltaChannel` late means rewriting the state model *and*
+  owning a checkpoint format that is documented as unstable. Reaching for it early costs almost
+  nothing; reaching for it under load costs a migration you did not schedule.
+- **A silent correctness failure beats a loud cost failure, every time.** The quadratic write curve
+  is visible on a dashboard. A non-associative reducer producing 13 items where 25 lived is visible
+  to nobody.
+- **Deferred cost is still cost, and it moves to a different owner.** Write cost is paid by the
+  service doing the work; resume cost is paid by whoever is waiting on `get_state` — often a user,
+  often on the recovery path, which is the worst moment to discover it.
+
+## Related
+
+- [Module 7: LangGraph](/learn/modules/07-langgraph/) — state, reducers, and the checkpointing
+  claims this lab measures.
+- [LangGraph](/reference/lookups/langgraph/) — the lookup whose `DeltaChannel` recommendation this
+  lab qualifies.
+- [Durable Agent Task Engine](/build/labs/durable-agent-task-engine/) — checkpointed resumption and
+  retry semantics as a system rather than as a channel.
