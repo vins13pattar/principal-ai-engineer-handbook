@@ -1,0 +1,35 @@
+name: LangGraph Checkpoint Cost CI
+
+on:
+  push:
+    paths:
+      - "labs/langgraph-checkpoint-cost/**"
+      - ".github/workflows/lab-langgraph-checkpoint-cost-ci.yml"
+  pull_request:
+    paths:
+      - "labs/langgraph-checkpoint-cost/**"
+      - ".github/workflows/lab-langgraph-checkpoint-cost-ci.yml"
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: labs/langgraph-checkpoint-cost
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: astral-sh/setup-uv@v3
+      - name: Install dependencies
+        run: |
+          uv venv
+          uv pip install -e '.[dev]'
+      - name: ruff
+        run: ./.venv/bin/python -m ruff check .
+      - name: mypy
+        run: ./.venv/bin/python -m mypy src tests
+      - name: pytest
+        run: ./.venv/bin/python -m pytest -q
