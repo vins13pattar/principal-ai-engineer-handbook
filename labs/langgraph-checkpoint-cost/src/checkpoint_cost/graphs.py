@@ -20,6 +20,7 @@ from typing import Annotated, Any, TypedDict
 
 from langgraph.channels import DeltaChannel
 from langgraph.graph import END, START, StateGraph
+from langgraph.types import interrupt
 
 
 class AccumulatingState(TypedDict):
@@ -92,3 +93,46 @@ def build_delta(payload_bytes: int, snapshot_frequency: int) -> StateGraph[Any, 
         remaining: int
 
     return _wire(StateGraph(DeltaState), payload_bytes)
+
+
+def build_approval_graph() -> StateGraph[Any, Any, Any, Any]:
+    """A run that pauses for a human. Resuming it is resuming from a checkpoint."""
+
+    class ApprovalState(TypedDict):
+        approved: bool
+        log: Annotated[list[str], operator.add]
+
+    def request(state: Any) -> dict[str, Any]:
+        return {"log": ["requested"]}
+
+    def gate(state: Any) -> dict[str, Any]:
+        granted = interrupt({"question": "approve?"})
+        return {"approved": bool(granted), "log": ["granted" if granted else "denied"]}
+
+    graph: StateGraph[Any, Any, Any, Any] = StateGraph(ApprovalState)
+    graph.add_node("request", request)
+    graph.add_node("gate", gate)
+    graph.add_edge(START, "request")
+    graph.add_edge("request", "gate")
+    graph.add_edge("gate", END)
+    return graph
+
+
+def _non_associative(state: list[str] | None, writes: Sequence[Any]) -> list[str]:
+    """Deliberately batching-sensitive: it records how many writes arrived at once.
+
+    Concatenation is associative; tagging a batch with its own size is not.
+    """
+    current = list(state or [])
+    for write in writes:
+        current.extend(write)
+    current.append(f"batch:{len(writes)}")
+    return current
+
+
+def build_non_associative_delta(payload_bytes: int) -> StateGraph[Any, Any, Any, Any]:
+    class BadDeltaState(TypedDict):
+        items: Annotated[list[str], DeltaChannel(_non_associative, list, snapshot_frequency=10_000)]
+        remaining: int
+
+    return _wire(StateGraph(BadDeltaState), payload_bytes)
