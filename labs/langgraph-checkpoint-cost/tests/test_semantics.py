@@ -13,8 +13,30 @@ def test_interrupt_and_resume_are_one_mechanism() -> None:
     The run pauses for a human and is resumed from its checkpoint. The same
     resumption path serves a crash, because to the graph they are the same
     event: state exists, execution does not.
+
+    Two arms prove that, not one:
+
+    - Human approval: the *original* compiled graph object resumes via
+      ``Command(resume=True)``.
+    - Crash recovery: a *second*, independent graph object -- compiled fresh
+      against the same saver, sharing nothing in-process with the first --
+      recovers the finished state through ``get_state`` alone. No ``Command``
+      and no ``interrupt()`` call are involved on this second path (its node
+      functions are never executed; ``get_state`` only reads the persisted
+      checkpoint). This is the same idiom
+      ``test_a_non_associative_reducer_reconstructs_different_state`` and
+      ``resume.py`` use for "a second process picks this up from the
+      checkpoint alone."
+
+    If crash recovery and human-approval resumption were genuinely different
+    mechanisms, the fresh object would have no way to reach the resumed
+    values -- it never saw the interrupt and never received a Command. It
+    reaches them anyway, because the checkpointer never distinguished "paused
+    for a human" from "paused because the process died": both are just
+    state without a running task.
     """
-    graph = build_approval_graph().compile(checkpointer=InMemorySaver())
+    saver = InMemorySaver()
+    graph = build_approval_graph().compile(checkpointer=saver)
     config: RunnableConfig = {"configurable": {"thread_id": "approval"}}
 
     first: dict[str, Any] = graph.invoke({"approved": False, "log": []}, config)
@@ -23,6 +45,13 @@ def test_interrupt_and_resume_are_one_mechanism() -> None:
     resumed: dict[str, Any] = graph.invoke(Command(resume=True), config)
     assert resumed["approved"] is True
     assert resumed["log"] == ["requested", "granted"]
+
+    # Crash-recovery arm: fresh compile, same saver, no Command, no interrupt().
+    crash_reader = build_approval_graph().compile(checkpointer=saver)
+    recovered = crash_reader.get_state(config).values
+    assert recovered["approved"] is True
+    assert recovered["log"] == ["requested", "granted"]
+    assert recovered == resumed
 
 
 def test_a_non_associative_reducer_reconstructs_different_state() -> None:
