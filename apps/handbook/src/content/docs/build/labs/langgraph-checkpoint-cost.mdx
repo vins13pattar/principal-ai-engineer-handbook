@@ -140,20 +140,28 @@ walk this lab cares about), `prepare_next_tasks`, and `dict(get_subgraphs())`. A
 one component of a call with substantial fixed overhead, which is exactly why a large difference in
 replay depth does not produce a proportionally large difference in wall time.
 
-**Wall-clock here is noisier than the byte columns, but not by much.** The byte tables above are
-bit-for-bit identical across all **seven** runs on record. This table is not, and it is worth
-saying how much it moves. Across six of those seven runs the never-snapshot row lands in
-**0.18–0.20 ms** and every snapshot row in **0.04–0.08 ms** — roughly ±25%, which is ordinary
-wall-clock jitter. The seventh run put the never-snapshot row at 3.69 ms; in that run *every* row
-inflated together, by 4.5× and 18×, which is the signature of a contended machine rather than of
-anything about replay depth. One run inflating uniformly is not evidence that the measurement is
-unstable, and treating it as such would be the same n=1 error this page complains about, pointed
-the other way.
+**The byte columns reproduce exactly. This column does not, and it resists being pinned.** The
+three byte tables above are bit-for-bit identical across all **eleven** runs on record, on three
+machines, run by three different people. This table has been measured across those same eleven runs
+and is published at the only resolution it actually supports:
 
-So the magnitudes are worth reading, at the resolution they support: **every configuration resumes
-in well under a millisecond at 100 steps.** That is the honest scale of `DeltaChannel`'s deferred
-cost — real, measurable, and small at this size. The ordering is the sturdier signal on top of it:
-never snapshotting is always the slowest row, because it is the deepest replay.
+- **Scale.** Every configuration resumes in **tens to low hundreds of microseconds** at 100 steps —
+  well under a millisecond, in all eleven runs. That is the honest size of `DeltaChannel`'s deferred
+  cost: real, measurable, and small at this scale.
+- **Ordering.** The never-snapshot row was the slowest row in all eleven runs, because it is the
+  deepest replay. That is the section's actual argument, and it is the part that reproduces.
+
+Two earlier drafts of this page tried to publish something tighter than that and were wrong both
+times — first a single run's figures, then a two-decimal interval fitted to six runs that the next
+five runs fell outside. This number has now embarrassed two consecutive attempts to pin it, which is
+itself the result: **on this workload the deferred read cost is small and ordered, and it is not a
+number you should quote to two decimal places.**
+
+Two things a reader reproducing this will hit. **The first timing in a fresh process runs high** —
+it is the first measurement taken after import, and warm-up lands on it, so an initial row can read
+several times its steady-state value without anything being wrong. And one run on a loaded machine
+put the never-snapshot row at 3.69 ms; in that run *every* row inflated together, which is the
+signature of contention rather than of anything about replay depth.
 
 ## `DeltaChannel` is beta, and the Reference page oversells it
 
