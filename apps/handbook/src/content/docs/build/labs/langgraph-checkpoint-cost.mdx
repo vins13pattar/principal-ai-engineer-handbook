@@ -96,8 +96,9 @@ accumulates, so the growth in the other two arms is attributable to accumulation
 LangGraph's fixed per-checkpoint overhead.
 
 **This page draws no verdict comparing `DeltaChannel` to that control**, in either direction. Under
-put-only, put-plus-writes, and actually-retained-bytes accountings, delta comes out *lower*; under
-one asymmetric accounting it comes out 7% *higher*. A 7% gap that flips sign with the accounting
+put-only, put-plus-writes, and actually-retained-bytes accountings (the last measured separately —
+the CLI prints only the first two, not the third), delta comes out *lower*; under one asymmetric
+accounting it comes out 7% *higher*. A 7% gap that flips sign with the accounting
 rule is not a finding, it is an artefact of the rule, and an earlier draft of this lab's report
 claimed it in each direction before that became clear. The control is here as a flat-cost baseline.
 It is not a contender.
@@ -123,20 +124,22 @@ sum mean anything. A single "total bytes" column would have to be wrong for one 
 A channel that makes writes cheap by deferring work does that work somewhere. For `DeltaChannel`
 it is on read — reconstructing state means replaying ancestor writes through the reducer, unless a
 full snapshot is close enough behind. `snapshot_frequency` is the dial, and the CLI sweeps it at
-100 steps across 5, 25, 100, and 10000 — the last being large enough that no snapshot is ever
-written after the first, so every resume replays the full run.
+100 steps across 5, 25, 100, and 10000 — the last being large enough that, over 100 steps, no
+snapshot is written at all, so every resume replays the full run.
 
 **This page deliberately publishes no table of those timings, and that absence is the result.**
-The three byte tables above are bit-for-bit identical across all **eleven** runs on record, produced
-by three independent agents. The resume timings are not, and two earlier drafts of this page were
+The three byte tables above are bit-for-bit identical across all **twelve** runs on record, all on
+the same installed build — that sameness is a property of a deterministic serialization path, not
+evidence of reproduction across independently sourced environments, so it is stated as a run count
+and no more. The resume timings are not identical, and two earlier drafts of this page were
 wrong about them in opposite directions — first quoting one run's figures as if they were the
 number, then fitting a two-decimal interval to six runs that the next five runs fell outside. A
 figure that has defeated two attempts to pin it should not be printed to two decimal places a third
-time. What eleven runs do support is two claims, and the section rests on them:
+time. What twelve runs do support is two claims, and the section rests on them:
 
 - **Scale.** Every configuration resumes in **tens to low hundreds of microseconds** at 100 steps —
-  well under a millisecond, in every run. That is the honest size of `DeltaChannel`'s deferred cost:
-  real, measurable, and small at this scale.
+  well under a millisecond in every run on an unloaded machine (see the contention note below). That
+  is the honest size of `DeltaChannel`'s deferred cost: real, measurable, and small at this scale.
 - **Ordering.** The never-snapshot sweep point was the slowest in every run, because it is the
   deepest replay. That is what the section actually argues, and it is the part that reproduces.
 
@@ -251,11 +254,12 @@ byte tables above plus the resume sweep, whose raw timings are deliberately not 
   the meter wrap, and what does the system do that it never sees?
 - **"The fix" is a state-model rewrite, and the beta risk is narrower than it sounds.** Adopting
   `DeltaChannel` late means changing how state is modelled, under load, on a running system.
-  The storage risk is the smaller half: LangGraph says threads already written are *expected* to
-  remain readable — an expectation, not a guarantee — and what it names as unstable is the
-  surrounding contract, which only bites you if you read delta state yourself instead of through
-  `get_state`. Know which of the two risks you are actually taking, and how firm the assurance under
-  it is, before you quote either to a review.
+  The storage risk is the smaller half, but it is not zero: LangGraph says the API *and the on-disk
+  representation* may change, and that threads already written are *expected* — not guaranteed — to
+  remain readable. What it names outright as unstable is the surrounding contract, which bites
+  hardest if you read delta state yourself, and the representation underneath `get_state` is itself
+  only expected, not guaranteed, to stay readable. Know which of the two risks you are actually
+  taking, and how firm the assurance under it is, before you quote either to a review.
 - **A silent correctness failure beats a loud cost failure, every time.** The quadratic write curve
   is visible on a dashboard. A non-associative reducer producing 13 items where 25 lived is visible
   to nobody.

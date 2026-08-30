@@ -63,12 +63,15 @@ difference in wall time.
 
 ## `DeltaChannel` is beta
 
-`DeltaChannel` is a beta LangGraph API with an **explicitly unstable on-disk
-contract**. Checkpoints it writes are not guaranteed to remain readable
-across LangGraph versions the way checkpoints from stable channels are. Don't
-read the write-cost numbers the CLI prints as "use `DeltaChannel` in
-production without checking this first" -- they're a measurement of a trade,
-not an endorsement.
+`DeltaChannel` is a beta LangGraph API. Its own docstring says its **API and
+on-disk representation may change** in future releases. Threads already
+written with it today are **expected** to remain readable -- but that's a
+stated expectation, not a guarantee, and the surrounding contract it depends
+on (`BaseCheckpointSaver.get_delta_channel_history`, the `_DeltaSnapshot`
+blob shape, the `counters_since_delta_snapshot` metadata field) is named
+outright as **not yet stable**. Don't read the write-cost numbers the CLI
+prints as "use `DeltaChannel` in production without checking this first" --
+they're a measurement of a trade, not an endorsement.
 
 `langgraph==1.2.11`'s `DeltaChannel` write path can also deadlock at the step
 counts this lab sweeps (an order-inversion in its internal thread-pool

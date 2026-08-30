@@ -67,12 +67,7 @@ def build_accumulating(payload_bytes: int) -> StateGraph[Any, Any, Any, Any]:
 
 def build_non_accumulating(payload_bytes: int) -> StateGraph[Any, Any, Any, Any]:
     """The control. State is replaced each step and stays one item."""
-
-    graph: StateGraph[Any, Any, Any, Any] = StateGraph(ReplacingState)
-    graph.add_node("work", _step(payload_bytes))
-    graph.add_edge(START, "work")
-    graph.add_conditional_edges("work", _should_continue, {"work": "work", END: END})
-    return graph
+    return _wire(StateGraph(ReplacingState), payload_bytes)
 
 
 def _append(state: list[str] | None, writes: Sequence[Any]) -> list[str]:

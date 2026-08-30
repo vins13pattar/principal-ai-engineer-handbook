@@ -124,6 +124,14 @@ class MeasuringSaver(BaseCheckpointSaver[Any]):
         return self.inner.put(config, checkpoint, metadata, new_versions)
 
     def put_writes(self, config: Any, writes: Any, task_id: str, task_path: str = "") -> None:
+        """Measure the bytes ``put_writes`` serializes.
+
+        Limit: this counts every write passed in, unlike ``InMemorySaver.put_writes``,
+        which deduplicates by ``inner_key`` and skips repeats. At this lab's workloads
+        no task is retried, so no write is ever a duplicate and nothing here is
+        over-counted -- but on a workload with retried tasks, this instrument would
+        report more bytes than ``InMemorySaver`` actually persists.
+        """
         start = time.perf_counter()
 
         # Same serializer as put(), applied to each (channel, value) pair
