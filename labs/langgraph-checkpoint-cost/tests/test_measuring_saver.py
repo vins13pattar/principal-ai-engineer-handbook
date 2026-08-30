@@ -2,6 +2,7 @@ import asyncio
 
 from langgraph.checkpoint.memory import InMemorySaver
 
+from checkpoint_cost.graphs import build_delta
 from checkpoint_cost.measuring_saver import MeasuringSaver
 
 
@@ -58,6 +59,51 @@ def test_only_changed_channel_bytes_are_counted() -> None:
     saver.put(config, checkpoint_2, {}, {"small": "2"})
 
     assert saver.costs[1].bytes_serialized < saver.costs[0].bytes_serialized / 2
+
+
+def test_put_writes_records_bytes_separately_from_put() -> None:
+    """``put_writes`` bytes go into ``write_costs``, not ``costs`` -- they are
+
+    a different thing from ``put()`` bytes (see the module docstring), and
+    conflating them would hide exactly the distinction this instrument exists
+    to preserve.
+    """
+    saver = MeasuringSaver(InMemorySaver())
+    config = {
+        "configurable": {"thread_id": "t1", "checkpoint_ns": "", "checkpoint_id": "c1"}
+    }
+
+    saver.put_writes(config, [("items", "x" * 100)], "task-1")
+
+    assert len(saver.write_costs) == 1
+    assert saver.write_costs[0].bytes_written > 0
+    assert saver.write_costs[0].step == 0
+    assert saver.costs == []
+    assert saver.total_write_bytes == saver.write_costs[0].bytes_written
+    assert saver.total_bytes == 0
+
+
+def test_delta_channel_state_is_captured_by_put_writes_not_put() -> None:
+    """The regression this fix exists for.
+
+    ``DeltaChannel.checkpoint()`` always returns ``MISSING`` (see
+    ``langgraph.channels.delta``), so its committed state never lands in
+    ``channel_values`` and ``put()`` alone scores every non-snapshot write as
+    (near) zero bytes -- exactly the blind spot review found. The state lives
+    in the pending-writes table instead, which is what
+    ``InMemorySaver.get_delta_channel_history`` reads back on reconstruction.
+    Against the instrument before this fix, ``total_write_bytes`` did not
+    exist; against a version that measured ``put_writes`` but discarded the
+    result, this would read 0. It must be positive.
+    """
+    saver = MeasuringSaver(InMemorySaver())
+    graph = build_delta(payload_bytes=64, snapshot_frequency=1000)
+    graph.compile(checkpointer=saver).invoke(
+        {"items": [], "remaining": 10},
+        {"configurable": {"thread_id": "delta-regression"}},
+    )
+
+    assert saver.total_write_bytes > 0
 
 
 def test_async_put_and_get_tuple_delegate_without_notimplementederror() -> None:

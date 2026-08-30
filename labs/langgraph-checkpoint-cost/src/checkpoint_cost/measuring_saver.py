@@ -10,6 +10,28 @@ serializes on ``put``: one blob per channel named in ``new_versions``, one
 blob for the checkpoint remainder (everything but ``channel_values``), and
 one blob for metadata -- never the whole checkpoint as a single unit, since
 that is not what gets written to storage.
+
+**``put_writes`` is measured too, and its bytes are kept separate from
+``put``'s.** ``put()`` only sees what ends up in a checkpoint's
+``channel_values``. For most channels that's the channel's entire committed
+state, so ``put()`` alone is a complete picture. ``DeltaChannel`` breaks that
+assumption: its ``checkpoint()`` returns ``MISSING`` (see
+``langgraph.channels.delta.DeltaChannel.checkpoint``), so it never appears in
+``channel_values`` at all, and a non-snapshot step's actual state lives
+entirely in the pending-writes table instead -- exactly what
+``InMemorySaver.get_delta_channel_history`` reads back out on reconstruction.
+An instrument that only measured ``put()`` would score every non-snapshot
+``DeltaChannel`` write as (near) zero bytes, which is not "cheap," it's
+blind: the bytes are real, they are just written through a different call.
+``put_writes``'s bytes are recorded into a separate list (``write_costs``,
+not merged into ``costs``) because they are a different thing from ``put()``
+bytes, not an extension of the same total: for channels whose full state
+already round-trips through ``channel_values`` (i.e. everything except
+``DeltaChannel``), the ``put_writes`` bytes largely duplicate what ``put()``
+already counted (both are serializing the same per-step reducer output), so
+naively summing the two would double-count for those channels. Only for
+``DeltaChannel`` are the two columns non-overlapping and both required to
+see the real total.
 """
 
 from __future__ import annotations
@@ -30,6 +52,20 @@ class StepCost:
     serialize_seconds: float
 
 
+@dataclass(frozen=True)
+class WriteCost:
+    """What one ``put_writes`` call cost.
+
+    For most channels this duplicates bytes ``put()`` already counted -- see
+    the module docstring. For ``DeltaChannel`` it is the *only* place its
+    committed state appears at all.
+    """
+
+    step: int
+    bytes_written: int
+    serialize_seconds: float
+
+
 @dataclass
 class MeasuringSaver(BaseCheckpointSaver[Any]):
     """Delegates to a real saver, recording the cost of every write.
@@ -40,6 +76,7 @@ class MeasuringSaver(BaseCheckpointSaver[Any]):
 
     inner: BaseCheckpointSaver[Any]
     costs: list[StepCost] = field(default_factory=list)
+    write_costs: list[WriteCost] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         # Use the inner saver's serializer, not the base class's default, so
@@ -87,6 +124,23 @@ class MeasuringSaver(BaseCheckpointSaver[Any]):
         return self.inner.put(config, checkpoint, metadata, new_versions)
 
     def put_writes(self, config: Any, writes: Any, task_id: str, task_path: str = "") -> None:
+        start = time.perf_counter()
+
+        # Same serializer as put(), applied to each (channel, value) pair
+        # individually -- InMemorySaver.put_writes serializes each write's
+        # value as its own blob, so this mirrors the real per-write cost
+        # rather than a whole-batch approximation.
+        total_bytes = 0
+        for _channel, value in writes:
+            _, blob = self.serde.dumps_typed(value)
+            total_bytes += len(blob)
+
+        elapsed = time.perf_counter() - start
+        self.write_costs.append(
+            WriteCost(
+                step=len(self.write_costs), bytes_written=total_bytes, serialize_seconds=elapsed
+            )
+        )
         self.inner.put_writes(config, writes, task_id, task_path)
 
     def get_tuple(self, config: Any) -> Any:
@@ -120,4 +174,14 @@ class MeasuringSaver(BaseCheckpointSaver[Any]):
 
     @property
     def total_bytes(self) -> int:
+        """Total bytes seen by ``put()`` only.
+
+        Kept for existing callers -- see the module docstring for why this is
+        deliberately not the whole write-path total for every channel type.
+        """
         return sum(c.bytes_serialized for c in self.costs)
+
+    @property
+    def total_write_bytes(self) -> int:
+        """Total bytes seen by ``put_writes()`` only, kept separate from ``total_bytes``."""
+        return sum(c.bytes_written for c in self.write_costs)
