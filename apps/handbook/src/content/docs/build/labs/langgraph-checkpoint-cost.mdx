@@ -140,11 +140,20 @@ walk this lab cares about), `prepare_next_tasks`, and `dict(get_subgraphs())`. A
 one component of a call with substantial fixed overhead, which is exactly why a large difference in
 replay depth does not produce a proportionally large difference in wall time.
 
-**Wall-clock here is noisy across runs in a way the byte columns are not.** The byte tables above
-are bit-for-bit identical between repeat runs on the same machine. This one is not: a later run of
-the same command on the same machine put the `snapshot_frequency=10000` row at 3.69 ms rather than
-0.20 ms. What reproduces is the *ordering* — never snapshotting is always the slowest row, because
-it is the deepest replay. Do not read a magnitude off this table.
+**Wall-clock here is noisier than the byte columns, but not by much.** The byte tables above are
+bit-for-bit identical across all **seven** runs on record. This table is not, and it is worth
+saying how much it moves. Across six of those seven runs the never-snapshot row lands in
+**0.18–0.20 ms** and every snapshot row in **0.04–0.08 ms** — roughly ±25%, which is ordinary
+wall-clock jitter. The seventh run put the never-snapshot row at 3.69 ms; in that run *every* row
+inflated together, by 4.5× and 18×, which is the signature of a contended machine rather than of
+anything about replay depth. One run inflating uniformly is not evidence that the measurement is
+unstable, and treating it as such would be the same n=1 error this page complains about, pointed
+the other way.
+
+So the magnitudes are worth reading, at the resolution they support: **every configuration resumes
+in well under a millisecond at 100 steps.** That is the honest scale of `DeltaChannel`'s deferred
+cost — real, measurable, and small at this size. The ordering is the sturdier signal on top of it:
+never snapshotting is always the slowest row, because it is the deepest replay.
 
 ## `DeltaChannel` is beta, and the Reference page oversells it
 
@@ -153,17 +162,21 @@ large-state runs that get slower as they progress," with no qualification. The w
 measurement above supports the *effect*. It does not support the unqualified recommendation, and
 this lab's contact with the API says why:
 
-- The channel's own docstring states that its API and its **on-disk representation may change**.
-  Checkpoints it writes are not guaranteed to stay readable across LangGraph versions the way
-  checkpoints from stable channels are.
-- The contract this lab had to reach for to measure it — `get_delta_channel_history`, the
-  `_DeltaSnapshot` blob shape, `counters_since_delta_snapshot` — is not a stable public surface
-  either. Anything reading delta state back out is coupled to internals.
+- The channel's own docstring states that its API and its **on-disk representation may change**. It
+  is worth quoting what that does *and does not* promise: threads already written with
+  `DeltaChannel` "are expected to remain readable", and the instability is scoped to the surrounding
+  contract. Read-forward compatibility for existing threads is committed to; the representation
+  underneath them is not.
+- That surrounding contract is what this lab had to reach for to measure the channel at all —
+  `get_delta_channel_history`, the `_DeltaSnapshot` blob shape, `counters_since_delta_snapshot` —
+  and it is named in the docstring as **not yet stable**. Anything reading delta state back out
+  itself, rather than through `get_state`, is coupled to internals that may move.
 - It requires a **batching-invariant reducer**, and cannot check that you gave it one. See below.
 - In the pinned release, its write path can deadlock. See below.
 
-None of that makes it the wrong choice. It makes it a choice that needs a migration plan for the
-checkpoint store, which "the fix" does not communicate.
+None of that makes it the wrong choice, and the read-forward commitment above means it is a
+meaningfully smaller bet than "beta storage format" usually implies. It makes it a choice with
+conditions attached, which "the fix" does not communicate at all.
 
 ## A real deadlock in langgraph 1.2.11
 
@@ -236,9 +249,12 @@ tables above.
 - **The instrument is part of the result.** This lab's first table was arithmetically correct over
   an incomplete number, and it read as a finding. Ask of any cost measurement: what call sites does
   the meter wrap, and what does the system do that it never sees?
-- **"The fix" is a migration.** Adopting `DeltaChannel` late means rewriting the state model *and*
-  owning a checkpoint format that is documented as unstable. Reaching for it early costs almost
-  nothing; reaching for it under load costs a migration you did not schedule.
+- **"The fix" is a state-model rewrite, and the beta risk is narrower than it sounds.** Adopting
+  `DeltaChannel` late means changing how state is modelled, under load, on a running system.
+  The storage risk is the smaller half: LangGraph says threads already written stay readable, so
+  what is genuinely unstable is the surrounding contract — which only bites you if you read delta
+  state yourself instead of through `get_state`. Know which of the two risks you are actually
+  taking before you quote either to a review.
 - **A silent correctness failure beats a loud cost failure, every time.** The quadratic write curve
   is visible on a dashboard. A non-associative reducer producing 13 items where 25 lived is visible
   to nobody.
