@@ -3,12 +3,18 @@ title: "Module 7: LangGraph"
 sidebar:
   label: "7 · LangGraph"
 description: Building the agent loop as an explicit, checkpointed state graph — state and reducers, conditional edges, and how checkpointing turns human-in-the-loop and crash recovery into the same mechanism.
-version: 1.0.0
-lastUpdated: 2026-08-05
+version: 1.1.0
+lastUpdated: 2026-08-30
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-08-30
+    change: >-
+      Replaced "no dedicated LangGraph lab exists yet" with the LangGraph Checkpoint Cost lab, which
+      measures what this module's per-step checkpointing costs when state grows.
     author: vinod
 freshness:
   # Names a specific library's API surface (StateGraph, MemorySaver,
@@ -22,7 +28,8 @@ difficulty: advanced
 estimatedMinutes: 45
 prerequisites:
   - 06-mcp
-relatedLabs: []
+relatedLabs:
+  - langgraph-checkpoint-cost
 ---
 
 import {
@@ -34,6 +41,7 @@ import {
   FailureMode,
   InterviewAnswer,
   InterviewQuestion,
+  LabCallout,
   PrincipalPerspective,
   ResearchNote,
   TradeOff,
@@ -335,7 +343,13 @@ restarted.
 
 ## Hands-on Lab
 
-No dedicated LangGraph lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+<LabCallout repoPath="labs/langgraph-checkpoint-cost" status="production-shaped">
+  This module says a checkpointer persists state every step. The lab puts bytes on what that costs
+  when state grows: about 1.34 MB written over 100 steps by a plain accumulating channel against
+  about 60 KB through `DeltaChannel` — quadratic against linear. It also measures the resume cost
+  that buys, and records a real deadlock in the pinned `1.2.11` release.
+  [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
+</LabCallout>
 
 <Exercise title="Reimplement the bounded agent loop as a checkpointed graph" difficulty="advanced">
   Take [Module 5](/learn/modules/05-agent-engineering/)'s `BoundedAgentLoop` and reimplement it as a
@@ -358,3 +372,4 @@ No dedicated LangGraph lab exists yet — see the [Roadmap](/roadmap/) for what'
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-08-05 | Initial publication. |
+| 1.1.0 | 2026-08-30 | Linked the [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) lab, replacing the note that no LangGraph lab existed. |

@@ -49,7 +49,7 @@ export const COLLECTION_NAMES = Object.keys(COLLECTIONS) as CollectionName[];
 export const EXPECTED_MINIMUM_PAGES: Record<CollectionName, number> = {
   module: 16,
   architecture: 11,
-  lab: 11,
+  lab: 12,
   interview: 3,
   reference: 13,
   adr: 7,
