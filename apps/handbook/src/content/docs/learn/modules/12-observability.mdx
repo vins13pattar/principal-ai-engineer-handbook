@@ -3,7 +3,7 @@ title: "Module 12: Observability"
 sidebar:
   label: "12 · Observability"
 description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, why an eval regression is a different kind of signal than a latency spike, and why a green build is a signal that can lie the same way a dashboard can.
-version: 1.1.0
+version: 1.2.0
 lastUpdated: 2026-09-02
 revisionHistory:
   - version: 1.0.0
@@ -19,6 +19,15 @@ revisionHistory:
       count floor is one invariant rather than the answer, and the "validate the validator" contract
       for AI-assisted changes that touch an implementation and its checks together. Sharpened by
       LinkedIn feedback from Dushyant K.
+    author: vinod
+  - version: 1.2.0
+    date: 2026-09-02
+    change: >-
+      Extended the false-green section one layer up: a status can be wrong because its evidence
+      expired, not only because a check did not run. Adds the owner/validity/expiry/revalidation
+      questions, approvals bound to the artifact version they reviewed, and the observation that
+      this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with
+      Michał Piszczek.
     author: vinod
 category: learn-module
 moduleNumber: 12
@@ -212,6 +221,65 @@ cover the system it claims to.
   known floor rather than trusting the exit code alone.
 </EngineeringNote>
 
+**Trust has an expiry, and the same failure sits one layer up.** A green build can be wrong because
+the expected checks never ran. A system can be just as wrong about `approved` because the evidence
+behind that approval has gone stale — the review happened, it was valid, the window lapsed, nobody
+owned revalidating it, and the label stayed. Both are the same defect wearing different clothes:
+**the label no longer describes reality, and nothing in the system is required to notice.** So the
+question a status has to answer is not only whether validation passed, but whether its evidence is
+still current and who is on the hook for keeping it so:
+
+```text
+trustworthy status = validation passed
+                   + the expected checks executed
+                   + the evidence is still current
+                   + the control has an owner
+```
+
+Treat `production-ready`, `security-reviewed`, `evaluation-passed`, `human-approved`, and
+`risk-accepted` as derived states backed by dated evidence, not as permanent labels a system earns
+once. A control worth having answers five questions: **who owns it**, **how long its evidence is
+trusted**, **what makes it stale**, **what restores it**, and **what happens when it lapses**. The
+last is the one usually left undefined, which is how expiry silently resolves to "carry on".
+
+The cheap version needs no workflow engine — only that expiry produces a distinct state instead of
+leaving the old one standing:
+
+```text
+review required every 30 days → review completed → approved
+  → 30 days pass →
+      wrong:  status stays approved
+      right:  status becomes review-expired, and the next deploy asks for revalidation
+```
+
+**In AI systems most controls are time-sensitive by nature.** A model evaluation, a red-team pass, a
+prompt review, or a dataset check is evidence about a specific artifact, and the artifact moves. An
+approval is therefore only meaningful when bound to what was actually reviewed — the model version,
+the prompt version, the toolset, the policy, the eval it passed — so that changing any of them
+invalidates it rather than inheriting it. An agent that swaps a tool or a prompt version under an
+existing approval has not kept the approval; it has voided it, and the system should be able to say
+so without a human noticing first.
+
+<Warning title="A control with no owner and no expiry eventually becomes another stale label">
+  Don't only validate the validator — validate that the validator is still current. Fail closed
+  where an expired control guards something irreversible, and warn where it does not; a gate that
+  blocks everything on lapse gets routed around, and one that blocks nothing was never a gate.
+</Warning>
+
+<EngineeringNote>
+  This handbook already runs on this principle without having stated it. Every fast-moving page
+  declares what it was `verifiedAgainst` and `verifiedOn`, and
+  `scripts/lint-content-structure.ts` fails the build once a page passes its review window —
+  90 days for fast-moving topics, 270 and 540 for slower ones. That is the whole pattern in one
+  mechanism: dated evidence, a defined validity period, an owner (whoever the failing build stops),
+  and a failure behaviour that is a red build rather than a quiet assumption that August's
+  verification still holds.
+
+  Extended from a LinkedIn discussion with
+  [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/), who pointed out that a validation gate
+  becomes another stale label once its review window expires with nobody owning revalidation.
+</EngineeringNote>
+
 ## Implementation
 
 A minimal tracer recording token counts, model, and cost as span attributes on an LLM call — the
@@ -378,6 +446,18 @@ assertion that the packages you expected to be inspected appear in the tool's ow
     broken case scored at zero.
   - Workflow and validation-config changes carry extra review — CODEOWNERS, or a reviewer who did
     not write the change — because they are the changes that can disable the evidence.
+
+  And for the controls whose evidence expires:
+
+  - Approvals and validation results carry a timestamp and the version of what was reviewed.
+  - Controls that should not be trusted indefinitely have a stated validity period and a named
+    owner.
+  - A material change to the reviewed artifact invalidates the approval instead of inheriting it.
+  - Expiry produces a visible state — `expired`, `requires-review` — rather than leaving `approved`
+    standing.
+  - Lapsed high-risk controls fail closed; lower-risk ones warn, so the gate stays worth having.
+  - Waivers are dated and justified, because a permanent exception is a control that was deleted
+    without saying so.
 </Checklist>
 
 ## Production Example
@@ -605,3 +685,4 @@ logic is real and tested, the metrics source and scaling target are stand-ins.
 | --- | --- | --- |
 | 1.0.0 | 2026-08-07 | Initial publication. |
 | 1.1.0 | 2026-09-02 | Added false-green CI as an observability problem — the four claims behind a trustworthy green build, the failure classes that produce a false one, a gate that reports discovered/executed/skipped, why a test-count floor is one invariant rather than the answer, and the "validate the validator" contract for AI-assisted changes. Sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/). |
+| 1.2.0 | 2026-09-02 | Extended it one layer up — trust has an expiry. A status can be wrong because its evidence went stale, not only because a check did not run: the owner/validity/expiry/revalidation questions, approvals bound to the artifact version they reviewed, and the observation that this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
