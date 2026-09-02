@@ -122,7 +122,9 @@ investigation, and the second should open one into the eval set.
   If nothing in the suite asserts that a deliberately broken system scores zero, every other number
   the platform produces is unverified. This is the meta-test, and it is the one most evaluation
   code does not have — which means a grader silently returning "correct" on an exception looks
-  exactly like a system that works.
+  exactly like a system that works. The same shape appears one layer out, in the pipeline that runs
+  the harness: see [Module 12](/learn/modules/12-observability/#deep-dive) on why a green build is
+  only evidence once you can show which checks actually ran.
 </FailureMode>
 
 <FailureMode title="Reporting a point estimate">

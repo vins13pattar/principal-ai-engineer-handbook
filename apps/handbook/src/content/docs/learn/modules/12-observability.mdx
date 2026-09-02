@@ -2,13 +2,23 @@
 title: "Module 12: Observability"
 sidebar:
   label: "12 · Observability"
-description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, and why an eval regression is a different kind of signal than a latency spike.
-version: 1.0.0
-lastUpdated: 2026-08-07
+description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, why an eval regression is a different kind of signal than a latency spike, and why a green build is a signal that can lie the same way a dashboard can.
+version: 1.1.0
+lastUpdated: 2026-09-02
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-07
     change: Initial publication.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-09-02
+    change: >-
+      Added false-green CI as an observability problem: a pipeline that skipped its tests and one
+      that passed them emit the same signal, so exit code 0 is one of four claims rather than all of
+      them. Covers the failure classes, a gate that reports discovered/executed/skipped, why a test
+      count floor is one invariant rather than the answer, and the "validate the validator" contract
+      for AI-assisted changes that touch an implementation and its checks together. Sharpened by
+      LinkedIn feedback from Dushyant K.
     author: vinod
 category: learn-module
 moduleNumber: 12
@@ -135,6 +145,73 @@ place.
   is precise in a way that's easy to blur in casual use.
 </ResearchNote>
 
+**The pipeline that guards your system is a system too, and green is its dashboard.** Everything
+above treats production telemetry as the thing that can mislead you. The delivery pipeline earns the
+same suspicion for the same structural reason: a pipeline that ran its tests and a pipeline that
+skipped them emit an identical signal, and that signal is a green check.
+
+A red build is looked at within minutes, because someone is blocked. A false green is looked at by
+nobody, because nothing is blocked — it produces confidence that was never earned, which is worse
+than no confidence at all. That asymmetry is the whole problem: the outcome most in need of scrutiny
+is the one wearing the colour of success.
+
+So CI correctness is not "the command exited 0". It is four separate claims, and the exit code
+establishes only the first:
+
+```text
+CI correctness = the check succeeded
+               + the check actually executed
+               + it covered the scope you believed it covered
+               + unexpected skips were surfaced rather than swallowed
+```
+
+Exit code 0 proves that the process it invoked considered itself successful. It does not prove that
+any tests were discovered, that the typechecker was aimed at the package you changed, that the
+linter saw the directory you added, or that the integration suite did anything beyond skipping every
+case because a dependency was unreachable.
+
+**Why this sharpens under AI-assisted development.**
+[Module 14](/learn/modules/14-leadership/#implementation) argues that a check which has never failed
+is indistinguishable from a check that cannot fail. An agent working in a repository can change test
+discovery, a path filter, a workflow condition, or a config default as a side effect of the change it
+was actually asked to make — and it will then report success on the evidence CI handed it. The
+contract worth holding an agent to is not _implementation changed → CI green_:
+
+```text
+implementation changed
+  → the expected validation suites were discovered
+  → the expected scope was executed
+  → the required gates passed
+  → CI green
+```
+
+The generalisation is **validate the validator**. When a change touches both an implementation and
+the mechanism that checks it, those are not one change, and reviewing them as one is how a weakened
+gate ships in the same commit as the code it existed to catch. For agentic workflows the evaluation
+has two questions, not one: did the proposed change pass validation, and does the validation still
+cover the system it claims to.
+
+<PrincipalPerspective title="Don't assert that CI passed — assert that CI tested what you think it tested">
+  A green build is evidence only when you can show which checks ran and over what. That is the same
+  discipline this module applies to a latency dashboard: the number is not the property, it is a
+  claim about the property, and the gap between them is where the incident lives. Ask any pipeline
+  you inherit to tell you how many tests it discovered. A pipeline that cannot answer is not
+  reporting on your system; it is reporting on itself.
+</PrincipalPerspective>
+
+<EngineeringNote>
+  This handbook has shipped exactly this failure. The
+  [Async AI Gateway](/build/labs/async-ai-gateway/) lab was published labelled `production-ready`
+  while its CI omitted a dependency extra, so pytest's collection aborted before a single test ran —
+  masking thirteen type errors and a failing test behind a green check. The label was a claim, and
+  nothing was checking the claim.
+
+  Insight sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/), who
+  described a real false-green pipeline whose lint step exited 0 because of a configuration error,
+  and whose eventual safeguard was to fail the build when the discovered test count fell below a
+  known floor rather than trusting the exit code alone.
+</EngineeringNote>
+
 ## Implementation
 
 A minimal tracer recording token counts, model, and cost as span attributes on an LLM call — the
@@ -208,6 +285,101 @@ same per-request cost tracking [Module 4](/learn/modules/04-ai-infrastructure/#i
 introduces, now attached to the exact span that incurred it.
 </CodeWalkthrough>
 
+The same instinct applied to the pipeline. `pytest` exiting 0 is the input to this gate, not its
+conclusion — the job also has to say how many tests it found, how many actually ran, and what it
+declined to run:
+
+<CodeWalkthrough title="A CI gate that proves the suite ran, rather than that pytest exited 0">
+```yaml
+# .github/workflows/lab-ci.yml
+- name: Tests
+  run: ./.venv/bin/python -m pytest -q --junitxml=results.xml
+
+# Deliberately a separate, independently visible step. Folded into the one
+# above, a single `|| true` would disable the suite and its own audit together.
+- name: Prove the suite was discovered and run
+  run: ./.venv/bin/python scripts/assert_suite_ran.py results.xml --floor 19
+```
+
+```python
+# scripts/assert_suite_ran.py
+"""Fail the build when the suite did not run, even though pytest exited 0."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+import xml.etree.ElementTree as ET
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("report")
+    parser.add_argument("--floor", type=int, required=True)
+    args = parser.parse_args()
+
+    # Trusted input: this file was written by pytest in the step above, inside
+    # the same job. Parsing a report from anywhere else -- an artifact download,
+    # another repository -- wants defusedxml instead; the stdlib parser is
+    # documented as vulnerable to entity-expansion attacks on hostile XML.
+    root = ET.parse(args.report).getroot()
+    suites = root.findall(".//testsuite") or [root]
+    discovered = sum(int(s.get("tests", "0")) for s in suites)
+    skipped = sum(int(s.get("skipped", "0")) for s in suites)
+    executed = discovered - skipped
+
+    # Printed unconditionally: the scope of what was validated is the artifact,
+    # and it belongs in the log whether or not this run is the one that fails.
+    print(f"discovered={discovered} executed={executed} skipped={skipped} floor={args.floor}")
+
+    if discovered == 0:
+        print("FAIL: collection found no tests at all", file=sys.stderr)
+        return 1
+    if executed < args.floor:
+        print(f"FAIL: {executed} tests ran, below the floor of {args.floor}", file=sys.stderr)
+        return 1
+    if skipped:
+        # Not a failure on its own. Named anyway, because an unavailable service
+        # hollows a suite out one skip at a time and each one is individually green.
+        print(f"NOTE: {skipped} test(s) skipped", file=sys.stderr)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
+```
+
+The floor is the weakest part of this and the part most likely to be copied, so treat it as one
+invariant among several rather than the answer. What actually carries the gate is the zero-discovery
+check, which never needs tuning, and the printed line — a reviewer comparing `discovered=19` against
+`discovered=4` on the previous run learns something no threshold encodes. In a monorepo, add an
+assertion that the packages you expected to be inspected appear in the tool's own output, since
+"linted successfully" and "linted the thing you changed" are different claims.
+</CodeWalkthrough>
+
+<Checklist title="Making a pipeline's validation scope observable">
+  - Zero discovered tests fails the build wherever tests are expected.
+  - A count floor exists where the suite is stable enough for one to mean something, and a
+    regression against the previous run is checked where it is not.
+  - Every run reports discovered, executed, passed, failed, and skipped — in the log, not only in a
+    summary UI that a future migration will drop.
+  - An unexpected skip is treated as a signal to look at, not as a pass.
+  - Lint, typecheck, unit, and integration run as independently visible jobs, so one swallowed
+    failure cannot cover for the others.
+  - The tools assert that the packages and directories you expected were actually inspected.
+  - Coverage is enforced as a gate wherever coverage means anything, rather than merely reported.
+  - The jobs that matter are required checks in branch protection — a gate nothing enforces is
+    decoration.
+  - No step hides a failure behind `|| true`, `continue-on-error`, or a pipeline that returns the
+    wrong command's status.
+  - The pipeline is itself tested periodically by introducing a change that must fail, confirming it
+    does, and reverting — the same reasoning as
+    [Module 4](/learn/modules/04-ai-infrastructure/#deep-dive)'s eval harness needing a deliberately
+    broken case scored at zero.
+  - Workflow and validation-config changes carry extra review — CODEOWNERS, or a reviewer who did
+    not write the change — because they are the changes that can disable the evidence.
+</Checklist>
+
 ## Production Example
 
 An agentic system's p99 latency SLO starts burning through its error budget. The RED metrics show
@@ -255,6 +427,35 @@ the wrong system entirely.
   precisely because traditional observability has no way to see it.
 </FailureMode>
 
+<FailureMode title="A green pipeline that validated nothing">
+  Every one of these exits 0. None of them has any runtime symptom, and each is a real way a suite
+  stops running while the badge stays green:
+
+  - **Discovery returns nothing.** A moved directory, a renamed package, a changed `rootdir` or
+    `testpaths`, and collection finds zero tests. Zero passing tests is a pass.
+  - **The count quietly drops.** A path or config change leaves the suite running, but a third of it
+    is no longer collected. Nothing distinguishes this from tests having been deleted on purpose.
+  - **Cases skip themselves.** An absent secret, an unreachable service, a missing fixture or an
+    unset environment variable turns case after case into a skip. Skips are not failures, so a suite
+    can become a no-op one condition at a time.
+  - **The checker is aimed somewhere else.** Typechecking a directory you no longer ship, or linting
+    a path list that never gained the module you added, reports clean on code it never opened.
+  - **A filter excludes the thing you changed.** Monorepo path filters and conditional
+    `if:` guards on integration or end-to-end jobs are both ways for the affected package to be the
+    one package not checked.
+  - **Failure is swallowed on purpose.** A stray `|| true`, a `continue-on-error`, or a shell
+    pipeline that returns the exit status of the wrong command converts a failing gate into a
+    passing one, usually added to unblock something and never removed.
+  - **Coverage collapses without comment**, because coverage is reported rather than enforced.
+  - **The required checks change.** Generated or refactored workflow config alters which jobs
+    branch protection actually requires, so a gate stops being a gate while still appearing in the
+    run list.
+
+  The compound version, and the one to watch for in review: a single change that edits both an
+  implementation and the mechanism that validates it. Each half looks reasonable; together they can
+  remove the evidence that the other half is wrong.
+</FailureMode>
+
 ## Trade-offs
 
 <TradeOff title="Full tracing vs. sampled tracing">
@@ -275,6 +476,23 @@ the wrong system entirely.
   costs compute on every request path or a shadow path. Periodic batch evaluation against a
   held-out sample is cheaper but detects a regression only as fast as the batch cadence allows —
   the right choice depends on how costly a live quality regression actually is to leave undetected.
+</TradeOff>
+
+<TradeOff title="A minimum test count vs. the several invariants that actually hold a pipeline honest">
+  A test-count floor is the cheapest defence against a suite that silently stops running, and it is
+  the one most likely to be adopted as though it were the whole answer. It ages badly: tests get
+  parameterised, consolidated, split, and moved, so a fixed number produces failures that are
+  someone's refactor rather than someone's bug — and a floor that cries wolf gets raised until it
+  bounds nothing.
+
+  The floor earns its place as one invariant among several. Non-zero discovery never needs tuning
+  and catches the worst case outright. A regression check against the previous run's count catches
+  the drop a floor set months ago would sit underneath. Asserting that the suites and packages you
+  expected are present catches the filter that excluded them. Coverage or behavioural gates catch
+  the tests that ran but stopped asserting. Skip visibility catches the suite hollowing out one
+  condition at a time. Independent, separately required jobs stop one swallowed failure from
+  covering for the rest. Any single one of these is defeatable; the set is not, and the set is
+  cheap.
 </TradeOff>
 
 ## Security
@@ -348,6 +566,16 @@ the wrong system entirely.
   persisted in the first place.
 </InterviewQuestion>
 
+<InterviewQuestion difficulty="advanced" title="Your CI has been green for three weeks. What would convince you the tests are actually running?">
+  Nothing about the green itself — a pipeline that skipped its suite and one that passed it emit the
+  same signal, and exit code 0 only says the process it invoked considered itself successful. What
+  convinces me is the run reporting how many tests it discovered and executed, and that number being
+  what I expect for the code that changed. Failing on zero discovery costs nothing and catches the
+  worst case; a count regression against the previous run catches the quieter one. The strongest
+  version is periodically breaking something on purpose and confirming the pipeline goes red,
+  because a check that has never failed is indistinguishable from a check that cannot fail.
+</InterviewQuestion>
+
 ## Hands-on Lab
 
 [**SLO-Driven AI Operations**](/build/labs/slo-driven-ai-operations/) implements this module's SLO
@@ -376,3 +604,4 @@ logic is real and tested, the metrics source and scaling target are stand-ins.
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-08-07 | Initial publication. |
+| 1.1.0 | 2026-09-02 | Added false-green CI as an observability problem — the four claims behind a trustworthy green build, the failure classes that produce a false one, a gate that reports discovered/executed/skipped, why a test-count floor is one invariant rather than the answer, and the "validate the validator" contract for AI-assisted changes. Sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/). |
