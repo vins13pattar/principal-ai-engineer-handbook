@@ -275,7 +275,8 @@ so without a human noticing first.
   and a failure behaviour that is a red build rather than a quiet assumption that August's
   verification still holds.
 
-  Extended from a LinkedIn discussion with Michał Piszczek, who pointed out that a validation gate
+  Extended from a LinkedIn discussion with
+  [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/), who pointed out that a validation gate
   becomes another stale label once its review window expires with nobody owning revalidation.
 </EngineeringNote>
 
@@ -684,4 +685,4 @@ logic is real and tested, the metrics source and scaling target are stand-ins.
 | --- | --- | --- |
 | 1.0.0 | 2026-08-07 | Initial publication. |
 | 1.1.0 | 2026-09-02 | Added false-green CI as an observability problem — the four claims behind a trustworthy green build, the failure classes that produce a false one, a gate that reports discovered/executed/skipped, why a test-count floor is one invariant rather than the answer, and the "validate the validator" contract for AI-assisted changes. Sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/). |
-| 1.2.0 | 2026-09-02 | Extended it one layer up — trust has an expiry. A status can be wrong because its evidence went stale, not only because a check did not run: the owner/validity/expiry/revalidation questions, approvals bound to the artifact version they reviewed, and the observation that this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with Michał Piszczek. |
+| 1.2.0 | 2026-09-02 | Extended it one layer up — trust has an expiry. A status can be wrong because its evidence went stale, not only because a check did not run: the owner/validity/expiry/revalidation questions, approvals bound to the artifact version they reviewed, and the observation that this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
