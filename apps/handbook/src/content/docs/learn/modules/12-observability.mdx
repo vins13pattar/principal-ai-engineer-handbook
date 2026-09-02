@@ -3,7 +3,7 @@ title: "Module 12: Observability"
 sidebar:
   label: "12 · Observability"
 description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, why an eval regression is a different kind of signal than a latency spike, and why a green build is a signal that can lie the same way a dashboard can.
-version: 1.3.0
+version: 1.4.0
 lastUpdated: 2026-09-02
 revisionHistory:
   - version: 1.0.0
@@ -36,6 +36,18 @@ revisionHistory:
       ownership has to point at a role, team, or rotation rather than a person, and an owner that no
       longer resolves expires the control just as lapsed evidence does. Continuing the LinkedIn
       discussion with Michał Piszczek.
+    author: vinod
+  - version: 1.4.0
+    date: 2026-09-02
+    change: >-
+      Named the regress the previous three versions were walking down and said where it stops. A
+      resolved owner is not a responsive one — an empty rotation passes a membership check — so the
+      section adds a ranking of liveness signals, the argument that the tower terminates through
+      coupling rather than another rung, exercise as the only evidence where coupling is
+      unavailable, and liveness as a property of the channel rather than the team. Writing it
+      surfaced the same gap here — main had no branch protection, so none of this repository's CI
+      checks were required — which is now fixed, admins included. Continuing the LinkedIn discussion
+      with Michał Piszczek.
     author: vinod
 category: learn-module
 moduleNumber: 12
@@ -241,7 +253,7 @@ still current and who is on the hook for keeping it so:
 trustworthy status = validation passed
                    + the expected checks executed
                    + the evidence is still current
-                   + the control has an owner that still resolves
+                   + the control has an owner that answers
 ```
 
 Treat `production-ready`, `security-reviewed`, `evaluation-passed`, `human-approved`, and
@@ -258,6 +270,45 @@ and the control does not quietly acquire a second thing that needs revalidating.
 no longer resolves — vacant role, empty group, disbanded team — as its own staleness condition, and
 send it to the same expired state as lapsed evidence, because both are the case where nothing is
 left that is required to notice.
+
+**A resolved owner is still not a responsive one.** An empty rotation resolves. So does one whose
+members have all moved on but whose accounts are still listed, and one whose schedule has a gap at
+03:00 on a Sunday. Membership is a structural property; responsiveness is a behavioural one, and
+substituting the first for the second is the failure this module opened with — the number is not the
+property, it is a claim about the property, and the gap between them is where the incident lives.
+`owner_resolves == true` is a claim that somebody will act. It is not the acting.
+
+Notice the shape of the last three paragraphs. The label needed a validator, the validator needed an
+expiry, the expiry needed an owner, and the owner now needs a liveness signal — which is itself
+dated evidence with an owner, so it needs one too. **The tower does not terminate by adding another
+rung.** The signals are still worth ranking, because they are not equally weak:
+
+```text
+the group exists                      structural — catches nothing
+members > 0                           catches the emptied group
+members are active accounts           catches the departed-but-still-listed
+someone is on shift right now         catches the gapped rotation
+the group acted within the window     behavioural, but passive and easy to fake
+an unannounced page was acknowledged  the only one that is evidence
+```
+
+**What terminates the tower is coupling, and where you cannot couple, exercise.** A control that
+sits on a path somebody has to traverse — a deploy that will not proceed, a build that goes red —
+gets liveness for free, because non-response is self-announcing: the thing people wanted to do does
+not happen. A control whose lapse writes a row in a compliance table has no liveness at all, and
+needs an infinite tower of watchers to simulate it. Where coupling genuinely is not available, the
+only evidence of responsiveness is having exercised it — an unannounced page, a deliberately expired
+control, a revalidation request with a deadline and a visible consequence when it passes. This is the
+checklist's "break the pipeline on purpose and confirm it goes red" applied to a human control, and
+[Module 14](/learn/modules/14-leadership/#implementation)'s line survives the translation intact: an
+owner who has never been paged is indistinguishable from an owner who cannot be reached.
+
+Two things fall out of that. Liveness is a property of **the channel, not the team** — a group with
+an excellent page-acknowledgement record can ignore "your review expired" mail indefinitely, so test
+the channel the control actually uses rather than the team's general reputation. And where you can
+neither couple the control nor bring yourself to exercise it, the honest move is to stop calling it
+a control and downgrade whatever claim rests on it, for the same reason a permanent waiver is a
+control that was deleted without saying so.
 
 The cheap version needs no workflow engine — only that expiry produces a distinct state instead of
 leaving the old one standing:
@@ -278,9 +329,10 @@ existing approval has not kept the approval; it has voided it, and the system sh
 so without a human noticing first.
 
 <Warning title="A control with no owner and no expiry eventually becomes another stale label">
-  Don't only validate the validator — validate that the validator is still current. Fail closed
-  where an expired control guards something irreversible, and warn where it does not; a gate that
-  blocks everything on lapse gets routed around, and one that blocks nothing was never a gate.
+  Don't only validate the validator — validate that the validator is still current, and that
+  something still answers when it fires. Fail closed where an expired control guards something
+  irreversible, and warn where it does not; a gate that blocks everything on lapse gets routed
+  around, and one that blocks nothing was never a gate.
 </Warning>
 
 <EngineeringNote>
@@ -292,11 +344,25 @@ so without a human noticing first.
   and a failure behaviour that is a red build rather than a quiet assumption that August's
   verification still holds.
 
+  It was also, until this paragraph was written, missing the coupling the section above recommends.
+  `site-ci.yml` has always run that linter on every pull request, but `main` carried no branch
+  protection and no rulesets, so not one of those checks was actually required. The three previous
+  versions of this page merged green because somebody chose to wait for the checks — nothing would
+  have stopped the merge otherwise. By this module's own checklist, _a gate nothing enforces is
+  decoration_: a control that resolved, ran, and went red, whose enforcement rested entirely on
+  whether a human still cared that week.
+
+  Checking that while writing about it is what turned the checks into required ones, admins
+  included. The point survives the fix rather than being cancelled by it — the linter's liveness
+  never came from the linter, and for three versions it came from nowhere at all. It comes now from
+  being on the path to `main`, which is the only place this section claims to find it.
+
   Extended from a LinkedIn discussion with
   [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/), who pointed out that a validation gate
-  becomes another stale label once its review window expires with nobody owning revalidation — and
-  then that the owner field rots the same way, since a personal name goes stale the moment someone
-  leaves and nobody transfers the check.
+  becomes another stale label once its review window expires with nobody owning revalidation; then
+  that the owner field rots the same way, since a personal name goes stale the moment someone leaves
+  and nobody transfers the check; and then that a resolved owner is not a responsive one, because an
+  empty rotation still passes a membership check.
 </EngineeringNote>
 
 ## Implementation
@@ -471,7 +537,10 @@ assertion that the packages you expected to be inspected appear in the tool's ow
   - Approvals and validation results carry a timestamp and the version of what was reviewed.
   - Controls that should not be trusted indefinitely have a stated validity period and an owner
     expressed as a role, team, or rotation rather than an individual's name.
-  - An owner that no longer resolves expires the control the same way lapsed evidence does.
+  - An owner that no longer resolves expires the control the same way lapsed evidence does — and a
+    resolved owner is not yet a responsive one, since an empty rotation passes a membership check.
+  - Controls that cannot be coupled to a path someone must traverse are exercised rather than
+    recorded — an unannounced test, on the channel the control actually uses.
   - A material change to the reviewed artifact invalidates the approval instead of inheriting it.
   - Expiry produces a visible state — `expired`, `requires-review` — rather than leaving `approved`
     standing.
@@ -707,3 +776,4 @@ logic is real and tested, the metrics source and scaling target are stand-ins.
 | 1.1.0 | 2026-09-02 | Added false-green CI as an observability problem — the four claims behind a trustworthy green build, the failure classes that produce a false one, a gate that reports discovered/executed/skipped, why a test-count floor is one invariant rather than the answer, and the "validate the validator" contract for AI-assisted changes. Sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/). |
 | 1.2.0 | 2026-09-02 | Extended it one layer up — trust has an expiry. A status can be wrong because its evidence went stale, not only because a check did not run: the owner/validity/expiry/revalidation questions, approvals bound to the artifact version they reviewed, and the observation that this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
 | 1.3.0 | 2026-09-02 | Closed the gap the previous version left — the owner field rots the same way the label does. Ownership has to point at a role, team, or rotation rather than a person, and an owner that no longer resolves expires the control just as lapsed evidence does. Continuing the LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
+| 1.4.0 | 2026-09-02 | Named the regress the previous three versions were walking down and said where it stops — a resolved owner is not a responsive one, since an empty rotation passes a membership check. Adds a ranking of liveness signals, coupling rather than another rung as what terminates the tower, exercise as the only evidence where coupling is unavailable, and liveness as a property of the channel rather than the team. Writing it surfaced the same gap here — `main` had no branch protection, so none of this repository's CI checks were required — which is now fixed, admins included. Continuing the LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
