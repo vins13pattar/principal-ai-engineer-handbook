@@ -57,6 +57,13 @@ __pycache__/
 .ruff_cache/
 *.egg-info/
 
+# Lab lockfiles. None of the twelve labs has ever tracked one, and a lockfile
+# appearing in exactly one of them is the kind of inconsistency that reads as a
+# decision when it was an accident. Each lab declares its own bounds in
+# pyproject.toml and is installed fresh; a reader running one should resolve
+# against what is current, not against whatever resolved on the author's laptop.
+labs/*/uv.lock
+
 # Operator configuration and generated episode runs.
 podcast.config.json
 # Podcast run directories. `--out` names one, so match any of them rather
