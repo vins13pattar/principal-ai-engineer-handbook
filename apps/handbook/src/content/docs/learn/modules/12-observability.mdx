@@ -3,7 +3,7 @@ title: "Module 12: Observability"
 sidebar:
   label: "12 · Observability"
 description: Metrics, logs, and traces applied to AI systems specifically — token- and cost-aware span attributes, prompt redaction, SLO-driven alerting, why an eval regression is a different kind of signal than a latency spike, and why a green build is a signal that can lie the same way a dashboard can.
-version: 1.2.0
+version: 1.3.0
 lastUpdated: 2026-09-02
 revisionHistory:
   - version: 1.0.0
@@ -28,6 +28,14 @@ revisionHistory:
       questions, approvals bound to the artifact version they reviewed, and the observation that
       this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with
       Michał Piszczek.
+    author: vinod
+  - version: 1.3.0
+    date: 2026-09-02
+    change: >-
+      Closed the gap the previous version left: the owner field rots the same way the label does, so
+      ownership has to point at a role, team, or rotation rather than a person, and an owner that no
+      longer resolves expires the control just as lapsed evidence does. Continuing the LinkedIn
+      discussion with Michał Piszczek.
     author: vinod
 category: learn-module
 moduleNumber: 12
@@ -233,7 +241,7 @@ still current and who is on the hook for keeping it so:
 trustworthy status = validation passed
                    + the expected checks executed
                    + the evidence is still current
-                   + the control has an owner
+                   + the control has an owner that still resolves
 ```
 
 Treat `production-ready`, `security-reviewed`, `evaluation-passed`, `human-approved`, and
@@ -241,6 +249,15 @@ Treat `production-ready`, `security-reviewed`, `evaluation-passed`, `human-appro
 once. A control worth having answers five questions: **who owns it**, **how long its evidence is
 trusted**, **what makes it stale**, **what restores it**, and **what happens when it lapses**. The
 last is the one usually left undefined, which is how expiry silently resolves to "carry on".
+
+**"Who owns it" is a field that rots too.** An owner recorded as a person's name decays exactly the
+way the label does — someone changes team, nobody transfers the control, and the field goes on
+reading like an answer. Point ownership at something with defined membership instead: a role, a
+team, an on-call rotation. Then a departure changes _who_ answers rather than _whether anyone does_,
+and the control does not quietly acquire a second thing that needs revalidating. Treat an owner that
+no longer resolves — vacant role, empty group, disbanded team — as its own staleness condition, and
+send it to the same expired state as lapsed evidence, because both are the case where nothing is
+left that is required to notice.
 
 The cheap version needs no workflow engine — only that expiry produces a distinct state instead of
 leaving the old one standing:
@@ -277,7 +294,9 @@ so without a human noticing first.
 
   Extended from a LinkedIn discussion with
   [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/), who pointed out that a validation gate
-  becomes another stale label once its review window expires with nobody owning revalidation.
+  becomes another stale label once its review window expires with nobody owning revalidation — and
+  then that the owner field rots the same way, since a personal name goes stale the moment someone
+  leaves and nobody transfers the check.
 </EngineeringNote>
 
 ## Implementation
@@ -450,8 +469,9 @@ assertion that the packages you expected to be inspected appear in the tool's ow
   And for the controls whose evidence expires:
 
   - Approvals and validation results carry a timestamp and the version of what was reviewed.
-  - Controls that should not be trusted indefinitely have a stated validity period and a named
-    owner.
+  - Controls that should not be trusted indefinitely have a stated validity period and an owner
+    expressed as a role, team, or rotation rather than an individual's name.
+  - An owner that no longer resolves expires the control the same way lapsed evidence does.
   - A material change to the reviewed artifact invalidates the approval instead of inheriting it.
   - Expiry produces a visible state — `expired`, `requires-review` — rather than leaving `approved`
     standing.
@@ -686,3 +706,4 @@ logic is real and tested, the metrics source and scaling target are stand-ins.
 | 1.0.0 | 2026-08-07 | Initial publication. |
 | 1.1.0 | 2026-09-02 | Added false-green CI as an observability problem — the four claims behind a trustworthy green build, the failure classes that produce a false one, a gate that reports discovered/executed/skipped, why a test-count floor is one invariant rather than the answer, and the "validate the validator" contract for AI-assisted changes. Sharpened by feedback from [Dushyant K.](https://www.linkedin.com/in/dtka/). |
 | 1.2.0 | 2026-09-02 | Extended it one layer up — trust has an expiry. A status can be wrong because its evidence went stale, not only because a check did not run: the owner/validity/expiry/revalidation questions, approvals bound to the artifact version they reviewed, and the observation that this handbook's own freshness linter is already that pattern. From a LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
+| 1.3.0 | 2026-09-02 | Closed the gap the previous version left — the owner field rots the same way the label does. Ownership has to point at a role, team, or rotation rather than a person, and an owner that no longer resolves expires the control just as lapsed evidence does. Continuing the LinkedIn discussion with [Michał Piszczek](https://www.linkedin.com/in/michalpiszczek/). |
