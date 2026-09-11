@@ -1,8 +1,8 @@
 ---
 title: Architecture
 description: Reference architectures for recurring AI infrastructure problems, with request flows, failure modes, and production deployment notes.
-version: 1.2.0
-lastUpdated: 2026-08-28
+version: 1.3.0
+lastUpdated: 2026-09-11
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -18,6 +18,12 @@ revisionHistory:
       Added the four design reviews the four newest labs were missing — agent identity, task-based
       model routing, semantic response caching, and continuous model evaluation. Every lab now has
       an architecture page.
+    author: vinod
+  - version: 1.3.0
+    date: 2026-09-11
+    change: >-
+      Added Stateful Graph Checkpointing, the design review the twelfth lab shipped without. Every
+      lab has an architecture page again — a claim v1.2.0 made four weeks before it was true.
     author: vinod
 category: section-overview
 ---
@@ -58,9 +64,10 @@ one is missing.
 | [Model Serving Platform](/architecture/systems/model-serving-platform/)       | Reference | [Dynamic Batching Inference](/build/labs/dynamic-batching-inference/) |
 | [Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/) | Reference | [Policy-Gated Tool Runtime](/build/labs/policy-gated-tool-runtime/) |
 | [Semantic Response Caching](/architecture/systems/semantic-response-caching/) | Reference | [Semantic Cache](/build/labs/semantic-cache/)                       |
+| [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) | Reference | [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) |
 | [Task-Based Model Routing](/architecture/systems/task-based-model-routing/)   | Reference | [Model Router](/build/labs/model-router/)                           |
 
-Every one of the eleven labs now has a design review here, and every page here has a running
+Every one of the twelve labs now has a design review here, and every page here has a running
 implementation behind it. The [Build](/build/) section documents the same systems from a
 run-it-and-verify-it angle; these pages take the design-review angle — what the problem actually is,
 what breaks, and what you would have to defend in a review.

@@ -1,0 +1,26 @@
+flowchart TD
+    Node["Superstep N<br/>node returns a partial update"] --> Reducer["Reducer folds that update<br/>into the channel's value"]
+    Reducer --> Strategy{"How is the channel persisted?"}
+
+    Strategy -->|"Full snapshot<br/>(the default)"| Put["Re-serialize the WHOLE<br/>channel value, every step"]
+    Strategy -->|"Incremental<br/>(delta + periodic snapshot)"| Delta["Serialize only this step's<br/>update, into a writes table"]
+
+    Put --> PutCost["O(state) per step<br/>O(n squared) per run<br/>1.34 MB over 100 steps"]
+
+    Delta --> Snap{"steps since snapshot<br/>>= snapshot_frequency?"}
+    Snap -->|Yes| Full["Write a full snapshot,<br/>bounding future replay depth"]
+    Snap -->|No| Sentinel["Checkpoint holds a sentinel;<br/>real state lives in the writes table"]
+    Full --> DeltaCost["O(1) per step<br/>O(n) per run<br/>60 KB over 100 steps"]
+    Sentinel --> DeltaCost
+
+    PutCost --> Read["Resume: read state back"]
+    DeltaCost --> Read
+
+    Read --> Which{"What has to be read?"}
+    Which -->|"Snapshot"| Deser["Deserialize one value.<br/>Replay depth: zero."]
+    Which -->|"Incremental"| Replay["Deserialize the nearest snapshot,<br/>then replay every ancestor write<br/>through the reducer"]
+
+    Replay --> Invariant["Replay batches those writes differently<br/>than execution produced them.<br/>A reducer that is not batching-invariant<br/>reconstructs DIFFERENT state, silently."]
+
+    Deser --> Owner["Write cost is paid by the service doing the work.<br/>Read cost is paid by whoever is waiting on resume —<br/>often a user, on the recovery path."]
+    Invariant --> Owner

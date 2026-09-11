@@ -1,0 +1,377 @@
+---
+title: "Architecture: Stateful Graph Checkpointing"
+sidebar:
+  label: "Stateful Graph Checkpointing"
+description: A reference architecture for persisting the state of a resumable multi-step graph — why full-snapshot checkpointing is quadratic in step count, what incremental writes move to the read path, and the silent correctness condition that comes with them.
+version: 1.0.0
+lastUpdated: 2026-09-11
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-09-11
+    change: >-
+      Initial publication, backed by the labs/langgraph-checkpoint-cost implementation — the
+      quadratic write curve, the read-side cost it trades against, the batching-invariance condition,
+      and a real deadlock in the release the lab pins.
+    author: vinod
+freshness:
+  # Snapshot-versus-log persistence, the replay depth a periodic snapshot
+  # bounds, and the associativity a fold over replayed writes requires are
+  # storage-design fundamentals — they predate agent frameworks and are not
+  # properties of any of them. The version-pinned claims on this page (a beta
+  # channel's stability, a deadlock in one release) are attributed to the
+  # backing lab, which carries its own fast-moving declaration and review window.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import checkpointPaths from "../../build/labs/langgraph-checkpoint-cost.checkpoint-paths.mmd?raw";
+
+## Problem
+
+A multi-step agent has to survive the process running it. The mechanism every graph runtime reaches
+for is the same: after each step, write the state somewhere durable, so a later process can read it
+back and carry on. [Durable Agent Execution](/architecture/systems/durable-agent-execution/) covers
+the delivery layer around that — leases, fencing, retries. This page covers the write itself.
+
+The default implementation is a **full snapshot per step**: serialize the current value of each
+channel that changed, store it, move on. That is correct, simple, and fine — right up to the point
+where the state accumulates.
+
+Accumulation is the normal case, not an edge case. Message history grows. Retrieved documents
+collect. Tool results pile up because a later step needs an earlier one. And when the value grows
+every step *and the whole value is rewritten every step*, the cost of a run is quadratic in its
+length while every individual write still looks cheap.
+
+That shape is the problem. It does not show up in tests, which run short graphs. It does not show up
+as an error. It shows up as a run that gets slower as it progresses, on a system that was fast in
+staging, and the profile points at storage rather than at the state model that is actually
+responsible.
+
+## Requirements
+
+- **Resume from the last committed step**, in a process that shares nothing in-memory with the one
+  that wrote it.
+- **Per-step write cost that does not grow with step count.** Not "small" — *flat*. A constant-factor
+  improvement to a quadratic curve buys a fixed number of extra steps and nothing else.
+- **Bounded reconstruction.** Reading state back must have a ceiling that does not walk to step zero.
+- **Reducer semantics preserved across reconstruction**, whatever batching the read path happens to
+  fold writes in.
+- **An instrument that sees every path state is written through**, not the most obvious one.
+- **A retention and classification policy for the store**, because it holds the full content of every
+  run.
+
+## Constraints
+
+- **A snapshot write is a rewrite, not a diff.** The cost of step *n* is proportional to the state at
+  step *n*, so the cost of the run is the sum of that series. Linear growth per step is quadratic
+  over the run.
+- **The cost cannot be removed, only moved.** Writing deltas instead of snapshots does not make
+  persistence free; it defers reconstruction to whoever reads the state back. Deferred cost is still
+  cost, and it changes owner — from the service doing the work to whoever is waiting on the resume.
+- **Replay does not preserve the batching that produced the writes.** A reconstruction folds ancestor
+  writes in whatever batches it finds them in. Any reducer whose result depends on batching returns
+  something *different* after a resume, and no runtime can check that yours does not.
+- **Incremental encodings are younger than snapshot ones.** The delta path in a given runtime is
+  usually the newer, less-exercised code, often with an explicitly unstable on-disk representation —
+  a real consideration when the data outlives the release that wrote it.
+- **The store bounds the checkpoint.** Row-size limits, request-size limits, and serialization
+  budgets all put a ceiling on what one step may write, and a growing state reaches it eventually.
+- **Persistence and execution often share an executor.** Where checkpoint writes are submitted into
+  the same bounded pool that runs the nodes, persistence work and useful work contend for the same
+  workers — and can do worse than contend, as the failure modes below show.
+
+## Request Flow
+
+<Mermaid code={checkpointPaths} title="One superstep, two persistence strategies, and where each of them puts the cost" />
+
+The diagram is one superstep and its consequences. A node returns a partial update; the reducer folds
+it into the channel; the checkpointer persists the result. The branch is the whole design.
+
+**Full snapshot** re-serializes the entire channel value. Every step pays for all the state that
+exists, so the run pays the sum of the series.
+
+**Incremental** writes only the step's own update, plus a full snapshot every *N* updates. Per-step
+cost is flat. What changes is the read: reconstruction deserializes the nearest snapshot and then
+replays every write since, through the reducer. `snapshot_frequency` is the dial between write volume
+and replay depth, and setting it high enough that no snapshot is ever written means every resume
+replays the entire run.
+
+Two things the diagram makes explicit, because both are routinely missed:
+
+**Where the state actually lives changes.** Under the incremental strategy the checkpoint may hold
+only a sentinel, with the real per-step state in a separate writes table. Anything that measures,
+audits, or exports "the checkpoint" is now looking at the wrong place.
+
+**Replay is a re-fold, not a read.** That is where the correctness condition enters, and it is the
+only one on this page that fails silently.
+
+## Failure Modes
+
+<FailureMode title="Quadratic write cost, discovered in production">
+  Short graphs hide it completely — at ten steps the difference is a few kilobytes and nobody looks.
+  The curve only separates from its linear cousin at the step counts real runs reach. In the backing
+  lab, doubling the run from 50 to 100 steps roughly *quadrupled* the accumulating channel's total
+  write volume while merely doubling the incremental arm's. The symptom is "long runs get slower", which gets
+  attributed to the model, the network, or the database before anyone suspects the state model.
+</FailureMode>
+
+<FailureMode title="A reducer that is not batching-invariant">
+  Replay folds writes in larger batches than execution produced them, so a reducer sensitive to
+  batching reconstructs a different value. The backing lab measured this on a twelve-step run: **25
+  items live, 13 items after replay, and no error raised anywhere.** No exception, no log line, no
+  metric — the run simply continues from state that is not the state it had. This is the most
+  dangerous item on the page, because every other failure here is loud.
+</FailureMode>
+
+<FailureMode title="An instrument that only watches one call path">
+  When state moves to a writes table, a meter wrapped around the snapshot call reports near-zero
+  bytes for the incremental strategy. That is not a cheap write, it is a blind instrument, and the
+  number it produces is clean, plausible, and wrong. The lab's first measurement had exactly this
+  defect and produced a table that read as a finding; the test that now fails against a blind
+  instrument exists because of it.
+</FailureMode>
+
+<FailureMode title="Resume cost paid on the recovery path">
+  Write cost is paid by the service doing the work, during work it was already doing. Reconstruction
+  cost is paid by whoever calls for the state — often a user, often immediately after a crash. The
+  incremental strategy is therefore cheapest exactly when things are going well and most expensive at
+  the moment the system is already degraded.
+</FailureMode>
+
+<FailureMode title="The checkpoint used as a result store">
+  A checkpoint is a resumption cursor. Once intermediate results, retrieved documents, or raw tool
+  output are parked in it because state was the convenient place to put them, per-step cost is set by
+  the size of the payload rather than by the size of the cursor — and the quadratic curve is steeper
+  by that whole factor.
+</FailureMode>
+
+<FailureMode title="Persistence contending with execution in one bounded pool">
+  Checkpoint writes submitted into the same executor as node work do not merely queue; they can
+  invert. In the release the backing lab pins, a checkpoint task drains and waits on the set of
+  pending delta writes *as found at execution time* — which can include writes submitted after that
+  task was. Enough of those parked at once and every worker is blocked on a future that cannot start.
+  An unpatched 100-step sweep hung and was killed after five minutes.
+</FailureMode>
+
+<FailureMode title="Never snapshotting">
+  Setting the snapshot interval beyond the length of a run removes snapshot writes entirely and makes
+  replay depth equal to run length. It is the cheapest configuration to write and the slowest to read,
+  and it is the one a benchmark that only measures writes will recommend.
+</FailureMode>
+
+## Scaling
+
+- **Step count is the axis nobody load-tests.** Throughput tests run many short graphs; the failure
+  here needs one long one. A load profile that never exceeds ten steps cannot distinguish a linear
+  cost curve from a quadratic one.
+- **State size per step multiplies the whole curve.** Halving the payload halves every write at every
+  step. Keeping large values out of state entirely — a reference to object storage rather than the
+  object — is the change with the best ratio of effort to effect, and it needs no new persistence
+  strategy.
+- **`snapshot_frequency` trades write volume against replay depth**, and the two move in opposite
+  directions. Frequent snapshots approach the snapshot strategy's write cost; rare ones approach an
+  unbounded read.
+- **Reconstruction cost is real and, at these scales, small.** Across the lab's twelve runs every
+  configuration reconstructed a 100-step run in tens to low hundreds of microseconds. That is the
+  honest size of the deferred cost at 100 steps on an unloaded machine — enough to rule it out as a
+  reason not to adopt incremental writes, and not enough to extrapolate to 10,000 steps.
+- **The store's per-row ceiling arrives before the cost curve becomes unbearable.** A growing
+  snapshot eventually exceeds a limit and the run fails outright, which is at least a loud failure.
+- **Concurrency is bounded by the executor, not by the storage.** Adding storage throughput does not
+  help when the constraint is workers in a shared pool.
+
+## Security
+
+- **The checkpoint store holds the run.** Every message, every retrieved document, every tool
+  argument, in full. It inherits the highest data classification of anything that passes through the
+  graph, and it is routinely provisioned as though it were a cache.
+- **Deletion is not one row under an incremental strategy.** A run's state is a snapshot plus a chain
+  of writes, potentially across tables. A deletion or export request that removes the checkpoint and
+  leaves the write log has removed the index, not the data.
+- **A checkpoint is a resumption capability.** Anyone who can read one and hand it to the runtime can
+  continue that run — as that run, with its accumulated context. Read access to the store is
+  execution access to the workload, and it is rarely scoped as though it were.
+- **Accumulated state accumulates personal data.** The value that makes the write curve quadratic is
+  usually conversation history, so retention on this store is a privacy control and not only a cost
+  control.
+- **Tenant identity belongs in the key, structurally.** Reconstruction walks ancestors by thread; a
+  walk that can cross a tenant boundary is a much worse bug than a slow one.
+
+## Trade-offs
+
+<TradeOff title="Full snapshot vs. incremental writes">
+  Snapshots are simple, have no replay semantics to get wrong, and reconstruct in one read. They are
+  quadratic over an accumulating run. Incremental writes are flat per step — the backing lab measured
+  roughly 1.34 MB against roughly 60 KB over 100 steps, over 22× — and buy that with a reducer
+  condition the runtime cannot verify, a deeper read path, and usually a younger storage format. For
+  short runs or non-accumulating state, snapshots are not a compromise; they are the right answer.
+</TradeOff>
+
+<TradeOff title="Changing the persistence strategy vs. changing the state model">
+  The cheapest fix is usually not a different checkpointer. State that does not accumulate has a flat
+  curve under the default strategy, and holding a reference instead of a payload shrinks every write
+  at every step. Switching strategies is a state-model rewrite performed under load on a running
+  system; trimming what goes into state is a local change. Try the local change first, and reach for
+  the strategy when the accumulation is the thing the graph is actually for.
+</TradeOff>
+
+<TradeOff title="snapshot_frequency: write volume vs. replay depth">
+  Every snapshot written is a bounded replay later. Tune it by the cost you can least afford to pay
+  at the wrong moment — and remember that the resume is usually the recovery path, so a design that
+  optimises writes at the expense of reads has made the bad day worse to save money on the good one.
+</TradeOff>
+
+<TradeOff title="Adopting a beta incremental channel">
+  The measured write-path effect is real and large. Against it: an on-disk representation that the
+  implementation may change, a surrounding contract that is explicitly not yet stable, and a write
+  path with less production exposure than the default. The storage risk is usually the smaller half —
+  runtimes tend to commit to keeping already-written threads readable — but "expected to remain
+  readable" is a stated expectation, not a guarantee, and the two are worth telling apart before
+  either is quoted in a review.
+</TradeOff>
+
+<TradeOff title="Instrument fidelity vs. simplicity">
+  A meter on one call site is easy to write and easy to trust. A meter that covers every path state
+  can be written through requires knowing the runtime's internals and produces columns that cannot
+  honestly be summed. The second is more work and is the only one that answers the question.
+</TradeOff>
+
+## Cost
+
+- **The write curve is the headline, and its shape matters more than its constant.** Over 100 steps
+  the backing lab measured roughly 1.34 MB for a plain accumulating channel against roughly 60 KB for
+  the same accumulation written incrementally. Extending the run widens that gap superlinearly.
+- **Most of that cost is not the storage bill.** Bytes are cheap. What is expensive is the
+  serialization CPU on the critical path of every step, and the latency it adds to a run that a user
+  may be waiting on.
+- **Reconstruction is the cost you have chosen to pay later**, on a path where latency is least
+  welcome. At the scales measured it is sub-millisecond; the point is that it is not zero and that it
+  grows with replay depth.
+- **The engineering cost of switching is the real number in most cases.** Re-modelling state on a
+  running system, with a reducer condition to prove and a beta format to accept, is a larger
+  expenditure than the bytes it saves — until the run lengths make it the only option.
+- **The cost of getting it wrong silently is unbounded and does not appear on any invoice.** A
+  reconstruction that returns 13 items where 25 lived costs whatever a wrong answer costs, which is
+  the same category of expense as a false cache hit in
+  [Semantic Response Caching](/architecture/systems/semantic-response-caching/).
+
+<Warning title="The numbers here are a shape, not a benchmark for your system">
+  The backing lab measures one runtime at a pinned version, with a fixed payload, no model calls, and
+  disk deliberately excluded — which is what makes its byte counts reproduce exactly. Two things
+  travel from it: **the curve is quadratic against linear**, and **an instrument that watches one call
+  path will miss where incremental state lives**. The absolute byte counts do not travel, and neither
+  does the lab's refusal to rank the incremental strategy against its flat-cost control: under three
+  accountings the incremental arm came out lower and under a fourth it came out 7% higher, and a gap
+  that changes sign with the accounting rule is a property of the rule. Measure your own state model,
+  and report what your meter does not see.
+</Warning>
+
+## Observability
+
+- **Bytes serialized per checkpoint, per channel, per step.** One number for the whole write hides
+  which channel is growing, and the growing one is the finding.
+- **Bytes at the final step versus the first.** The ratio is the accumulation, stated directly. A
+  flat ratio means the state model is not the problem, whatever the total looks like.
+- **Every write path, counted separately and never pre-summed.** Where the same step's output passes
+  through two calls, adding them double-counts; where it passes through only one, omitting the other
+  undercounts. Separate columns are the only honest presentation.
+- **Step-count distribution of real runs.** This is what says whether the quadratic term matters yet,
+  and it is usually not collected at all.
+- **Reconstruction latency, at percentiles, tagged by whether it was a recovery.** The mean is
+  dominated by warm resumes and says nothing about the case that hurts.
+- **Replay depth — steps since the last snapshot — as a distribution.** It is the input to
+  reconstruction cost, and it is observable before anyone is waiting on it.
+- **Checkpoint write latency against node latency in the same pool.** When persistence starts
+  competing with execution, this is where it appears first.
+- **A reconstruction equality check, sampled.** Reconstruct a finished run and compare against the
+  state it ended with. It is the only signal that catches a batching-sensitive reducer, and nothing
+  else on this list will ever fire for it.
+
+## Production Deployment
+
+<Checklist title="Before long runs reach real traffic">
+  - The step-count distribution of real runs is known, not assumed.
+  - Per-step serialized bytes are recorded per channel, and the first-to-last ratio is on a dashboard.
+  - The instrument's coverage is written down: which call sites it wraps, and what the runtime does
+    that it never sees.
+  - Large payloads are held by reference rather than carried in state, before any persistence
+    strategy is changed.
+  - Every reducer used with an incremental strategy is batching-invariant, with a test that folds the
+    same writes in different batch sizes and asserts the same result.
+  - A finished run is reconstructed and compared against its live final state, on a schedule.
+  - `snapshot_frequency` is set deliberately, and the never-snapshot configuration is ruled out
+    explicitly rather than by default.
+  - Reconstruction latency is measured on the recovery path, not only on the happy one.
+  - Checkpoint writes and node execution have been observed under concurrency, with the executor's
+    bound known.
+  - The store's retention, classification, and deletion semantics cover the write log as well as the
+    checkpoint.
+  - Read access to the checkpoint store is scoped as execution access, because that is what it is.
+</Checklist>
+
+<LabCallout repoPath="labs/langgraph-checkpoint-cost" status="production-shaped">
+  A running implementation against a pinned `langgraph==1.2.11`: three graphs differing only in how
+  state accumulates, a checkpointer wrapper that counts bytes on every path state is written through,
+  a resume sweep across snapshot frequencies, and tests pinning the batching-invariance failure and a
+  deadlock in the pinned release's incremental write path. It also records what it retracted — a first
+  table produced by an instrument that watched one call site.
+  [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="A graph run gets slower with every step. Where do you look first?">
+  At whether state accumulates and whether the checkpointer rewrites all of it each step. If both are
+  true the run is quadratic in its own length by construction, and no amount of storage tuning changes
+  the exponent. The confirming measurement is serialized bytes per step: flat means look elsewhere,
+  growing means the state model is the cause.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Incremental checkpointing cut write volume 22×. What did you buy it with?">
+  Read cost and a correctness condition. Reconstruction now deserializes the nearest snapshot and
+  replays every write since, so the cost moved to whoever calls for the state — usually on the
+  recovery path. And replay folds those writes in different batches than execution produced them, so
+  the reducer has to be batching-invariant, which the runtime cannot check for you. The write saving
+  is real; describing it as free is the error.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="After a resume, a run has 13 items where 25 were live. No errors. What happened?">
+  The reducer is not batching-invariant. Replay folded the ancestor writes in larger batches than the
+  original execution did, and a fold whose result depends on batching returns something else. It is
+  silent by nature: nothing was lost at write time and nothing threw at read time, so the only way to
+  catch it is to reconstruct a finished run and compare against the state it ended with.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="Your incremental write path measures near zero bytes per step. Do you believe it?">
+  Not without knowing what the meter wraps. If the strategy stores a sentinel in the checkpoint and
+  the real state in a separate writes table, a meter on the checkpoint call reports almost nothing and
+  the bytes are simply elsewhere. The two paths also cannot be added blindly — for a channel whose
+  whole value already round-trips through the checkpoint, summing them double-counts the same step's
+  output.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="What is the cheapest fix for an expensive checkpoint?">
+  Stop putting expensive things in it. A checkpoint is a resumption cursor; large payloads belong in
+  object storage with a reference in state. That shrinks every write at every step, needs no new
+  persistence strategy, and is a local change rather than a state-model rewrite on a running system.
+  Switching strategies is the answer when the accumulation *is* the workload.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How would you set the snapshot interval?">
+  By deciding which cost you can least afford at the wrong moment. Each snapshot bounds a later
+  replay, so frequent snapshots move cost back onto the write path and rare ones deepen every resume.
+  The configuration worth naming explicitly is the one where no snapshot is ever written inside a
+  typical run — it is the cheapest to write, the slowest to read, and it is what a benchmark that
+  measures only writes will recommend.
+</InterviewQuestion>
