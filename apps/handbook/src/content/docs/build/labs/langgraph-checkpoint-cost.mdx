@@ -1,8 +1,8 @@
 ---
 title: LangGraph Checkpoint Cost
 description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a real deadlock in the pinned release.
-version: 1.0.0
-lastUpdated: 2026-08-30
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-30
@@ -11,10 +11,19 @@ revisionHistory:
       counted only `put()` and missed the pending-writes table where DeltaChannel's state actually
       lives, so the first set of numbers was retracted before it ever reached this page.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified against langgraph 1.2.14. The lab keeps its 1.2.11 pin so its byte counts
+      stay reproducible, and its test suite passes unchanged on 1.2.14. The DeltaChannel
+      deadlock is still present: the code path is identical, and an unpatched 60-step run hung
+      three times out of three, while the max_concurrency workaround completed thirty of
+      thirty. DeltaChannel is still marked beta.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "langgraph==1.2.11, API surface inspected on an installed build"
-  verifiedOn: 2026-08-30
+  verifiedAgainst: "langgraph==1.2.11 (pinned, measured) and 1.2.14 (test suite, deadlock reproduction, and DeltaChannel status re-checked on an installed build)"
+  verifiedOn: 2026-10-08
 category: lab
 repoPath: labs/langgraph-checkpoint-cost
 stack:
@@ -219,8 +228,18 @@ five minutes.** The one-line `max_concurrency` on the delta arm's `invoke` confi
 workaround, not a precaution — and byte counts under it match unpatched runs at step counts where
 the unpatched run does finish, so the workaround does not perturb the measurement.
 
-The LangGraph issue tracker was searched for this and **nothing matching was found**. That is a
-statement about the search, not about the bug's reporting status.
+The LangGraph issue tracker was searched for this and **nothing matching was found** — first on
+2026-08-30, again on 2026-10-08. That is a statement about the search, not about the bug's
+reporting status.
+
+### Still present in 1.2.14
+
+Re-checked on 2026-10-08 against `langgraph==1.2.14`, three patch releases later. `1.2.13` shipped
+five `DeltaChannel` fixes, none of them this one: `_checkpointer_put_after_previous` is
+byte-for-byte unchanged (now `pregel/_loop.py:1604-1606`). The lab's own delta graph, run at 60
+steps with no `max_concurrency`, **hung three times out of three**; with the workaround it completed
+**thirty times out of thirty**. The lab's full test suite passes on `1.2.14` unchanged. Its pin
+stays at `1.2.11`, because that is the release its byte counts were measured on.
 
 ## What else the tests pin
 

@@ -3,8 +3,8 @@ title: "Module 7: LangGraph"
 sidebar:
   label: "7 · LangGraph"
 description: Building the agent loop as an explicit, checkpointed state graph — state and reducers, conditional edges, and how checkpointing turns human-in-the-loop and crash recovery into the same mechanism.
-version: 1.1.0
-lastUpdated: 2026-08-30
+version: 1.2.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
@@ -16,12 +16,20 @@ revisionHistory:
       Replaced "no dedicated LangGraph lab exists yet" with the LangGraph Checkpoint Cost lab, which
       measures what this module's per-step checkpointing costs when state grows.
     author: vinod
+  - version: 1.2.0
+    date: 2026-10-08
+    change: >-
+      Re-verified against langgraph 1.2.14, naming the artifact rather than a month: the
+      module's StateGraph and checkpointer example runs unchanged with warnings treated as
+      errors and checkpoints every step, and MemorySaver remains an alias of InMemorySaver.
+      The lab's deadlock is still present in 1.2.14.
+    author: vinod
 freshness:
   # Names a specific library's API surface (StateGraph, MemorySaver,
   # langgraph.checkpoint.memory), so it tracks that library's releases.
   classification: fast-moving
-  verifiedAgainst: "LangGraph checkpointer and StateGraph API, 2026-08"
-  verifiedOn: 2026-08-08
+  verifiedAgainst: "langgraph==1.2.14: the module's StateGraph and MemorySaver example, run on an installed build with warnings as errors"
+  verifiedOn: 2026-10-08
 category: learn-module
 moduleNumber: 7
 difficulty: advanced
@@ -347,7 +355,7 @@ restarted.
   This module says a checkpointer persists state every step. The lab puts bytes on what that costs
   when state grows: about 1.34 MB written over 100 steps by a plain accumulating channel against
   about 60 KB through `DeltaChannel` — quadratic against linear. It also measures the resume cost
-  that buys, and records a real deadlock in the pinned `1.2.11` release.
+  that buys, and records a real deadlock in the pinned `1.2.11` release — still present in `1.2.14`.
   [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
 </LabCallout>
 
@@ -373,3 +381,4 @@ restarted.
 | --- | --- | --- |
 | 1.0.0 | 2026-08-05 | Initial publication. |
 | 1.1.0 | 2026-08-30 | Linked the [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) lab, replacing the note that no LangGraph lab existed. |
+| 1.2.0 | 2026-10-08 | Re-verified against `langgraph` 1.2.14: the example runs unchanged with warnings as errors. |

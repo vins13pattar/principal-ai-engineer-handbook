@@ -2,7 +2,7 @@
 title: LangGraph
 description: A durable orchestration runtime for agent workflows — state and reducers, checkpointers, interrupts, and the 1.2-generation additions for delta state, per-node timeouts, error recovery, and typed event streaming.
 version: 1.1.0
-lastUpdated: 2026-08-12
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
@@ -15,10 +15,19 @@ revisionHistory:
       defaults to "v2" — and add_node also exposes cache_policy. Replaced the unverified
       Python/TypeScript parity claim with the surface actually inspected.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified against langgraph 1.2.14. The add_node policy arguments and the v2
+      stream_events default are unchanged. Corrected the maintenance line: 0.4 receives
+      security and critical fixes only, and that support ends in December 2026. Added
+      interrupt()'s response_schema (new in 1.2.12) and the gotcha that a JSON Schema dict is
+      not validated.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "langgraph==1.2.11, API surface inspected on an installed build"
-  verifiedOn: 2026-08-12
+  verifiedAgainst: "langgraph==1.2.14, API surface inspected on an installed build; support windows per the LangChain release policy"
+  verifiedOn: 2026-10-08
 category: Agent orchestration
 ---
 
@@ -52,8 +61,9 @@ StateGraph → nodes → edges → state → reducers / channels → checkpointe
   → interrupts / HITL → retries → timeout & error recovery → streaming → observability
 ```
 
-Target the `1.x` APIs. `1.0` is the LTS line; the `0.4` line is in maintenance, and `0.x` examples
-are the most common source of code that does not run.
+Target the `1.x` APIs. `1.0` is the LTS major; the `0.4` line is in maintenance — security and
+critical fixes only — and that support **ends in December 2026**. `0.x` examples are the most common
+source of code that does not run.
 
 ## Key Concepts
 
@@ -68,7 +78,7 @@ are the most common source of code that does not run.
 | `DeltaChannel` | Persists incremental changes rather than re-serializing the whole accumulated value each step. The fix for large-state runs that get slower as they progress |
 | Checkpointer | Persists state per step, keyed by thread. Without it there is no resume, no interrupt, no HITL |
 | Thread | One run's identity across steps and restarts |
-| Interrupt | Suspends the run at a known point and returns control. Resumption reads the checkpoint |
+| Interrupt | Suspends the run at a known point and returns control. Resumption reads the checkpoint. Since `1.2.12`, `interrupt(response_schema=...)` describes the value expected on resume |
 | Retry policy | Per-node retry on failure, via `add_node(retry_policy=...)` |
 | Cache policy | Per-node result caching, via `add_node(cache_policy=...)` |
 | Node timeout policy | Per-node execution deadline, so one hung call cannot pin the run |
@@ -82,13 +92,13 @@ are the most common source of code that does not run.
 
 | Quantity | Value | Why it matters |
 | --- | --- | --- |
-| Current Python release | `1.2.11` | Released 2026-08-11 |
+| Current Python release | `1.2.14` | Released 2026-10-06; this page re-verified against it on 2026-10-08 |
 | Architectural baseline | The `1.2` generation | DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 |
-| LTS line | `1.0` | What to pin to if you want a long support window |
-| Maintenance line | `0.4` | Still patched, not where new work goes |
+| LTS line | The `1.0` major | Active until `2.0` ships, then at least a year of maintenance |
+| Maintenance line | `0.4` | Security and critical fixes only, ending December 2026. Last release `0.4.9`, 2025-06-25 |
 | Checkpoint frequency | Every step | The resume granularity, and the cost you pay for durability |
 | Retry unit | The whole node | A partially-completed node re-runs from the top — make nodes idempotent |
-| `add_node` policy arguments | 5 | `retry_policy`, `cache_policy`, `error_handler`, `timeout`, `trace_policy` — verified on an installed `1.2.11` |
+| `add_node` policy arguments | 5 | `retry_policy`, `cache_policy`, `error_handler`, `timeout`, `trace_policy` — verified on an installed `1.2.11`, unchanged in `1.2.14` |
 | `stream_events` default version | `"v2"` | v3 exists but is opt-in; asking for it on a Runnable that does not implement the v3 protocol raises `NotImplementedError` |
 | Cross-language parity | Check it, do not assume it | The surface above is the Python one. Confirm each capability in the language you are shipping |
 
@@ -112,6 +122,9 @@ are the most common source of code that does not run.
 - **You are probably not using streaming v3.** `stream_events` still defaults to `version="v2"`, so
   the typed projections are opt-in — code that never passes `version="v3"` gets the old events and
   no error saying so.
+- **A JSON Schema `response_schema` is not validated.** Passed a `dict`, `interrupt()` hands it to the
+  client as-is and accepts whatever comes back on resume. Pass a Pydantic model, `TypedDict`, or
+  dataclass instead and the resume value is validated, with a `ValidationError` on a mismatch.
 - **An error handler that swallows the error turns a failed run into a wrong one.** Recovery means
   compensating or routing to a failure path, not returning empty state and continuing.
 - **In-memory checkpointers are for tests.** A run durable only until the process exits is not
