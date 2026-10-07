@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.17.0
-lastUpdated: 2026-09-11
+version: 2.18.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -155,6 +155,13 @@ revisionHistory:
       revision recorded. Twelve labs, twelve design reviews. The episode gap stays open and is now
       two pages wide, since the new page has no audio either.
     author: vinod
+  - version: 2.18.0
+    date: 2026-10-08
+    change: >-
+      Restated the v1.0 lab criterion as "every lab-shaped Learn module has a lab", naming Modules
+      0, 13, and 14 as excluded by nature and saying why. The criterion can now be met: v1.0 waits
+      on one lab, for Module 11, and two episodes.
+    author: vinod
 category: section-overview
 ---
 
@@ -209,11 +216,11 @@ series](#the-audio-series-shipped) covers 67 content pages — eleven hours in t
 | ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
 | ~~`v0.11`~~ | ~~The audio series — a generated episode on every content page, with its transcript~~ — shipped 2026-08-23 |
 | ~~`v0.12`~~ | ~~The four missing design reviews — agent identity, model routing, semantic caching, model evaluation~~ — shipped 2026-08-28 |
-| `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page, a lab, and interview coverage  |
+| `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page and interview coverage, and every lab-shaped module has a lab |
 
 ### What v1.0 still needs
 
-One criterion remains, and it cannot be met as written:
+One criterion remains, and as of 2026-10-08 it can be met:
 
 - **Architecture coverage is done again.** v0.12 closed the gap, a twelfth lab reopened it, and
   [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) closes it on
@@ -222,16 +229,17 @@ One criterion remains, and it cannot be met as written:
   shipping.
 - **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
   have a track.
-- **Four modules without a lab**, down from five: [Module 7](/learn/modules/07-langgraph/) now has
-  one. [Module 11](/learn/modules/11-cloud/) is lab-shaped and could get one. Modules
-  [0](/learn/modules/00-principal-engineer-mindset/), [13](/learn/modules/13-system-design/), and
-  [14](/learn/modules/14-leadership/) are not — a lab about the Principal Engineer mindset would be
-  a lab in name only. The criterion will be restated to cover the modules a lab can honestly serve,
-  rather than left standing as a target that can only be hit by building three labs nobody should
-  run.
+- **One lab-shaped module without a lab.** The criterion used to say every module has a lab, which
+  could only be met by building three labs nobody should run. It now says every _lab-shaped_ module
+  has one. Modules [0](/learn/modules/00-principal-engineer-mindset/),
+  [13](/learn/modules/13-system-design/), and [14](/learn/modules/14-leadership/) are excluded by
+  nature, not deferred: a lab about the Principal Engineer mindset, a system design round, or
+  leadership would be a lab in name only, and the exclusion is stated here so it reads as a decision
+  rather than an omission. Of the lab-shaped modules, [Module 7](/learn/modules/07-langgraph/) got
+  its lab on 2026-08-30, and [Module 11](/learn/modules/11-cloud/) is the one left.
 
-That leaves v1.0 waiting on one decision and at most one further lab — rather than on a body of
-writing.
+That leaves v1.0 waiting on one lab — for Module 11 — and the two episodes below, rather than on a
+body of writing or a decision.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
