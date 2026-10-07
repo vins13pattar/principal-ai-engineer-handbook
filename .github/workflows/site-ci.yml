@@ -15,19 +15,13 @@ on:
       - "eslint.config.js"
       - ".prettierrc.json"
       - ".github/workflows/site-ci.yml"
+  # No `paths` filter on pull requests, deliberately. Branch protection requires
+  # this workflow's three checks, and a workflow skipped by a path filter never
+  # reports them -- so a PR touching only `labs/` could never merge, and admins
+  # are bound by the same rule. Running on every PR costs a lab-only change a
+  # couple of minutes; the push trigger above keeps its filter, because nothing
+  # requires it to report.
   pull_request:
-    paths:
-      - "apps/**"
-      - "packages/**"
-      - "scripts/**"
-      - "package.json"
-      - ".nvmrc"
-      - "pnpm-workspace.yaml"
-      - "pnpm-lock.yaml"
-      - "tsconfig.base.json"
-      - "eslint.config.js"
-      - ".prettierrc.json"
-      - ".github/workflows/site-ci.yml"
 
 concurrency:
   group: site-ci-${{ github.workflow }}-${{ github.ref }}
