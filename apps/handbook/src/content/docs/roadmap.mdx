@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.18.0
+version: 2.19.0
 lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
@@ -162,6 +162,13 @@ revisionHistory:
       0, 13, and 14 as excluded by nature and saying why. The criterion can now be met: v1.0 waits
       on one lab, for Module 11, and two episodes.
     author: vinod
+  - version: 2.19.0
+    date: 2026-10-08
+    change: >-
+      Recorded the two missing episodes, LangGraph Checkpoint Cost and Stateful Graph Checkpointing.
+      Sixty-nine content pages, sixty-nine episodes, eleven and a half measured hours. v1.0 now waits
+      on the Module 11 lab and nothing else.
+    author: vinod
 category: section-overview
 ---
 
@@ -194,12 +201,8 @@ release it was verified against, on a 90-day review window CI fails once a page 
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
-Almost every one of those pages can also be listened to. The [audio
-series](#the-audio-series-shipped) covers 67 content pages — eleven hours in total. There are now
-69, so two carry no episode:
-[LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/), published 2026-08-30, and
-[Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/), published
-2026-09-11.
+Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped)
+covers all 69 content pages — eleven and a half hours in total.
 
 ## What's next
 
@@ -238,8 +241,8 @@ One criterion remains, and as of 2026-10-08 it can be met:
   rather than an omission. Of the lab-shaped modules, [Module 7](/learn/modules/07-langgraph/) got
   its lab on 2026-08-30, and [Module 11](/learn/modules/11-cloud/) is the one left.
 
-That leaves v1.0 waiting on one lab — for Module 11 — and the two episodes below, rather than on a
-body of writing or a decision.
+That leaves v1.0 waiting on one lab — for Module 11 — and nothing else: not on a body of writing, a
+decision, or an episode.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
@@ -260,7 +263,7 @@ table is planned — every lab below is built:
 | [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
 | [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) | Module 7       | Production-shaped |
 
-### LangGraph Checkpoint Cost: shipped, with one piece missing
+### LangGraph Checkpoint Cost: shipped, and now complete
 
 [Module 7](/learn/modules/07-langgraph/) was one of two lab-shaped modules with no lab. It has one
 now: [**LangGraph Checkpoint Cost**](/build/labs/langgraph-checkpoint-cost/), built against a pinned
@@ -273,37 +276,32 @@ measures the read side that buys, records that `DeltaChannel` is beta with an ex
 on-disk contract, and characterises a **real deadlock** in the pinned release's `DeltaChannel` write
 path that hung an unpatched 100-step sweep until it was killed.
 
-**One of the two things it did not have has since been supplied, and the other has not:**
+**It shipped without two things, and both have since been supplied:**
 
 - **It has an Architecture page now.**
   [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) was published
   on 2026-09-11 — the design review this lab shipped without, covering the snapshot-versus-delta
   trade, the replay depth a periodic snapshot bounds, and the batching-invariance condition the
   runtime cannot check for you.
-- **Still no episode.** This was the 68th page and the first without audio since the series
-  shipped; the architecture page above is the 69th and the second. Sixty-seven of the sixty-nine
-  can be listened to.
-
-That remaining gap is a real one, not a deliberate exclusion like the navigation pages below.
+- **It has an episode now, and so does its design review.** They were the 68th and 69th content
+  pages, and the first two without audio since the series shipped. Both were recorded on
+  2026-10-08.
 
 ### The audio series: shipped
 
-Sixty-seven episodes, **eleven hours** of audio, from 3:00 on the shortest ADR to 22:24 on
+Sixty-nine episodes, **eleven and a half hours** of audio, from 3:00 on the shortest ADR to 22:24 on
 [Module 6](/learn/modules/06-mcp/) — measured from the episode manifests, not estimated. The model
 plans the arc and writes the two-voice dialogue; a local text-to-speech model speaks it.
 
-The eleven hours are worth stating plainly because
+The measured total is worth stating plainly because
 [`docs/PODCAST.md`](https://github.com/vins13pattar/principal-ai-engineer-handbook/blob/main/docs/PODCAST.md)
 projected seven, from the handbook's 414 minutes of prose. Spoken dialogue expands on the page it
 covers rather than reading it aloud, and the estimate did not account for that. The number here is
 the measured one.
 
-That was every page that said something on 2026-08-28. Two published since are not covered — the
-[LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) lab and its design review,
-[Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/). The ten pages
-that carry no episode by design — [Start Here](/start-here/), this roadmap, and the eight section
-indexes — are navigation, and an episode narrating a table of contents would be filler. That is a
-deliberate exclusion; those two are a gap to close.
+That is every page that says something. The ten pages that carry no episode by design —
+[Start Here](/start-here/), this roadmap, and the eight section indexes — are navigation, and an
+episode narrating a table of contents would be filler. That is a deliberate exclusion, not a gap.
 
 The four v0.12 architecture pages were recorded on 2026-08-28, four days after the rest. The
 recordings are worth a note of their own, because the run measured the estimator: two episodes landed
@@ -311,6 +309,12 @@ within 1% of their quoted expectation and two came in 8% and 28% *under* it. The
 accuracy is about 7%, which is holding on the expensive side and not the cheap one. Every episode
 also overran its target length — 15:30 to 16:56 against targets near 12:00 — exactly as the engine's
 own documentation warns that models overrun the character budget.
+
+The last two, recorded on 2026-10-08, repeated both patterns. They came in 10% and 12% under their
+quoted expectation ($0.51 against $0.57, $0.33 against $0.37), so the estimator still over-quotes
+rather than under-quotes. And both overran: 17:05 against a 15:05 target, and 14:28 against 9:54 —
+the second by nearly half, on a lab page dense with identifiers that the dialogue explains rather
+than reads.
 
 Two things about the pipeline are recorded rather than assumed. Speech runs locally, so the only
 money the series spends is on the language model; and every transcript is committed next to its

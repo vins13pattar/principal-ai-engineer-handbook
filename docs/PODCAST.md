@@ -8,7 +8,7 @@ An episode covers the whole page by default, aiming at the page's own reading ti
 module 6, which is 3,918 words. Across all 63 documents the handbook is **414 minutes of prose**,
 which projected to about seven hours of audio.
 
-The finished series is **eleven hours** — 67 episodes, 3:00 to 22:24, mean 9:54, summed from the
+The finished series is **eleven and a half hours** — 69 episodes, 3:00 to 22:24, mean 9:54, summed from the
 `audioSeconds` field of the manifests in `episodes/`. The projection was low because two voices
 discussing a passage take longer than the passage takes to read, and the estimate treated reading
 time as speaking time. Budget against the measured number, not the projected one.

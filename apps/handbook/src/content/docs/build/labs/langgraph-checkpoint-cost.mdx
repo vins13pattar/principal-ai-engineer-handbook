@@ -23,6 +23,18 @@ stack:
 labStatus: production-shaped
 ---
 
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-langgraph-checkpoint-cost.md";
+
+<EpisodePlayer
+  file="lab-langgraph-checkpoint-cost.m4a"
+  duration="14:28"
+  model="Claude Sonnet 5"
+  generated="2026-10-07"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
 import { Aside } from "@astrojs/starlight/components";
 
 [Module 7](/learn/modules/07-langgraph/) says a checkpointer persists state every step, and the

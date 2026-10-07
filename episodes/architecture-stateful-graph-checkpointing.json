@@ -1,0 +1,421 @@
+{
+  "archiveVersion": 1,
+  "slug": "architecture-stateful-graph-checkpointing",
+  "meta": {
+    "documentId": "architecture:stateful-graph-checkpointing",
+    "url": "/architecture/systems/stateful-graph-checkpointing/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-10-07",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 1025
+  },
+  "plan": {
+    "topic": "Architecture: Stateful Graph Checkpointing",
+    "title": "Why Your Agent's Checkpoints Get Slower the Longer It Runs",
+    "throughLine": "A full-snapshot checkpoint is simple and correct until state accumulates, at which point the per-step write cost — not the model, not the network — turns a long-running agent quadratic; the incremental fix trades that cost for a replay correctness condition no runtime can verify, and the only way to know which bet you're making is to measure your own state model, not borrow someone else's numbers.",
+    "beats": [
+      {
+        "title": "The run that gets slower as it goes",
+        "intent": "Open with the core problem: full snapshot checkpointing rewrites the whole channel value every step, so accumulating state (message history, retrieved docs, tool results) makes run cost quadratic in length — invisible in tests, showing up in production as an unexplained slowdown that gets blamed on everything except the state model.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#problem"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 1266
+      },
+      {
+        "title": "What a correct checkpointer actually has to guarantee",
+        "intent": "Lay out the requirements: resume from a shared-nothing process, flat per-step write cost (not just smaller), bounded reconstruction, reducer semantics preserved across replay, an instrument that sees every write path, and a retention policy for a store that holds full run content.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#requirements"
+        ],
+        "weight": 2,
+        "targetSeconds": 51.714285714285715,
+        "allocatedCharacters": 727
+      },
+      {
+        "title": "The cost doesn't disappear, it moves",
+        "intent": "Explain the constraints that make this hard: a snapshot write is a rewrite not a diff; writing deltas defers cost to the reader rather than eliminating it; replay can't preserve original batching; incremental formats are younger and less battle-tested; stores bound checkpoint size; and persistence often shares an executor with node execution.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#constraints"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 1540
+      },
+      {
+        "title": "Two strategies, one diagram",
+        "intent": "Walk through the request-flow branch point: full snapshot re-serializes everything every step; incremental writes only the delta plus periodic snapshots, trading write cost for replay depth via snapshot_frequency. Flag the two things routinely missed — where state actually lives moves to a writes table, and replay is a re-fold, not a read.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#request-flow"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 1246
+      },
+      {
+        "title": "Six ways this fails, and only one of them is loud",
+        "intent": "Walk the failure modes: the quadratic curve only separates at real step counts nobody load-tests; a blind meter reports near-zero bytes for incremental state that actually moved to a writes table; write cost and resume cost have different owners, with resume cost landing at the worst moment; checkpoints become a dumping ground for payloads that should never have been there; and shared-executor contention can invert into an outright deadlock.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#failure-modes",
+          "architecture:stateful-graph-checkpointing#scaling"
+        ],
+        "weight": 4,
+        "targetSeconds": 103.42857142857143,
+        "allocatedCharacters": 3665
+      },
+      {
+        "title": "The lab's headline number: 22x, and a different shape",
+        "intent": "Present the measured result from the LangGraph lab: 1.34 MB vs roughly 60 KB over 100 steps for the accumulating channel under plain vs incremental writes, and crucially that the accumulating arm roughly quadruples between 50 and 100 steps while the incremental arm merely doubles — quadratic against linear, plus the flat-cost control that isolates accumulation as the cause rather than fixed per-checkpoint overhead.",
+        "excerptIds": [
+          "lab:langgraph-checkpoint-cost#the-finding",
+          "lab:langgraph-checkpoint-cost#the-control-and-what-it-is-not-for"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 3145
+      },
+      {
+        "title": "The meter that measured the wrong thing",
+        "intent": "Tell the story of the lab's own instrument failure: measuring put() alone produced a clean, plausible, wrong table because DeltaChannel's actual state lives in the pending-writes table via put_writes(), invisible to a checkpoint-only meter. Explain why the two numbers can't just be summed either — double-counting for every channel except the one where it's legitimate.",
+        "excerptIds": [
+          "lab:langgraph-checkpoint-cost#why-put-and-writes-are-counted-separately"
+        ],
+        "weight": 2,
+        "targetSeconds": 51.714285714285715,
+        "allocatedCharacters": 1019
+      },
+      {
+        "title": "Where the saved cost actually goes: reading it back",
+        "intent": "Cover the other side of the trade — resume cost. Reconstruction replays ancestor writes through the reducer unless a snapshot is close behind; the lab found every configuration resumes in tens to low hundreds of microseconds at 100 steps, small and real at this scale but explicitly not something to extrapolate to 10,000 steps, and the never-snapshot configuration is reliably the slowest to resume.",
+        "excerptIds": [
+          "lab:langgraph-checkpoint-cost#the-other-side-of-the-trade-resume",
+          "architecture:stateful-graph-checkpointing#scaling"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 3476
+      },
+      {
+        "title": "Beta storage, and a real deadlock in the pinned release",
+        "intent": "Qualify the recommendation: DeltaChannel's docstring admits its on-disk representation may change, with existing threads only 'expected' not guaranteed to stay readable. Then the sharper finding — an order-inversion bug in langgraph 1.2.11 where checkpoint writes can deadlock the shared executor, confirmed by an unpatched 100-step sweep that hung and was killed after five minutes.",
+        "excerptIds": [
+          "lab:langgraph-checkpoint-cost#deltachannel-is-beta-and-the-reference-page-oversells-it",
+          "lab:langgraph-checkpoint-cost#a-real-deadlock-in-langgraph-1-2-11"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 3504
+      },
+      {
+        "title": "25 items live, 13 after replay, no error anywhere",
+        "intent": "Land the most dangerous failure mode: a reducer sensitive to batching reconstructs different state after replay, silently, with no exception or log line. Tie it to the lab's other pinned facts — resuming through interrupt() works, finished state survives into a fresh process — and the narrower claim the tests actually support versus what they don't.",
+        "excerptIds": [
+          "lab:langgraph-checkpoint-cost#what-else-the-tests-pin"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 1463
+      },
+      {
+        "title": "The cheap fix before the hard one",
+        "intent": "Synthesize the trade-offs: snapshots are the right answer for short or non-accumulating runs; incremental buys a flat curve at the cost of an unverifiable reducer condition and a younger format. But the highest-leverage move is usually the local one — keep large payloads out of state as references rather than switching persistence strategy at all, since a state-model rewrite under load is the real engineering cost.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#trade-offs",
+          "architecture:stateful-graph-checkpointing#cost"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 4191
+      },
+      {
+        "title": "The checkpoint store is a liability, and the checklist to run before shipping",
+        "intent": "Close on security and production readiness: the checkpoint store holds full run content with the highest data classification present, deletion must cover the write log not just the checkpoint row, read access is execution access, and tenant identity belongs in the key structurally. Tie it to the concrete production checklist — known step-count distribution, per-channel byte dashboards, batching-invariance tests, scheduled reconstruction checks, and deliberate snapshot_frequency choice.",
+        "excerptIds": [
+          "architecture:stateful-graph-checkpointing#security",
+          "architecture:stateful-graph-checkpointing#production-deployment",
+          "architecture:stateful-graph-checkpointing#observability"
+        ],
+        "weight": 3,
+        "targetSeconds": 77.57142857142857,
+        "allocatedCharacters": 4451
+      }
+    ],
+    "requestedSeconds": 905,
+    "plannedSeconds": 904.9999999999999,
+    "unsupported": [
+      "A direct side-by-side cost comparison with durable-agent-execution's checkpoint-size guidance as a unified best-practice",
+      "Semantic caching's false-hit framing as a general analogy for checkpointing risk beyond the single cost-category comparison already stated in the source"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 74,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 299.905,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "4e4e39b2b16682bf6ca2c92394facb4964366709c364974142a15221455763cc",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So picture this: you build an agent, it flies through every test you throw at it in staging, and then you ship it. It runs fine for a while, and then someone notices a long-running session has gotten noticeably slower. Nothing in the code changed. What's going on?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "That's actually a really common pattern, and it almost always traces back to how checkpointing works. Every graph runtime needs to persist state after each step so a crash or restart doesn't lose the run, and the default way to do that is a full snapshot — serialize the whole state, write it, move on."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "That sounds reasonable though. Why would that get slower over time instead of just being a flat cost per step?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Because the state isn't static — message history grows, retrieved documents pile up, tool results accumulate because later steps need them. If you rewrite the entire value every single step, and that value keeps growing every step, your total cost becomes quadratic in the length of the run. Each write still looks cheap in isolation, which is exactly why it's invisible until someone runs the agent long enough for it to matter."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, so if the naive full-snapshot write is what's killing you, what does a checkpointer actually have to guarantee to not have this problem? Let's lay out the bar it has to clear."
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "First, it has to resume from the last committed step in a process that shares nothing in memory with the one that wrote it — no cheating with a live reference. Second, the per-step write cost has to be flat, not just smaller. A constant-factor speedup on a quadratic curve just buys you a few more steps before you hit the wall again, it doesn't change the shape of the problem. And third, reading that state back has to have a bounded cost — reconstruction can't mean walking all the way back to step zero every time."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So resumability, flat writes, bounded reads — that's the core three. What else is on the list?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Three more, and they're the ones people skip. Reducer semantics have to survive reconstruction no matter how the read path batches writes back together — fold them wrong and you get a different state than what actually ran. You need an instrument that sees every path state gets written through, not just the obvious one, or you'll miss writes and think you're safe when you're not. And because this store holds the full content of every run, you need an actual retention and classification policy, not just 'it persists.'"
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So if snapshotting is quadratic, the obvious fix is to stop snapshotting — just write the delta, the thing that changed, and move on. Why doesn't that just solve it?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Because the cost doesn't vanish, it relocates. Somebody still has to fold all those deltas back into a state before anything can resume, and now that work happens at read time instead of write time. You've handed the bill to whoever's waiting on the resume, which is often the worst possible moment to hand it to them."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "And that reconstruction has to fold things back in some order. Is that order guaranteed to match what actually happened during the run?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "No, and that's the trap. The original run batched writes however the scheduler happened to batch them; replay just folds whatever ancestor writes it finds, in whatever grouping the reconstruction logic chooses. If a reducer's output depends on how things were batched, resume gives you a different answer than what actually ran — and there's no check for that, because the runtime has no idea your reducer cares about batching. Add to that the delta encodings are usually the newer, less-battle-tested code path on disk, the store still caps how big any one write can be, and persistence frequently shares the same worker pool as the actual graph execution — so the fix doesn't remove the cost, it just moves it somewhere less visible and less tested."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So let's actually draw the branch point, because I think people picture these two strategies as vaguely similar and they're not. Walk me through what happens at a single step, full snapshot versus incremental."
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Same superstep either way: a node returns a partial update, the reducer folds it into the channel, then the checkpointer persists. Incremental writes just that step's delta, plus a full snapshot every N updates, so per-step cost stays flat and snapshot frequency is the dial — crank it high enough and you've effectively promised to replay the whole run on resume."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Okay, flat per-step cost sounds like the obvious win then. What's the part people skip past when they pick incremental?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "One thing, and it's invisible until something goes looking: reconstruction isn't a read anymore, it's deserializing the nearest snapshot and re-folding every write since through the reducer — which is exactly the re-fold correctness condition we were just talking about, and it's the only piece on that whole diagram that fails silently."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "Okay, you called the silent reconstruction failure the most dangerous item on the page, but let's lay out the whole list, because I count at least six distinct ways this goes wrong. Start with the one everybody misses before they even ship: the quadratic curve itself."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, and it hides because nobody load-tests the axis that matters, which is step count. Short graphs just don't reach the point where the curve separates from its linear cousin, because those tests run many short graphs instead of one long one."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "So the second failure is almost the opposite problem — you built the fix, but your instrument can't even see it working."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Exactly, that one's sneaky because it looks like good news. If your meter wraps the snapshot call, it reports near-zero bytes for the incremental strategy, because the state didn't vanish, it moved to a writes table the meter never looks at. That's not a cheap write, it's a blind instrument producing a number that's clean, plausible, and wrong — the lab's own first measurement had exactly that defect before anyone caught it."
+      },
+      {
+        "speaker": "host",
+        "beat": 5,
+        "text": "And then there's the ownership mismatch — write cost and resume cost don't land on the same person, or at the same moment."
+      },
+      {
+        "speaker": "guest",
+        "beat": 5,
+        "text": "Right, and that mismatch means the incremental strategy is cheapest when things are going well and most expensive exactly when the system is already degraded. Pair that with checkpoints becoming a dumping ground for tool output and retrieved documents that never belonged there, and the per-step cost stops being set by the cursor size and starts being set by payload size, which makes the quadratic curve steeper by that whole factor — and under a shared executor, enough of those parked writes at once and you don't get slow, you get a deadlock, which is at least loud."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "So let's put an actual number on this. The lab ran the same accumulating state through a plain reducer and through the incremental channel, same payloads, swept from 10 to 100 steps. What came out at the end?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "At 100 steps the plain reducer is re-serializing about 1.34 megabytes through put, the incremental version is doing roughly 60 kilobytes once you add put and writes together. That's over 22 times smaller, and it's not a cherry-picked step — it's the steady state after the cost has had room to build."
+      },
+      {
+        "speaker": "host",
+        "beat": 6,
+        "text": "But the headline number isn't even the part you care most about, is it — you said the shape matters more than the constant."
+      },
+      {
+        "speaker": "guest",
+        "beat": 6,
+        "text": "Right, the constant just tells you who's ahead today. The shape tells you who wins tomorrow — between 50 and 100 steps the plain arm's put bytes roughly quadruple, 345K to 1.34 million, because it's re-serializing an ever-growing list every time. The incremental arm just doubles, 30K to 60K, and a flat-cost control arm that replaces state instead of accumulating stays pinned at 538 bytes final-step regardless of step count — that's what tells you the growth you're seeing is accumulation, not LangGraph's fixed per-checkpoint overhead."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "So before you got those clean numbers, you got a wrong table first — and it looked fine. What broke?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "The first version of the measuring saver only hooked put(). For most channels that's the whole story, but DeltaChannel's checkpoint() method returns MISSING — its committed state never lands in channel_values at all. So put() was faithfully totalling a sentinel, the checkpoint remainder, and some metadata, and calling that the per-step cost. It compiled, it ran, it produced plausible-looking numbers, and it was wrong, because the actual delta state only exists in the pending-writes table, written through put_writes(). We actually have a test that exists purely to fail against that blind instrument, checking that the delta channel's state is captured by put_writes and not by put."
+      },
+      {
+        "speaker": "host",
+        "beat": 7,
+        "text": "Okay, so the fix is obvious then — just add put_writes to the meter and sum both columns."
+      },
+      {
+        "speaker": "guest",
+        "beat": 7,
+        "text": "That's the trap, because summing is only correct for DeltaChannel. Every other channel's put_writes call re-serializes the exact same node output that put() already counted for that step — add them and you've double-counted a quantity that was never duplicated in storage. DeltaChannel is the one case where the two numbers are disjoint, checkpoint and pending-writes genuinely hold different bytes, so there it's the sum or nothing. A single total-bytes column can't be right for both arms at once; you need to know which channel you're measuring before you know whether to add or to pick one."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "Okay, so DeltaChannel defers the write cost. But deferred isn't free — it has to show up somewhere. Where does it land?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "On read. Reconstructing state means replaying every ancestor write through the reducer, unless a full snapshot is sitting close behind to cut that chain short. snapshot_frequency is the dial that controls how long the chain gets, and the lab swept it at 5, 25, 100, and 10000 over a 100-step run — that last setting is big enough that no snapshot ever fires, so every resume there replays the entire run from scratch."
+      },
+      {
+        "speaker": "host",
+        "beat": 8,
+        "text": "So that's the worst case, and presumably the number people want is how bad it actually gets."
+      },
+      {
+        "speaker": "guest",
+        "beat": 8,
+        "text": "And that's exactly the number we don't print to a precise decimal, on purpose — two earlier drafts tried and got burned by run-to-run variance. What twelve runs do support is two honest claims: every configuration resumes in tens to low hundreds of microseconds at 100 steps, and the never-snapshot setup is reliably the slowest of the four because it's doing the deepest replay. Real, measurable, small at this scale — but that's a statement about 100 steps, not a license to extrapolate to 10,000."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "Okay, so if DeltaChannel is the thing that actually earns its keep at scale, I assume the docs just say 'use this, it's fine' — but you flagged it as beta. What's the catch?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "The catch is in the channel's own docstring, which the reference page doesn't quote. It says the API and the on-disk representation may change, and that existing threads are 'expected' to remain readable — not guaranteed. That's a hedge about a format that's still moving underneath you, not a compatibility promise."
+      },
+      {
+        "speaker": "host",
+        "beat": 9,
+        "text": "That's a much smaller claim than 'the fix for large-state runs.' But you mentioned something sharper than beta instability — an actual deadlock?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 9,
+        "text": "Yeah, and it's not the boring explanation. Node execution and checkpoint writes share one thread pool, but that alone doesn't deadlock anything in a FIFO pool. The real bug is an order inversion — the delta write path checks its pending futures at execution time, not submission time, so a task can end up holding a worker while waiting on a put that was queued after it. I ran an unpatched 100-step delta sweep, it hung, and I killed it after five minutes. There's a one-line concurrency cap that works around it, and I checked — the LangGraph issue tracker has nothing matching this, for whatever that's worth."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "So that deadlock was loud — it hung, you killed it, you knew something was wrong. What's the failure that doesn't tell you anything's wrong?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "A non-associative reducer under replay. I ran a 12-step sequence, 25 items live at the end of the original run. Replayed the same checkpoints through DeltaChannel and got 13 items back — no exception, no warning, nothing in the logs. The reducer folds writes in whatever batch size replay happens to use, and if your reducer's result depends on batch size, you silently get a different answer than the run that actually happened."
+      },
+      {
+        "speaker": "host",
+        "beat": 10,
+        "text": "And DeltaChannel has no way to catch that, because it doesn't know what your reducer is supposed to guarantee. What does hold up, though — because you've also pinned two things that do work?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 10,
+        "text": "Resuming through interrupt and Command with resume works exactly as advertised — the graph pauses, comes back with interrupt set, the same compiled graph finishes it. And finished state really does survive into a totally fresh graph object, no shared process, just reading get state off the same saver. What I can't say is the bigger claim people want — that a fresh process can drive a still-pending interrupt to completion with no Command. My tests only cover finished state landing in a fresh object, not a pending one being resumed by it. That's a narrower result, and it's the one I'll actually defend."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "So if we zoom out from the narrow result you just defended — snapshots versus incremental — where does that actually leave someone deciding which one to run? It feels like you've spent this whole episode building the case for incremental, and now you're going to tell me not to switch."
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Pretty much, yes. That's not a free upgrade, it's a different bet."
+      },
+      {
+        "speaker": "host",
+        "beat": 11,
+        "text": "So before anyone touches the checkpointer itself, is there a cheaper move sitting underneath both of these options?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 11,
+        "text": "Almost always, yes. If the thing bloating your state is a large payload, store a reference to it instead of the payload itself, and every write at every step shrinks regardless of which strategy you're on. Switching checkpointers is a state-model rewrite performed under load on a running system; trimming what goes into state is a local change you can make this afternoon, so try that first and only reach for the strategy change when accumulation is actually the thing your graph is for."
+      },
+      {
+        "speaker": "host",
+        "beat": 12,
+        "text": "So we've spent this whole episode on the cost curve, but I want to end somewhere I think people skip past: the checkpoint store itself. What is it, really, from a security standpoint?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 12,
+        "text": "It's the run. Every message, every retrieved document, every tool argument, stored in full, inheriting the highest data classification of anything that passed through the graph. Teams provision it like a cache and treat deletion like it's one row, but under an incremental strategy a run is a snapshot plus a chain of writes, so removing the checkpoint and leaving the write log hasn't deleted the data, it's deleted the index to it. And a checkpoint is a resumption capability — anyone who can read one can hand it to the runtime and continue that run as that run, with everything it's accumulated, so read access is execution access, and it's rarely scoped like that."
+      },
+      {
+        "speaker": "host",
+        "beat": 12,
+        "text": "And tenant identity needs to be structural, not incidental, because reconstruction is walking ancestors by thread — a walk that crosses a tenant boundary is a much worse bug than a slow one. So if someone's shipping this tomorrow, what's actually on the checklist?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 12,
+        "text": "Know your step-count distribution instead of assuming it, put per-channel bytes and the first-to-last ratio on a dashboard, hold large payloads by reference before you touch the persistence strategy at all, and make every reducer you pair with incremental batching-invariant with a real test. Reconstruct a finished run against its live state on a schedule, set the snapshot frequency setting on purpose rather than by default, and measure reconstruction latency on the recovery path, not the happy one. None of that is exotic — it's just measuring your own state model instead of borrowing someone else's numbers, which is the whole bet this episode has been about."
+      }
+    ]
+  }
+}
