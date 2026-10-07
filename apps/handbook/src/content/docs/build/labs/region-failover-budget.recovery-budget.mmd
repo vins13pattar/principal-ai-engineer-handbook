@@ -1,0 +1,10 @@
+flowchart TD
+    O([Outage begins]) --> D["Detection<br/>measured: the trigger's patience"]
+    D --> P["Promotion<br/>input"]
+    P --> T["Traffic shift<br/>input: DNS TTL, reconnects"]
+    T --> W{"Standby tier"}
+    W -->|hot| R([Serving again])
+    W -->|warm| L["Load model weights<br/>input: GB / throughput"]
+    W -->|cold| C["Find GPU capacity<br/>input"]
+    C --> L
+    L --> R

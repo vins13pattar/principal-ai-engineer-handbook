@@ -1,0 +1,167 @@
+{
+  "archiveVersion": 1,
+  "slug": "lab-region-failover-budget",
+  "meta": {
+    "documentId": "lab:region-failover-budget",
+    "url": "/build/labs/region-failover-budget/",
+    "modelId": "claude-sonnet-5",
+    "generated": "2026-10-07",
+    "voices": {
+      "host": "af_heart",
+      "guest": "am_michael"
+    },
+    "audioSeconds": 365
+  },
+  "plan": {
+    "topic": "Region Failover Budget",
+    "title": "The RTO Budget You Didn't Write Down",
+    "throughLine": "A region failover controller looks correct until you measure it: detection alone can eat an entire RTO window, the fix for that collides with false-failover risk, and two silent failure modes — a dark region and a restarted controller — stay invisible until a seeded simulation forces them into the open.",
+    "beats": [
+      {
+        "title": "Detection eats the whole window",
+        "intent": "Establish the core finding: a window trigger can't fire until the whole window is unhealthy, so detection alone consumes the window, and everything downstream (promotion, traffic shift, GPU model load) happens after. Show the table result that setting the window to the RTO overruns on every standby tier, including hot, and that cold standby makes the RTO unreachable regardless of trigger tuning.",
+        "excerptIds": [
+          "lab:region-failover-budget#the-finding"
+        ],
+        "weight": 80,
+        "targetSeconds": 64.27118644067797,
+        "allocatedCharacters": 1323
+      },
+      {
+        "title": "The price of patience: quiet triggers vs. fast ones",
+        "intent": "Flip to the other failure direction: shortening the window to leave room for downstream stages causes false failovers on ordinary blips. Walk the false-failover table, explain that window-length and consecutive-failure triggers behave the same way (W/interval+1), and stress that the magnitudes are not universal — they move with the blip distribution a team actually measures.",
+        "excerptIds": [
+          "lab:region-failover-budget#the-other-side-eager-triggers-fail-over-on-blips"
+        ],
+        "weight": 75,
+        "targetSeconds": 60.25423728813559,
+        "allocatedCharacters": 1230
+      },
+      {
+        "title": "Two ways the controller lies to itself",
+        "intent": "Cover the two correctness bugs the sweep exposed: a controller that reads an empty check window as healthy misses a dark region in 28 of 30 runs unless silence counts as failure, and a freshly restarted controller — with no history — fires on its very first bad probe, which is exactly when probes are noisiest (mid-deploy).",
+        "excerptIds": [
+          "lab:region-failover-budget#silence-is-read-as-health",
+          "lab:region-failover-budget#a-restarted-controller-fails-over-on-its-first-bad-probe"
+        ],
+        "weight": 75,
+        "targetSeconds": 60.25423728813559,
+        "allocatedCharacters": 896
+      },
+      {
+        "title": "What the lab refuses to simulate, and who owns the trigger",
+        "intent": "Close by being explicit about scope: RPO/replication lag is deliberately left out because any model of it would bake in the answer, and IAM blast radius belongs to a different lab. Pivot to the principal-level takeaway — write the RTO budget stage by stage before picking a detection threshold, and treat the false-failover rate as a policy an owner re-fits from real probe history, not a one-time intuition.",
+        "excerptIds": [
+          "lab:region-failover-budget#what-is-not-here",
+          "lab:region-failover-budget#principal-level-discussion-points"
+        ],
+        "weight": 65,
+        "targetSeconds": 52.220338983050844,
+        "allocatedCharacters": 1054
+      }
+    ],
+    "requestedSeconds": 237,
+    "plannedSeconds": 237,
+    "unsupported": [
+      "A concrete dollar comparison of hot vs. warm vs. cold standby cost for a specific model size",
+      "A worked example of re-fitting trigger patience against a real production probe-history dataset",
+      "A narrative walkthrough of an actual incident where a dark-region or restart bug fired in production"
+    ],
+    "shortfall": null,
+    "segmentBudget": {
+      "maxSegments": 89,
+      "ceilingSeconds": 300,
+      "projectedSeconds": 298.541,
+      "basis": {
+        "fixedSeconds": 3.16,
+        "marginalRtf": 0.073
+      }
+    },
+    "sourceHash": "86ec974b13710bedd8dfe5b61ef2e53580cc4960b86f208cbb0cf0ea0108a883",
+    "droppedForBudget": []
+  },
+  "script": {
+    "turns": [
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "So we built this region failover controller for an AI serving stack, and on paper it looks fine — health checks, a window trigger, promotion logic, the works. But you told me before we started recording that the moment you actually measured it, something broke. What were you looking at?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "The RTO was 15 minutes, so like most people we set the detection window to match — 900 seconds. Seems reasonable, right? But a window trigger literally cannot fire until the entire window has been unhealthy. So detection alone eats all 900 seconds, and only then does promotion start, then traffic shift, then — for a model-serving region — loading 140 gigabytes of weights onto the standby's GPUs. We ran the numbers and even the hot standby, which has nothing to warm up, came in at 1,080 seconds. Over budget before anything downstream even gets a chance."
+      },
+      {
+        "speaker": "host",
+        "beat": 1,
+        "text": "Wait, so matching the window to the RTO is actually the bug, not the safe choice. And you're saying shrinking the window helps hot and warm standby clear it, but cold standby misses no matter what you do to the trigger?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 1,
+        "text": "Exactly. Drop the window to 300 seconds and both hot and warm standby clear it — hot at 480, warm at 620 — but cold's still over at 1,220. Even with the most aggressive trigger we tried, 12 consecutive failures detecting in about 110 seconds, cold standby still lands at 1,030 — because loading 140 gigabytes of weights at a gigabyte a second just takes longer than your whole RTO allows. That's not a tuning problem anymore, that's a standby-tier decision, and no trigger logic on earth fixes it."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "Okay, but you said tightening the window to 300 seconds was the fix. What happens if some downstream stage needs part of that budget too, and you shave the detection window even tighter?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Then you start eating yourself alive from the other direction. At the default blip rate, four an hour averaging 20 seconds, a single failed probe triggers 71.7 false failovers a day — basically every blip becomes an outage. Three consecutive failures gets you to 25.3, six consecutive to 6.0, a 60 second window to 3.3, and you don't get near zero until 12 consecutive failures or a 300 second window, both landing under one false failover a day."
+      },
+      {
+        "speaker": "host",
+        "beat": 2,
+        "text": "So a window and a consecutive-failure count aren't really two different mechanisms, they're the same knob wearing different clothes?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 2,
+        "text": "Right — a window of W seconds behaves like W divided by your probe interval, plus one, consecutive failures, so they interleave on a single patience axis. But don't treat any of these numbers as gospel: triple the mean blip length to 60 seconds and that same 12-consecutive-failure trigger jumps from 0.2 false failovers a day to 13.2. The shape holds, more patience means fewer false triggers and later detection, but the magnitudes only mean something once you measure your own probe history."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "Okay, so the patience dial is tuned — but you told me before we started recording that the sweep found two bugs that have nothing to do with patience at all. They're just... the controller lying to itself?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Right, the first one's almost embarrassing once you see it: the controller reads an empty check window as healthy. So if an outage takes the prober down along with the region, there are zero checks coming in — and zero checks gets coded as 'False,' as in not-unhealthy. In the sweep it only caught a dark region in 2 of 30 runs, and both of those were luck, where the region happened to go dark mid-blip so the last checks sitting in the window were already unhealthy. Flip one flag — count a probe that never arrived as a failure — and it catches all 30, under every trigger."
+      },
+      {
+        "speaker": "host",
+        "beat": 3,
+        "text": "So silence has to mean something's wrong, not nothing's wrong. What's the second one — the restart bug?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 3,
+        "text": "Same root cause, opposite direction. A freshly started controller has no history, so one unhealthy check is the entire window — it fires on the very first bad probe. And a controller restarts exactly when things are already noisy: mid-deploy, a crashed pod. So the moment it has zero immunity is the moment it needs the most. The fix is a minimum history requirement before the trigger's even armed — the same idea as the window itself, just applied to the controller's own age instead of the region's."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "Before we wrap, I want to flag what's deliberately missing from this lab. You didn't model RPO and replication lag, and you punted on IAM blast radius entirely — why leave those out?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Replication lag is the third failure mode from Module 11, and here's the problem: any honest simulation of how lag behaves under pre-outage load would have to encode assumptions that already determine the answer you're testing for. That's not a simulation, that's a tautology. IAM blast radius is a different kind of scope cut — the Agent Identity Broker lab already measures that properly, so duplicating it here would just be noise."
+      },
+      {
+        "speaker": "host",
+        "beat": 4,
+        "text": "So if someone's walking away with one thing from all of this — the windows, the patience tradeoff, the controller amnesia — what's the actual move on Monday morning?"
+      },
+      {
+        "speaker": "guest",
+        "beat": 4,
+        "text": "Three things, in order: stage your RTO budget before you touch a detection threshold, put a name on the false-failover rate as owned policy, and decide in code what silence means to your controller. That's the whole Monday morning move."
+      }
+    ]
+  }
+}

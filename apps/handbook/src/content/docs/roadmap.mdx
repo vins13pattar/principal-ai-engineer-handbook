@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 2.19.0
+version: 3.0.0
 lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
@@ -169,6 +169,13 @@ revisionHistory:
       Sixty-nine content pages, sixty-nine episodes, eleven and a half measured hours. v1.0 now waits
       on the Module 11 lab and nothing else.
     author: vinod
+  - version: 3.0.0
+    date: 2026-10-08
+    change: >-
+      Marked v1.0 shipped. Built the Region Failover Budget lab for Module 11 — the last lab-shaped
+      module without one — and published its design review and both episodes with it. Thirteen
+      labs, thirteen design reviews, every content page with an episode. Named what comes after.
+    author: vinod
 category: section-overview
 ---
 
@@ -186,10 +193,10 @@ The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 13: System Design](/learn/modules/13-system-design/) ·
 [Module 14: Leadership](/learn/modules/14-leadership/) ·
 [Module 15: Agent Identity](/learn/modules/15-agent-identity/).
-The [Architecture](/architecture/) section has a design-review page for **all twelve labs**, each
-with a running implementation behind it;
-[Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) closed the last
-gap on 2026-09-11. [Build](/build/)
+The [Architecture](/architecture/) section has a design-review page for **all thirteen labs**, each
+with a running implementation behind it, and the thirteenth —
+[Multi-Region AI Serving Failover](/architecture/systems/multi-region-ai-failover/) — shipped on the
+same day as its lab rather than after it. [Build](/build/)
 documents every lab from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
@@ -202,7 +209,7 @@ release it was verified against, on a 90-day review window CI fails once a page 
 contract CI enforces — three for interview rounds, two for the work itself.
 
 Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped)
-covers all 69 content pages — eleven and a half hours in total.
+covers all 71 content pages — nearly twelve hours in total.
 
 ## What's next
 
@@ -219,11 +226,11 @@ covers all 69 content pages — eleven and a half hours in total.
 | ~~`v0.10`~~ | ~~Learn Module 15 (Agent Identity and Access) — agent-scoped credentials and remote MCP authorization~~ — shipped 2026-08-14 |
 | ~~`v0.11`~~ | ~~The audio series — a generated episode on every content page, with its transcript~~ — shipped 2026-08-23 |
 | ~~`v0.12`~~ | ~~The four missing design reviews — agent identity, model routing, semantic caching, model evaluation~~ — shipped 2026-08-28 |
-| `v1.0`     | Complete, cross-linked handbook: every Learn module has an Architecture page and interview coverage, and every lab-shaped module has a lab |
+| ~~`v1.0`~~ | ~~Complete, cross-linked handbook: every Learn module has an Architecture page and interview coverage, and every lab-shaped module has a lab~~ — shipped 2026-10-08 |
 
-### What v1.0 still needs
+### v1.0: shipped
 
-One criterion remains, and as of 2026-10-08 it can be met:
+Every criterion holds as of 2026-10-08:
 
 - **Architecture coverage is done again.** v0.12 closed the gap, a twelfth lab reopened it, and
   [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) closes it on
@@ -232,17 +239,32 @@ One criterion remains, and as of 2026-10-08 it can be met:
   shipping.
 - **Interview coverage is done.** All sixteen modules carry embedded questions, and all three rounds
   have a track.
-- **One lab-shaped module without a lab.** The criterion used to say every module has a lab, which
+- **Every lab-shaped module has a lab.** The criterion used to say every module has a lab, which
   could only be met by building three labs nobody should run. It now says every _lab-shaped_ module
   has one. Modules [0](/learn/modules/00-principal-engineer-mindset/),
   [13](/learn/modules/13-system-design/), and [14](/learn/modules/14-leadership/) are excluded by
   nature, not deferred: a lab about the Principal Engineer mindset, a system design round, or
   leadership would be a lab in name only, and the exclusion is stated here so it reads as a decision
-  rather than an omission. Of the lab-shaped modules, [Module 7](/learn/modules/07-langgraph/) got
-  its lab on 2026-08-30, and [Module 11](/learn/modules/11-cloud/) is the one left.
+  rather than an omission. The last two lab-shaped modules got theirs in turn:
+  [Module 7](/learn/modules/07-langgraph/) on 2026-08-30 and [Module 11](/learn/modules/11-cloud/)
+  on 2026-10-08.
 
-That leaves v1.0 waiting on one lab — for Module 11 — and nothing else: not on a body of writing, a
-decision, or an episode.
+The architecture criterion held through the last lab for a reason worth keeping: the design review
+was written alongside the lab instead of after it, so the thirteenth lab never had a day without
+one. That is the practice to keep, because "every lab" is a closing condition that every new lab
+reopens.
+
+### After v1.0
+
+v1.0 is a floor, not a finish. Two things are already scheduled:
+
+- **Re-verification of eleven fast-moving pages**, which pass their 90-day review window between
+  2026-11-06 and 2026-11-28 — after which CI fails the build, by design. The first three are due
+  2026-11-06.
+- **Decision models** — the category Jev, Laya, OpenAI's Decisions API, and Cloudflare's Clef
+  opened in September 2026: models that answer typed questions with probabilities instead of
+  generating text. Planned as a Reference lookup, sections in Modules 4 and 5, a lab measuring
+  calibration and the escalation threshold, and a design review. Nothing of it exists yet.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
@@ -262,6 +284,21 @@ table is planned — every lab below is built:
 | [Semantic Cache](/build/labs/semantic-cache/)                     | Module 4         | Production-shaped |
 | [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
 | [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) | Module 7       | Production-shaped |
+| [Region Failover Budget](/build/labs/region-failover-budget/)     | Module 11        | Production-shaped |
+
+### Region Failover Budget: shipped with its design review
+
+[Module 11](/learn/modules/11-cloud/) was the last lab-shaped module with no lab. Its lab,
+[**Region Failover Budget**](/build/labs/region-failover-budget/), measures the module's own
+`FailoverController` — and found it wrong in two ways the module did not say. A window tied to the
+RTO spends the whole RTO on detection, so recovery overruns on every standby tier, hot included;
+and a controller that returns `False` when it has no checks reads silence as health, so a region
+that goes dark is never failed over — caught in 2 of 30 simulated runs, both by luck. The module
+now carries a correction next to the code rather than a rewrite of it, so the measurement stays
+reproducible.
+
+It is a seeded simulation, not a cloud deployment, and says so; the downstream stages of a failover
+are inputs for the reader to replace. RPO is deliberately out of scope, for reasons the lab states.
 
 ### LangGraph Checkpoint Cost: shipped, and now complete
 
@@ -289,7 +326,7 @@ path that hung an unpatched 100-step sweep until it was killed.
 
 ### The audio series: shipped
 
-Sixty-nine episodes, **eleven and a half hours** of audio, from 3:00 on the shortest ADR to 22:24 on
+Seventy-one episodes, **nearly twelve hours** of audio, from 3:00 on the shortest ADR to 22:24 on
 [Module 6](/learn/modules/06-mcp/) — measured from the episode manifests, not estimated. The model
 plans the arc and writes the two-voice dialogue; a local text-to-speech model speaks it.
 
