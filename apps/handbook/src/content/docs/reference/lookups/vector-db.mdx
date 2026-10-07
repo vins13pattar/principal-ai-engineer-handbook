@@ -1,17 +1,26 @@
 ---
 title: Vector DB
 description: What a vector database actually is once you look past "a database that stores embeddings" — ANN indexes, metadata filtering, namespaces, and the lexical and hybrid capabilities the category has grown.
-version: 1.0.0
-lastUpdated: 2026-08-12
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
     change: Published the Vector DB lookup, using the Pinecone 2026-04 API as the versioned baseline for a vendor-neutral category.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified against Pinecone's versioning docs and release notes. The current stable API
+      is now 2026-07, not 2026-04. Full-text search left preview and went generally available
+      on 2026-09-02. Index creation on 2026-07 is schema-only, which breaks hand-written REST
+      create calls but not the SDKs. The cadence, the twelve-month support window, and the
+      oldest-version fallback for unversioned calls are unchanged.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "Pinecone API 2026-04 — used as the versioned anchor for a vendor-neutral category; Vector DB is not a single product"
-  verifiedOn: 2026-08-12
+  verifiedAgainst: "Pinecone API 2026-07 (current stable; versioning docs and 2026 release notes) — used as the versioned anchor for a vendor-neutral category; Vector DB is not a single product"
+  verifiedOn: 2026-10-08
 category: Data store
 ---
 
@@ -35,7 +44,7 @@ part, and it has not been the differentiator for some time.
 
 **There is no "Vector DB version"** — it is a category, not a product, and index implementations
 differ enough between vendors that portable claims are narrower than they look. This page stays
-vendor-neutral and uses **Pinecone's `2026-04` API** as the versioned anchor wherever a concrete
+vendor-neutral and uses **Pinecone's `2026-07` API** as the versioned anchor wherever a concrete
 version is needed.
 
 The two retrieval paths, and where they meet:
@@ -46,9 +55,11 @@ Embedding → dense vector → vector index → ANN search ─┐
 Text → lexical / full-text index → keyword search ────┘
 ```
 
-Modern platforms increasingly serve both sides of that diagram. Pinecone's full-text search preview
-gained fuzzy matching and n-gram substring search in July 2026, which is the category direction in
-one data point: the vector store is becoming the retrieval layer, not just the vector layer.
+Modern platforms increasingly serve both sides of that diagram. Pinecone's full-text search gained
+fuzzy matching and n-gram substring search in public preview in July 2026, and went generally
+available on 2026-09-02 — BM25 ranking, Lucene query syntax, and vector similarity in one index.
+That is the category direction in one data point: the vector store is becoming the retrieval layer,
+not just the vector layer.
 
 ## Key Concepts
 
@@ -75,7 +86,8 @@ one data point: the vector store is becoming the retrieval layer, not just the v
 | Quantity | Value | Why it matters |
 | --- | --- | --- |
 | The category's version | None | "Vector DB" is a category. Pin a vendor's API version instead |
-| Pinecone's current stable API | `2026-04` | Date-based versioning; send `X-Pinecone-Api-Version: 2026-04` explicitly |
+| Pinecone's current stable API | `2026-07` | Date-based versioning; send `X-Pinecone-Api-Version: 2026-07` explicitly. It replaced `2026-04` this quarter |
+| Index creation on `2026-07` | Schema-only | `dimension`, `metric`, and `spec` move into a `schema`. Hand-written REST calls break; SDK `create_index` does not |
 | Pinecone stable API support | At least twelve months | New stable version quarterly, so you get ~9 months to migrate off the one you are on |
 | Unversioned API calls | Fall back to the *oldest* supported stable version | Not the newest. Omitting the header pins you to the past |
 | Embedding dimension | Fixed at index creation | A model change is a reindex of the entire corpus |
@@ -101,6 +113,10 @@ one data point: the vector store is becoming the retrieval layer, not just the v
   behaviors differ. Advice about one vendor's knobs may be actively wrong for another's.
 - **Omitting the API version does not mean "latest".** Pinecone resolves an unversioned call to the
   oldest supported stable API, so the safe-looking option is the stale one.
+- **Bumping the API version is a code change, not a header change.** `2026-07` made index creation
+  schema-only, so a hand-written `POST /indexes` that works on `2026-04` fails on `2026-07`. Read
+  the version's breaking changes before moving the header — the twelve-month window exists for
+  exactly this.
 - **Upserts are not immediately visible everywhere.** Write-then-read-your-own-write is not a
   guarantee to assume. Test it before building a workflow that depends on it.
 - **Semantic search will not find an error code.** This is not a tuning failure; it is the wrong
