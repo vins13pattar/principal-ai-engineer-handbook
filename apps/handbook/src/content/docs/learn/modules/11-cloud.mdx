@@ -3,12 +3,20 @@ title: "Module 11: Cloud"
 sidebar:
   label: "11 · Cloud"
 description: Cloud architecture decisions that outlive any single service — managed vs. self-hosted, VPC and IAM boundaries, multi-region disaster recovery, and cost attribution — applied to AI infrastructure specifically.
-version: 1.0.0
-lastUpdated: 2026-08-07
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-07
     change: Initial publication.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Added the Region Failover Budget lab, and a correction it produced: the FailoverController
+      below, with its window set to the RTO, spends the whole RTO on detection and treats silence
+      as health. The code is unchanged so the measurement stays reproducible; the text now says
+      what it does.
     author: vinod
 category: learn-module
 moduleNumber: 11
@@ -17,7 +25,8 @@ estimatedMinutes: 45
 prerequisites:
   - 04-ai-infrastructure
   - 10-kubernetes
-relatedLabs: []
+relatedLabs:
+  - region-failover-budget
 ---
 
 import {
@@ -29,6 +38,7 @@ import {
   FailureMode,
   InterviewAnswer,
   InterviewQuestion,
+  LabCallout,
   PrincipalPerspective,
   ResearchNote,
   TradeOff,
@@ -197,6 +207,17 @@ window does, tying the failover trigger directly to the RTO number it's meant to
 to an arbitrary retry count.
 </CodeWalkthrough>
 
+<Warning title="Measured: tying the window to the RTO guarantees missing it">
+  The [Region Failover Budget](/build/labs/region-failover-budget/) lab runs this controller and
+  found three things the paragraph above does not say. **Detection alone takes the whole window**,
+  and promotion, traffic shift, and loading the model onto the standby's GPUs all come after it — so
+  a window equal to the RTO overruns the RTO on every standby tier, hot included. Size the window
+  from what the RTO leaves after those stages. **`if not recent: return False` reads silence as
+  health**: a region that goes dark, taking the prober with it, is never failed over. Count a probe
+  that was due and never arrived as a failure. And **a freshly started controller fires on its first
+  unhealthy probe**, because with no history that probe is every check in the window.
+</Warning>
+
 ## Production Example
 
 A team commits to a 15-minute RTO and a 1-minute RPO for a production model-serving system. The
@@ -328,7 +349,13 @@ incident.
 
 ## Hands-on Lab
 
-No dedicated cloud-architecture lab exists yet — see the [Roadmap](/roadmap/) for what's planned.
+<LabCallout repoPath="labs/region-failover-budget" status="production-shaped">
+  This module's `FailoverController`, measured. A seeded simulation of regions, probes, blips, and
+  outages sets it against a consecutive-failure trigger and a silence rule: a window tied to the
+  RTO spends the whole RTO on detection, a dark region is caught only by luck, and the eager
+  alternative fails over on blips dozens of times a day.
+  [Read the lab documentation →](/build/labs/region-failover-budget/)
+</LabCallout>
 
 <Exercise title="Prove a failover decision against a committed RTO" difficulty="intermediate">
   Using this module's `FailoverController`, write a test that feeds it a sequence of health checks

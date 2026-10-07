@@ -1,7 +1,7 @@
 ---
 title: Start here
 description: What each section of the handbook is for, how the same topic is covered across all of them, and three routes through the material depending on why you came.
-version: 1.1.0
+version: 1.2.0
 lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
@@ -14,6 +14,10 @@ revisionHistory:
       Brought the counts up to date — sixteen modules, twelve labs, twelve design reviews — and
       extended the topic table from seven rows to twelve. Added who the handbook is for and what it
       deliberately is not, including where to learn the fundamentals it assumes.
+    author: vinod
+  - version: 1.2.0
+    date: 2026-10-08
+    change: Added the thirteenth system — region failover, Module 11's lab and design review.
     author: vinod
 category: section-overview
 ---
@@ -33,7 +37,7 @@ examined in a Principal-level loop.
 
 That scope shapes three choices worth knowing before you start:
 
-- **Depth on a few systems, not breadth across the field.** Twelve systems, each seen from four
+- **Depth on a few systems, not breadth across the field.** Thirteen systems, each seen from four
   angles, rather than a linear course from first principles. If you want to know whether the
   handbook covers a topic, the table below is the honest answer.
 - **The code is production-shaped, not from-scratch.** The labs are services — typed, tested, and
@@ -54,8 +58,8 @@ this one for the systems built around them.
 | Section | What it is | Open it when |
 | --- | --- | --- |
 | [Learn](/learn/) | Sixteen modules, each with the same fifteen sections — mental model, architecture, implementation, failure modes, trade-offs, interview questions | You want to understand a topic properly, start to finish |
-| [Build](/build/) | Twelve labs, each a real Python service with tests, type checking, and CI | You want to run something, break it, and see what happens |
-| [Architecture](/architecture/) | Twelve design reviews — constraints, request flow, failure modes, cost, observability, deployment | You are designing something similar and need the decisions laid out |
+| [Build](/build/) | Thirteen labs, each a real Python service with tests, type checking, and CI | You want to run something, break it, and see what happens |
+| [Architecture](/architecture/) | Thirteen design reviews — constraints, request flow, failure modes, cost, observability, deployment | You are designing something similar and need the decisions laid out |
 | [Interview](/interview/) | Tracks organized by interview round, routing into the material that answers each one | You have an interview and want to know what the round samples |
 | [Reference](/reference/) | One-page lookups: what it is, the numbers, the gotchas | You need to check one fact quickly |
 | [Cheat Sheets](/cheatsheets/) | Printable one-page summaries | You want something to review on paper |
@@ -82,6 +86,7 @@ module, a design review, a lab, and a set of interview questions, and those four
 | Graph checkpointing | [Module 7](/learn/modules/07-langgraph/) | [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) | [`langgraph-checkpoint-cost`](/build/labs/langgraph-checkpoint-cost/) |
 | Retrieval | [Module 8](/learn/modules/08-rag/) | [Enterprise RAG Platform](/architecture/systems/enterprise-rag-platform/) | [`hybrid-retrieval`](/build/labs/hybrid-retrieval/) |
 | Model serving | [Module 9](/learn/modules/09-model-serving/) | [Model Serving Platform](/architecture/systems/model-serving-platform/) | [`dynamic-batching-inference`](/build/labs/dynamic-batching-inference/) |
+| Region failover and recovery budgets | [Module 11](/learn/modules/11-cloud/) | [Multi-Region AI Serving Failover](/architecture/systems/multi-region-ai-failover/) | [`region-failover-budget`](/build/labs/region-failover-budget/) |
 | Observability and SLOs | [Module 12](/learn/modules/12-observability/) | [AI Reliability Platform](/architecture/systems/ai-reliability-platform/) | [`slo-driven-ai-operations`](/build/labs/slo-driven-ai-operations/) |
 | Agent identity and access | [Module 15](/learn/modules/15-agent-identity/) | [Agent Identity Platform](/architecture/systems/agent-identity-platform/) | [`agent-identity-broker`](/build/labs/agent-identity-broker/) |
 

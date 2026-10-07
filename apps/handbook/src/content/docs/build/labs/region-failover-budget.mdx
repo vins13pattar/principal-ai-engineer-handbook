@@ -1,0 +1,146 @@
+---
+title: Region Failover Budget
+description: How much of an RTO a failover trigger spends deciding to fail over — why a window tied to the RTO guarantees missing it, why silence reads as health, and what the eager alternative costs in false failovers.
+version: 1.0.0
+lastUpdated: 2026-10-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-10-08
+    change: >-
+      Initial lab documentation. Module 11's FailoverController, measured: the window it ties to the
+      RTO spends the whole RTO on detection, and it never fails over a region that goes dark.
+    author: vinod
+category: lab
+repoPath: labs/region-failover-budget
+stack:
+  - Python 3.12+
+  - standard library only
+labStatus: production-shaped
+---
+
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-region-failover-budget.md";
+
+<EpisodePlayer
+  file="lab-region-failover-budget.m4a"
+  duration="6:05"
+  model="Claude Sonnet 5"
+  generated="2026-10-07"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
+import { Aside } from "@astrojs/starlight/components";
+
+[Module 11](/learn/modules/11-cloud/#implementation) shows a `FailoverController` that "only
+triggers once every health check inside the RTO window has failed", and says that ties the failover
+trigger to the RTO it is meant to honour. This lab runs that controller — and the obvious
+alternative — over simulated regions, and measures what it actually does to recovery time.
+
+Source: [`labs/region-failover-budget`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/region-failover-budget)
+
+<Aside type="caution" title="production-shaped: there is no cloud here">
+  Regions, probes, transient blips, and outages are a **seeded discrete-event simulation**, and the
+  same seed prints byte-identical output. Blips arrive as a Poisson process and last an
+  exponentially distributed time — that assumption drives every false-failover number, so it is
+  printed with every result. The downstream stages of a failover (promotion, traffic shift,
+  capacity, loading weights) are **inputs, not measurements**: round defaults for you to replace
+  with your platform's. Detection is the one stage the lab measures.
+</Aside>
+
+## The finding
+
+A window trigger cannot fire until the whole window has been unhealthy, so **detection alone takes
+the window**. Everything else a failover does happens after that — and for AI serving, everything
+else includes loading the model onto the standby's GPUs. At the defaults (a 15-minute RTO, 60 s
+promotion, 120 s traffic shift, 140 GB of weights at 1 GB/s):
+
+| Trigger                       | Detection | Hot standby | Warm standby | Cold standby |
+| ----------------------------- | --------- | ----------- | ------------ | ------------ |
+| Window = RTO (900 s), as Module 11 describes | 900 s | 1,080 s — **over** | 1,220 s — **over** | 1,820 s — **over** |
+| Window = 300 s                | 300 s     | 480 s       | 620 s        | 1,220 s — over |
+| 12 consecutive failures       | 110 s     | 290 s       | 430 s        | 1,030 s — over |
+
+Set the window to the RTO and recovery misses the RTO on **every** tier, including a hot standby
+that has nothing to warm. The window has to be sized from what the RTO leaves _after_ the
+downstream stages — 720 s for hot, 580 s for warm here — not from the RTO itself. And the cold row
+is the other half of the lesson: with 140 GB to load and capacity to find, no trigger can meet a
+15-minute RTO at all. That is a standby-tier decision, and no amount of trigger tuning recovers it.
+
+## The other side: eager triggers fail over on blips
+
+Shorten the window and false failovers arrive. Over 30 simulated days at the default blip rate (4
+an hour, mean 20 s):
+
+| Trigger              | False failovers / day | Detection |
+| -------------------- | --------------------- | --------- |
+| 1 failed probe       | 71.7                  | 0 s       |
+| 3 consecutive        | 25.3                  | 20 s      |
+| 6 consecutive        | 6.0                   | 50 s      |
+| Window 60 s          | 3.3                   | 60 s      |
+| 12 consecutive       | 0.2                   | 110 s     |
+| Window 300 s         | 0.0                   | 300 s     |
+
+Two things are worth reading out of this. First, **the shape of the rule matters less than its
+patience**: a window of `W` seconds behaves like `W / interval + 1` consecutive failures, and the
+two families interleave in one ordering by how long they wait. Second, **every number here moves
+with the blip distribution**. Triple the mean blip length to 60 s and 12 consecutive failures goes
+from 0.2 false failovers a day to 13.2. The shape — more patience, fewer false failovers, later
+detection — holds under both settings, and that is what the tests assert. The magnitudes are yours
+to measure on your own probe history.
+
+## Silence is read as health
+
+The module's controller returns `False` when its window holds no checks. An outage that takes the
+prober down with the region produces exactly that: no checks. **The controller never fails over.**
+
+In the sweep, it caught a dark region in 2 of 30 runs — both by luck, where the region happened to
+go dark mid-blip, so the last checks it held were unhealthy and outlived the healthy ones. Counting
+a probe that was due and never arrived as a failure (`silence_is_failure=True`) catches all 30,
+under every trigger.
+
+## A restarted controller fails over on its first bad probe
+
+With no history, one unhealthy check is every check in the window, so a freshly started controller
+fires on the first unhealthy probe it sees. A controller that restarts — a deploy, a crashed pod —
+during a blip fails the region over immediately. `tests/test_triggers.py` pins it. The fix is a
+minimum history before the trigger is armed, which is the same idea as the window itself.
+
+## What is not here
+
+- **RPO and replication lag**, Module 11's third failure mode. An honest simulation needs a model
+  of how replication lag behaves under the load that precedes an outage, and any such model would
+  bake in the conclusion it was meant to test.
+- **IAM blast radius**, which the [Agent Identity Broker](/build/labs/agent-identity-broker/) lab
+  already measures.
+
+## Run it
+
+```bash
+cd labs/region-failover-budget
+uv venv && uv pip install -e '.[dev]'
+.venv/bin/python -m failover_budget                     # 30 seeds, RTO 900 s
+.venv/bin/python -m failover_budget --rto 300 --blip-mean 60
+```
+
+The run takes about a second. Gates are `ruff`, `mypy --strict src tests`, and `pytest`; every test
+asserts a shape, never a count.
+
+## Principal-level discussion points
+
+- **Where does your RTO actually go?** Write the budget out stage by stage before choosing a
+  detection threshold. If the downstream stages already exceed the RTO, the conversation is about
+  standby tier and model size, not health checks.
+- **Who owns the false-failover rate?** A failover is itself an incident — it moves traffic, cold
+  caches, and pages people. The trigger's patience is a policy choice with an owner, and it should
+  be re-fit from real probe history, not set once from intuition.
+- **What does your controller do when the signal disappears?** Absence of evidence is the most
+  common shape of a regional outage's first minute. Decide, in code, whether silence is health.
+
+## Related
+
+- [Module 11: Cloud](/learn/modules/11-cloud/) — the controller this lab measures
+- [Multi-Region AI Serving Failover](/architecture/systems/multi-region-ai-failover/) — the design
+  review built on this lab's evidence
+- [SLO-Driven AI Operations](/build/labs/slo-driven-ai-operations/) — burn-rate alerting, the same
+  patience trade-off applied to error budgets

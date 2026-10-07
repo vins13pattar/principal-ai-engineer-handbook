@@ -82,6 +82,12 @@ A lab is graded against the same rubric a real system design review would use:
   [Read the lab documentation →](/build/labs/policy-gated-tool-runtime/)
 </LabCallout>
 
+<LabCallout repoPath="labs/region-failover-budget" status="production-shaped">
+  How much of an RTO a failover trigger spends deciding to fail over: a window tied to the RTO
+  guarantees missing it, silence reads as health, and the eager alternative fails over on blips.
+  [Read the lab documentation →](/build/labs/region-failover-budget/)
+</LabCallout>
+
 <LabCallout repoPath="labs/slo-driven-ai-operations" status="production-shaped">
   Error-budget tracking with multiwindow burn-rate alerting, an autoscaling controller whose
   cooldown a fast burn deliberately overrides, and incident runbook execution that escalates rather
@@ -103,6 +109,7 @@ A lab is graded against the same rubric a real system design review would use:
 | [Model Router](/build/labs/model-router/)                           | Production-shaped |
 | [Semantic Cache](/build/labs/semantic-cache/)                       | Production-shaped |
 | [Evaluation Platform](/build/labs/evaluation-platform/)             | Production-shaped |
+| [Region Failover Budget](/build/labs/region-failover-budget/)       | Production-shaped |
 
 <Aside type="note" title="What the statuses mean">
   **Production-ready** means you could point real traffic at it: container, deployment manifest,
