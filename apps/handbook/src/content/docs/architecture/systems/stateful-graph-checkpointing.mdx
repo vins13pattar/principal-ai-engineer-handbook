@@ -28,6 +28,7 @@ relatedAdrs: []
 
 import {
   Checklist,
+  EpisodePlayer,
   FailureMode,
   InterviewQuestion,
   LabCallout,
@@ -36,6 +37,16 @@ import {
 } from "@handbook/components";
 import Mermaid from "@handbook/diagrams/Mermaid.astro";
 import checkpointPaths from "../../build/labs/langgraph-checkpoint-cost.checkpoint-paths.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-stateful-graph-checkpointing.md";
+
+<EpisodePlayer
+  file="architecture-stateful-graph-checkpointing.m4a"
+  duration="17:05"
+  model="Claude Sonnet 5"
+  generated="2026-10-07"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
 
 ## Problem
 
