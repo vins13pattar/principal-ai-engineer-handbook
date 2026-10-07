@@ -28,6 +28,6 @@ jobs:
       - name: Ruff
         run: ruff check .
       - name: MyPy
-        run: mypy src
+        run: mypy src tests
       - name: Tests
         run: pytest --maxfail=1 -q

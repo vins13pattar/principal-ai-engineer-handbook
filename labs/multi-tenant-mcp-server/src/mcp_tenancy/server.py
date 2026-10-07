@@ -48,6 +48,9 @@ def build_server(
             issuer_url=issuer_url,  # type: ignore[arg-type]
             resource_server_url=resource_server_url,  # type: ignore[arg-type]
             required_scopes=[REQUIRED_SCOPE],
+            # Refuse tokens issued for any other resource (RFC 8707). Unset, mcp
+            # 2.2+ warns and accepts them; 3.0 makes this the default.
+            validate_token_resource=True,
         ),
         middleware=[build_tenancy_middleware(registry)],
         cache_hints=TENANT_SCOPED_CACHE_HINTS,

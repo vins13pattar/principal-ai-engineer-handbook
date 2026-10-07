@@ -10,10 +10,18 @@ resources, or results to another.
 
 ## This is a real MCP server
 
-It is built on the official `mcp` SDK (2.0.0), which reports `2026-07-28` as its only modern
-protocol version. It is not a hand-rolled JSON-RPC service with MCP-shaped method names, and it is
-not "MCP-style" — the tests drive it through the SDK's own client over the real Streamable HTTP
-transport, so anything that works here works with a compliant host.
+It is built on the official `mcp` SDK (`>=2.2.0`; verified on 2.2.0 and 2.3.0), which reports
+`2026-07-28` as its only modern protocol version. It is not a hand-rolled JSON-RPC service with
+MCP-shaped method names, and it is not "MCP-style" — the tests drive it through the SDK's own
+`Client` over the real Streamable HTTP transport, so anything that works here works with a compliant
+host.
+
+**The tests speak 2026-07-28, and one test proves it.** Until 2026-10-08 the suite connected through
+the low-level `ClientSession`, whose `initialize()` performs the legacy handshake and negotiates
+`2025-11-25`. Every test passed, and none of them ran the protocol this lab is about.
+`test_the_harness_speaks_2026_07_28_on_the_wire` now asserts the first request is
+`server/discover`, that no `initialize` is sent, and that every request carries
+`MCP-Protocol-Version: 2026-07-28`.
 
 `stateless_http=True` is the current posture: no session is created, so any replica can serve any
 request and a load balancer needs no affinity. That is only safe because tenant identity is
@@ -23,6 +31,10 @@ re-established from the `Authorization` header on every request rather than reme
 
 - **Transport-level authentication** via the SDK's `TokenVerifier` seam, so the credential is
   checked before any handler runs;
+- **tokens bound to this server** — each token records the resource it was issued for (RFC 8707),
+  and `validate_token_resource=True` refuses one minted for any other server. Before 2026-10-08 the
+  lab accepted such a token: the SDK did not check the resource until 2.2.0, and only when asked,
+  and the verifier did not either. The minimum SDK version is 2.2.0 for that reason;
 - **per-tenant tool and resource discovery** — each tenant's `tools/list` is filtered to its grants;
 - **authorization separate from filtering** — `tools/call` is checked independently, because a
   caller can name a tool it never listed;
@@ -32,7 +44,7 @@ re-established from the `Authorization` header on every request rather than reme
   cacheable response and a cross-tenant leak;
 - **statelessness proven, not assumed** — a test drives three connections as alternating tenants
   against one server object and asserts no identity carries over;
-- 11 tests, all over the real HTTP transport rather than in-process shortcuts.
+- 13 tests, all over the real HTTP transport rather than in-process shortcuts.
 
 ## Why the credential is on the transport, not in `_meta`
 
@@ -40,17 +52,19 @@ Under `2026-07-28` every request is self-describing, which makes per-request app
 look natural — and `_meta` looks like the obvious place to put them.
 
 It is the wrong place, and the failure is not subtle once you hit it. **An SDK makes protocol calls
-that application code never issues.** Concretely: `call_tool()` internally invokes
-`validate_tool_result()`, which issues its own `tools/list` to check the output schema. Both
-requests carry the SDK's protocol `_meta` stamp, but only the first can carry the application's —
-`call_tool()` accepts a `meta=` argument and `list_tools()` has no such parameter, so a tenant
-credential cannot reach the internal call. A server authorizing on `_meta` therefore rejects its own
-client's internal call. A server that exempts `tools/list` to work around it has reopened exactly
+that application code never issues.** Concretely: calling a tool the client has not listed yet makes
+`call_tool()` run `validate_tool_result()`, which issues its own `tools/list` to fetch the output
+schema. Both requests carry the SDK's protocol `_meta` stamp, but only the first carries the
+application's. The second is sent by the SDK itself, so nothing the caller passed reaches it — even
+though `list_tools()` accepts `meta=` when the caller is the one listing. A server authorizing on
+`_meta` therefore rejects its own client's internal call. A server that exempts `tools/list` to work around it has reopened exactly
 the hole it was closing.
 
 On the `Authorization` header the problem disappears, because every request the transport
 sends — application-issued or SDK-internal — carries it. That is what
-`tests/test_protocol_and_auth.py::test_the_credential_covers_the_sdks_own_internal_calls` pins.
+`tests/test_protocol_and_auth.py::test_the_credential_covers_the_sdks_own_internal_calls` pins — on
+the wire: it records every request the server receives and asserts the internal `tools/list`
+arrives with the `Authorization` header and the protocol `_meta`, and without the caller's.
 
 This lab was built the wrong way first. The test that now passes is the one that failed.
 
@@ -77,9 +91,9 @@ to prove: `issue_refund` exists and is callable — just not by `globex`.
 ## Verify quality
 
 ```bash
-pytest      # 11 tests, over the real Streamable HTTP transport
+pytest      # 13 tests, over the real Streamable HTTP transport
 ruff check .
-mypy src
+mypy src tests
 ```
 
 ## What would make this production-ready
