@@ -3,17 +3,24 @@ title: "Architecture: Enterprise MCP Platform"
 sidebar:
   label: "Enterprise MCP Platform"
 description: A reference architecture for serving many tenants from shared MCP infrastructure under the 2026-07-28 protocol — identity per request, isolation that survives caching, and a stateless fleet.
-version: 1.0.0
-lastUpdated: 2026-08-08
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-08
     change: Initial publication, backed by the labs/multi-tenant-mcp-server implementation.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified at the end of the 90-day window against the unchanged 2026-07-28
+      specification and mcp 2.3.0. Narrowed the SDK claim to what the wire shows: the internal
+      tools/list is issued for a tool the client has not listed yet.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
-  verifiedOn: 2026-08-08
+  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.3.0, checked on the wire"
+  verifiedOn: 2026-10-08
 category: architecture
 maturity: reference
 relatedAdrs: []
@@ -105,8 +112,8 @@ is a property to verify per server, not a general guarantee.
 <FailureMode title="Credentials that the SDK's own requests do not carry">
   The most expensive mistake available here, because it looks correct in every application code
   path. Putting the tenant credential in per-request `_meta` fails the moment the SDK makes a call
-  of its own: `call_tool()` internally issues a `tools/list` to validate the output schema, carrying
-  no application metadata. The server refuses its own client. The tempting fix — exempt `tools/list`
+  of its own: calling a tool it has not listed yet, `call_tool()` internally issues a `tools/list`
+  to fetch the output schema, carrying no application metadata. The server refuses its own client. The tempting fix — exempt `tools/list`
   from authentication — reopens exactly the hole the design was closing.
 </FailureMode>
 
@@ -266,7 +273,7 @@ is a property to verify per server, not a general guarantee.
 <InterviewQuestion difficulty="advanced" title="Where does the tenant credential live in an MCP platform, and why?">
   On the transport — the `Authorization` header — not in per-request `_meta`. An SDK issues protocol
   calls application code never writes; the Python SDK's `call_tool()` internally issues a
-  `tools/list` to validate output schemas, carrying no application metadata. A credential in `_meta`
+  `tools/list` to fetch an unlisted tool's output schema, carrying no application metadata. A credential in `_meta`
   therefore fails on the SDK's own calls, and exempting those calls reopens the hole. The general
   form: a credential must live where every request the transport sends carries it, including the
   ones you did not write.
