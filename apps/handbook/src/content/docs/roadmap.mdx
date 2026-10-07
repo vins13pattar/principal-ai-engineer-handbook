@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 3.0.0
+version: 3.1.0
 lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
@@ -176,6 +176,16 @@ revisionHistory:
       module without one — and published its design review and both episodes with it. Thirteen
       labs, thirteen design reviews, every content page with an episode. Named what comes after.
     author: vinod
+  - version: 3.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified all eleven fast-moving pages a month before their window closed. They were
+      checked against the current artifact each one names, not re-stamped. The re-verification
+      found and fixed three faults in the MCP lab, an SDK claim that had been wrong since
+      publication, a stale CIMD revision, an end-of-support date the LangGraph lookup was
+      missing, and a Pinecone API version a quarter behind. The LangGraph deadlock is still
+      present in 1.2.14.
+    author: vinod
 category: section-overview
 ---
 
@@ -258,9 +268,13 @@ reopens.
 
 v1.0 is a floor, not a finish. Two things are already scheduled:
 
-- **Re-verification of eleven fast-moving pages**, which pass their 90-day review window between
-  2026-11-06 and 2026-11-28 — after which CI fails the build, by design. The first three are due
-  2026-11-06.
+- ~~**Re-verification of eleven fast-moving pages**~~ — done 2026-10-08, a month before their
+  window closed. Each was checked against the current artifact it names rather than re-stamped, and
+  it was not a formality: it found the MCP lab's tests running the legacy protocol, its tokens
+  accepted by any server, an SDK claim wrong since publication, a CIMD revision two behind, the
+  LangGraph `0.4` line's end of support in December 2026, and Pinecone's API a quarter on. The
+  [LangGraph deadlock](/build/labs/langgraph-checkpoint-cost/#still-present-in-1214) is still
+  present in `1.2.14`. Next window closes 2027-01-06.
 - **Decision models** — the category Jev, Laya, OpenAI's Decisions API, and Cloudflare's Clef
   opened in September 2026: models that answer typed questions with probabilities instead of
   generating text. Planned as a Reference lookup, sections in Modules 4 and 5, a lab measuring
