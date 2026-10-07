@@ -1,0 +1,271 @@
+---
+title: "Architecture: Multi-Region AI Serving Failover"
+sidebar:
+  label: "Multi-Region AI Serving Failover"
+description: A reference architecture for failing AI serving over between regions — why a detection window tied to the RTO guarantees missing it, why model warm-up decides which RTOs are possible at all, and why a controller has to decide what silence means.
+version: 1.0.0
+lastUpdated: 2026-10-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-10-08
+    change: >-
+      Initial publication, backed by the labs/region-failover-budget implementation — the recovery
+      budget, the false-failover trade, the silent region, and the restarted controller.
+    author: vinod
+freshness:
+  # Health-check detection, recovery budgets, and standby tiers are operational
+  # fundamentals that predate AI serving. Nothing on this page depends on a
+  # vendor release; the numbers are the backing lab's, and are either measured
+  # on its simulation or stated as its inputs.
+  classification: slow-moving
+category: architecture
+maturity: reference
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import recoveryBudget from "../../build/labs/region-failover-budget.recovery-budget.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-multi-region-ai-failover.md";
+
+<EpisodePlayer
+  file="architecture-multi-region-ai-failover.m4a"
+  duration="10:28"
+  model="Claude Sonnet 5"
+  generated="2026-10-07"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
+## Problem
+
+A model-serving platform in one region has one region's availability. The standard answer is a
+second region and a controller that moves traffic to it when the first one fails. The diagram
+version of that answer is easy, and it is where most designs stop: two boxes, an arrow, and an RTO
+written next to it.
+
+The RTO is a budget, and the diagram never spends it. Something has to notice the region is down,
+something has to promote the standby, traffic has to move, and — the part that is particular to AI
+serving — the standby has to have the model loaded on GPUs before it can answer anything. Each of
+those takes time, and they happen in sequence. A design that does not write the sequence out has
+not checked whether its RTO is achievable, only whether it is desirable.
+
+[Module 11](/learn/modules/11-cloud/) covers the cloud decisions around this. This page covers the
+failover decision itself, and what the trigger that makes it costs.
+
+## Requirements
+
+- Fail traffic over to a standby region within a committed RTO, measured from the start of the
+  outage to the first request served from the standby.
+- Not fail over on transient faults that would have recovered on their own: a failover is an
+  incident in its own right.
+- Detect an outage that takes the health signal down with it — a region that goes dark rather than
+  one that reports itself unhealthy.
+- Behave predictably when the controller itself restarts.
+
+## Constraints
+
+**The stages are sequential.** Detection, promotion, traffic shift, and warm-up do not overlap in
+the general case, so the RTO has to cover their sum. Detection is the only stage whose duration is
+a policy choice made in the controller; the rest are properties of the platform.
+
+**Model warm-up is large and model-shaped.** A standby that is not already holding the model in GPU
+memory has to load it. At the backing lab's default inputs — 140 GB of weights at 1 GB/s — that is
+140 seconds before capacity, and ten minutes more if capacity has to be found first. These are
+inputs to plug your own numbers into, not measurements; the point is that the term scales with model
+size, and it is the term that grows when the model does.
+
+**Health signals are noisy.** Probes fail for reasons that are not region failures: a dropped
+packet, a GC pause, a deploy. A trigger cannot tell a blip from an outage at the first bad probe —
+only by waiting — and waiting is drawn from the same RTO budget.
+
+## Request Flow
+
+<Mermaid code={recoveryBudget} title="One failover, stage by stage, against the RTO it has to fit inside" />
+
+Read the diagram as a budget, top to bottom. Detection comes first and is the only stage the
+controller chooses. Everything after it belongs to the platform, and for AI serving the standby tier
+decides how much of it there is: a hot standby already serves the model, a warm one has capacity but
+must load weights, a cold one must find capacity first.
+
+The consequence is the rule this whole page rests on: **the detection window is what the RTO leaves
+after everything else**, not the RTO itself. At the backing lab's default inputs and a 15-minute RTO,
+that is 720 seconds for a hot standby and 580 for a warm one — and below zero for a cold one, where
+no trigger at all can meet the target.
+
+## Failure Modes
+
+<FailureMode title="A detection window equal to the RTO">
+  The natural reading of "the trigger should honour the RTO" is to make the window the RTO. A window
+  trigger cannot fire until the whole window has been unhealthy, so detection then consumes the
+  entire budget before promotion has started. In the backing lab, a 900-second window against a
+  900-second RTO overran on every standby tier — 1,080 seconds even for a hot standby with nothing to
+  warm. The design meets its RTO on paper and misses it by construction.
+</FailureMode>
+
+<FailureMode title="Silence read as health">
+  A controller that only reasons about the checks it has will treat "no checks" as "nothing wrong".
+  An outage that takes the prober down with the region produces exactly no checks. In the backing
+  lab, a controller with that behaviour caught a dark region in 2 of 30 runs — both by luck, where the
+  region went dark mid-blip and the last checks it held happened to be unhealthy. Counting a probe
+  that was due and did not arrive as a failure caught all 30.
+</FailureMode>
+
+<FailureMode title="Failing over on blips">
+  The opposite error. A trigger that fires on the first failed probe detects instantly and fails
+  over constantly: at the lab's default blip rate it fired 72 times a simulated day with no outage at
+  all. Every one of those moves traffic, cold-starts caches, and pages someone. Eager detection does
+  not remove an incident; it schedules many smaller ones.
+</FailureMode>
+
+<FailureMode title="A restarted controller with no history">
+  A window trigger with an empty history treats one unhealthy check as every check in the window, so
+  a controller that restarts during a blip fails the region over on its first bad probe. Restarts
+  happen at exactly the moments probes are noisiest — during deploys — which is when this is most
+  likely to fire.
+</FailureMode>
+
+<FailureMode title="A standby that has drifted">
+  Detection and budget can both be right and the failover still fails, because the standby region
+  has a missing secret, an unreplicated role, or a model version behind primary. This is Module 11's
+  "untested failover" in its AI-serving form, and it is only ever found by failing over.
+</FailureMode>
+
+## Scaling
+
+The failover decision itself is cheap and does not need to scale; what scales is the cost of the
+stages after it. Warm-up grows with model size and with the number of replicas that need weights at
+once — a standby loading many replicas in parallel is contending for the same storage throughput,
+so the per-replica figure in a budget is optimistic unless it was measured under that concurrency.
+
+More regions do not shorten detection. They add choices about where to fail over to, and each
+standby has its own tier and its own warm-up, so a multi-region plan needs a budget per target, not
+one for the platform.
+
+## Security
+
+A failover moves the security boundary along with the traffic. The standby has to hold the same
+credentials, network policy, and model-artifact access as primary, provisioned through the same path
+— a role or a secret added to primary by hand is exactly the drift that surfaces mid-incident. The
+controller is also a high-value target: anything that can feed it unhealthy probes can trigger a
+failover, so the health signal needs the same integrity as any other control-plane input.
+
+## Trade-offs
+
+<TradeOff title="Patience vs. false failovers">
+  How long a trigger waits sets both of its numbers at once. In the backing lab, 3 consecutive
+  failed probes detected in 20 seconds and failed over falsely 25 times a day; 12 detected in 110
+  seconds and failed over falsely 0.2 times a day. There is no setting that is both fast and quiet,
+  so the choice is about which cost the platform can absorb — and the magnitudes move with the blip
+  distribution, so re-fit them from real probe history rather than adopting someone else's.
+</TradeOff>
+
+<TradeOff title="Window rules vs. consecutive-failure rules">
+  Less different than they look. A window of `W` seconds behaves like `W / interval + 1` consecutive
+  failures, and in the lab the two families interleave in one ordering by how long they wait. Choose
+  the one your team will reason about correctly, and spend the design effort on how long it waits
+  and on what it does with silence.
+</TradeOff>
+
+<TradeOff title="Standby tier vs. cost">
+  A hot standby removes warm-up and costs a second serving fleet. A cold one is cheap and, with a
+  large model, may make the RTO impossible regardless of the trigger. That makes the standby tier the
+  first RTO decision, not the last: pick the tier that leaves room for detection, then tune detection
+  inside the room it leaves.
+</TradeOff>
+
+## Cost
+
+The standby tier is where the money goes. Hot means paying for GPU capacity that serves nothing until
+the day it serves everything; warm means paying for capacity without the model loaded; cold means
+paying for neither and accepting the longest warm-up. False failovers have a cost too, less visible
+on a bill: each one is engineering time, a cold cache in the region now serving, and the risk of a
+failover going wrong. A trigger tuned to save detection seconds by firing on blips is buying those
+seconds with that cost, many times a day.
+
+## Observability
+
+- **Every stage of every failover, timed.** Detection, promotion, shift, and warm-up as separate
+  spans, so a missed RTO says which stage spent the budget.
+- **Probe arrivals, not just probe results.** The silent-region failure is invisible to a dashboard
+  of health-check outcomes, because a missing probe is not an outcome. Alert on probes that were due
+  and did not arrive.
+- **False failovers as a rate.** Counted per day, with the blips that caused them, so the trigger's
+  patience can be re-fit from evidence.
+- **Warm-up measured, not assumed.** Weight-load time per replica under the concurrency of a real
+  failover, recorded during every exercise, so the budget uses a number rather than a datasheet.
+
+## Production Deployment
+
+<Checklist title="Before the failover runbook is trusted">
+  - The RTO is written out as a budget, stage by stage, with each downstream stage measured on this
+    platform.
+  - The detection window is derived from what the budget leaves, not set equal to the RTO.
+  - The standby tier leaves positive room for detection at the current model size — and the budget
+    is redone whenever the model grows.
+  - A probe that is due and does not arrive counts as a failure, and that is covered by a test.
+  - The controller does not fire until it has a minimum history after a restart.
+  - The false-failover rate is measured from real probe history and owned by someone.
+  - Standby configuration is provisioned through the same path as primary, and diffed.
+  - Failover is exercised on a schedule, end to end, with each stage timed.
+</Checklist>
+
+<Warning title="What the backing lab does not measure">
+  RPO. Replication lag at the moment of failure is Module 11's third failure mode, and the lab
+  deliberately leaves it out: an honest simulation needs a model of how lag behaves under the load
+  that precedes an outage, and any such model would assume the answer. A failover that meets its RTO
+  can still lose more data than the RPO allows, and that has to be measured separately.
+</Warning>
+
+<LabCallout repoPath="labs/region-failover-budget" status="production-shaped">
+  A seeded simulation of regions, probes, blips, and outages, with Module 11's window controller and
+  a consecutive-failure trigger, each with and without a silence rule. It measures false failovers
+  per day against detection delay, sets detection against a recovery budget for hot, warm, and cold
+  standbys, and pins the restarted-controller flaw in a test.
+  [Read the lab documentation →](/build/labs/region-failover-budget/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="intermediate" title="Your RTO is 15 minutes. How long should the failover trigger wait?">
+  Not 15 minutes. Write the budget out first: promotion, traffic shift, and — for model serving —
+  loading weights onto the standby's GPUs all happen after detection. The trigger gets what is left.
+  If what is left is negative, the answer is a warmer standby or a smaller model, not a faster
+  trigger.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="A region goes completely dark and your controller never fails over. Why?">
+  Because it reasons only about the checks it receives, and a dark region sends none. "No unhealthy
+  checks" and "no checks" are different states, and a controller that collapses them reads silence as
+  health. The fix is to count a probe that was due and did not arrive as a failure — and to alert on
+  missing probes, because no dashboard of check results will show the absence of one.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="How do you choose between detecting fast and not failing over on blips?">
+  By measuring both from real probe history and choosing which cost to pay. Patience trades one for
+  the other directly: fewer false failovers always means later detection. The useful framing is that
+  a false failover is an incident too, so the comparison is incidents caused against RTO risk taken —
+  and the trigger's patience is a policy with an owner, re-fit as traffic changes.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why is failing over AI serving different from failing over a web tier?">
+  Warm-up. A stateless web tier in a standby region can take traffic as soon as it is routed there. A
+  model server needs the model in GPU memory first, and at large model sizes that is minutes — more
+  if capacity has to be found. It makes standby tier and model size first-order RTO decisions, and it
+  means the budget has to be redone whenever the model grows.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="A deploy restarts your failover controller and it immediately fails the region over. What happened?">
+  A window trigger with no history treats one unhealthy check as every check in its window. Restarts
+  happen during deploys, when probes are noisiest, so the first bad probe after the restart fires it.
+  The fix is to arm the trigger only after it has a minimum history — the same reason the window
+  exists in the first place.
+</InterviewQuestion>
