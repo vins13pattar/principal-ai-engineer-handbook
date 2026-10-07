@@ -36,15 +36,27 @@ class TenantRegistry:
     server, validates the issuer per RFC 9207, and binds the credential to that
     issuer. Only `verify` changes when that happens — everything downstream
     works from the resolved `Tenant`.
+
+    Each token also records the resource it was issued for -- its RFC 8707
+    resource indicator, the audience a real token carries. A token is valid for
+    one server, not for every server that happens to recognise it.
     """
 
-    def __init__(self, tokens: dict[str, Tenant] | None = None) -> None:
+    def __init__(
+        self, tokens: dict[str, Tenant] | None = None, *, resource: str | None = None
+    ) -> None:
         self._by_token: dict[str, Tenant] = dict(tokens or {})
         self._by_id: dict[str, Tenant] = {t.tenant_id: t for t in self._by_token.values()}
+        self._resource_by_token: dict[str, str | None] = {t: resource for t in self._by_token}
 
-    def register(self, token: str, tenant: Tenant) -> None:
+    def register(self, token: str, tenant: Tenant, *, resource: str | None = None) -> None:
         self._by_token[token] = tenant
         self._by_id[tenant.tenant_id] = tenant
+        self._resource_by_token[token] = resource
+
+    def resource_for(self, token: str) -> str | None:
+        """The resource a token was issued for, or None if it is unknown or unbound."""
+        return self._resource_by_token.get(token)
 
     def verify(self, token: str) -> Tenant | None:
         """Returns the tenant for a bearer token, or None if it is not valid."""

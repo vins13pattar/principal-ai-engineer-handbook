@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "A multi-tenant MCP server on the official SDK, against the 2026-07-28 specification"
 requires-python = ">=3.12"
 dependencies = [
-  "mcp>=2.0.0,<3.0",
+  "mcp>=2.2.0,<3.0",
   "uvicorn[standard]>=0.34,<1.0",
 ]
 

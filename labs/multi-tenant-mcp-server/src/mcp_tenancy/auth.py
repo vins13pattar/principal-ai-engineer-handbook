@@ -34,6 +34,10 @@ class TenantTokenVerifier:
             client_id=tenant.tenant_id,
             scopes=[REQUIRED_SCOPE],
             subject=tenant.tenant_id,
+            # The SDK's bearer middleware compares this against the server's
+            # `resource_server_url` (`validate_token_resource=True` in server.py),
+            # so a token issued for another server is refused at the transport.
+            resource=self._registry.resource_for(token),
         )
 
 
