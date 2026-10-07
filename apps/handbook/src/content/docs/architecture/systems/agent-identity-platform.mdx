@@ -3,8 +3,8 @@ title: "Architecture: Agent Identity Platform"
 sidebar:
   label: "Agent Identity Platform"
 description: A reference architecture for giving an agent an identity of its own — token exchange that narrows audience, scope, and lifetime together, server-side validation at every resource server, and attribution that survives the hop.
-version: 1.0.0
-lastUpdated: 2026-08-28
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-28
@@ -12,10 +12,17 @@ revisionHistory:
       Initial publication, backed by the labs/agent-identity-broker implementation and its
       blast-radius measurement.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Re-verified at the end of the 90-day window: the MCP 2026-07-28 authorization
+      specification and RFCs 8693, 8707, 9068, and 9728 are unchanged, and none has been
+      obsoleted or updated. No content changes were needed.
+    author: vinod
 freshness:
   classification: fast-moving
   verifiedAgainst: "MCP 2026-07-28 authorization spec; RFC 8693 (Token Exchange), RFC 8707 (Resource Indicators), RFC 9068 (JWT access tokens), RFC 9728 (Protected Resource Metadata)"
-  verifiedOn: 2026-08-28
+  verifiedOn: 2026-10-08
 category: architecture
 maturity: reference
 relatedAdrs: []

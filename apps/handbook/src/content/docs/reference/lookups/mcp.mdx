@@ -1,8 +1,8 @@
 ---
 title: MCP
 description: The Model Context Protocol after its 2026-07-28 revision — a stateless core, required routing headers, multi-round-trip requests, mandatory cache hints, and an extensions model that moved Tasks out of the spec proper.
-version: 1.1.0
-lastUpdated: 2026-08-12
+version: 1.2.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
@@ -17,10 +17,19 @@ revisionHistory:
       Registration is formally Deprecated. Added subscriptions/listen, resultType, and the removal
       of SSE stream resumability.
     author: vinod
+  - version: 1.2.0
+    date: 2026-10-08
+    change: >-
+      Re-verified at the end of the 90-day window. The specification is unchanged since
+      release apart from a typo fix. Against mcp 2.3.0, checked on the wire: the internal
+      tools/list happens on a call to a tool the client has not listed yet, not on every call,
+      and list_tools() does accept meta= -- the caller's metadata misses the internal call
+      because the SDK sends that call itself, not for want of a parameter.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP Specification 2026-07-28 (spec text, changelog, and deprecation registry) plus the official Python SDK mcp 2.0.0"
-  verifiedOn: 2026-08-12
+  verifiedAgainst: "MCP Specification 2026-07-28 (spec text, changelog, and deprecation registry; one typo fix since release) plus the official Python SDK mcp 2.3.0, checked on the wire"
+  verifiedOn: 2026-10-08
 category: Agent protocol
 ---
 
@@ -114,12 +123,13 @@ that state visible in the tool schema instead of hidden in the transport.
 - **Deprecated features do not all expire together.** Roots, Sampling, Logging, and Dynamic Client
   Registration have until at least 2027-07-28. HTTP+SSE has three months from SEP-2596 reaching
   Final — plan for it to disappear first.
-- **Per-request metadata is not an authorization channel.** One `call_tool()` on the official Python
-  SDK produces *two* server-visible requests: the `tools/call`, and an internal `tools/list` issued
-  by `validate_tool_result()` to check the output schema. The internal call carries the protocol
-  `_meta` stamp but **not** the caller's application `_meta` — `call_tool()` takes a `meta=`
-  argument and `list_tools()` has no such parameter. A server authorizing on a credential in `_meta`
-  therefore rejects its own client's internal call, and exempting `tools/list` to compensate reopens
+- **Per-request metadata is not an authorization channel.** On the official Python SDK, a
+  `call_tool()` for a tool the client has not listed yet produces *two* server-visible requests:
+  the `tools/call`, and an internal `tools/list` issued by `validate_tool_result()` to fetch the
+  output schema. The internal call carries the protocol `_meta` stamp but **not** the caller's
+  application `_meta` — the SDK sends it itself, so nothing the caller passed reaches it, even
+  though `list_tools()` accepts `meta=` when the caller does the listing. A server authorizing on a
+  credential in `_meta` therefore rejects its own client's internal call, and exempting `tools/list` to compensate reopens
   the hole. Authorization belongs on the transport, where every request carries it. See
   [Module 6 → Security](/learn/modules/06-mcp/#security).
 - **`Mcp-Method` and `Mcp-Name` are attacker-controlled input to your gateway.** They make routing

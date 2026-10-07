@@ -1,8 +1,8 @@
 ---
 title: Multi-Tenant MCP Server
 description: A real MCP server on the official SDK speaking the 2026-07-28 protocol — transport-level tenant authentication, per-tenant discovery, refusals that leak nothing, and statelessness proven by test.
-version: 1.1.0
-lastUpdated: 2026-08-15
+version: 1.2.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-08
@@ -14,10 +14,18 @@ revisionHistory:
       Corrected the account of the SDK's internal tools/list. Both requests carry the SDK's protocol
       _meta stamp; what the internal one cannot carry is the application's.
     author: vinod
+  - version: 1.2.0
+    date: 2026-10-08
+    change: >-
+      Re-verified against mcp 2.3.0, which found three faults in the lab itself, now fixed:
+      its tests ran the legacy 2025-11-25 protocol, its central test inferred the SDK's
+      internal call instead of observing it, and it accepted tokens minted for other servers.
+      The SDK floor is now 2.2.0.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.0.0"
-  verifiedOn: 2026-08-08
+  verifiedAgainst: "MCP 2026-07-28, official Python SDK mcp 2.2.0 and 2.3.0, checked on the wire"
+  verifiedOn: 2026-10-08
 category: lab
 repoPath: labs/multi-tenant-mcp-server
 stack:
@@ -51,7 +59,7 @@ in-process shortcut.
 Source: [`labs/multi-tenant-mcp-server`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/multi-tenant-mcp-server)
 
 <Aside type="tip" title="This one is actually MCP">
-  Built on `mcp` 2.0.0, which reports `2026-07-28` as its only modern protocol version. Not a
+  Built on `mcp` 2.2.0 and later (verified on 2.3.0), which reports `2026-07-28` as its only modern protocol version. Not a
   hand-rolled JSON-RPC service with MCP-shaped method names, and not "MCP-style" — see
   [Module 6](/learn/modules/06-mcp/) for why that distinction stopped being cosmetic.
 </Aside>
@@ -77,11 +85,11 @@ all travel in `_meta` on every call. So putting the tenant credential in `_meta`
 looks natural — per-request identity for a per-request protocol.
 
 It does not work, and the failure is instructive. **An SDK makes protocol calls that application
-code never issues.** Concretely, `call_tool()` internally invokes `validate_tool_result()`, which
-issues its own `tools/list` to check the output schema. Both requests carry the SDK's own protocol
-`_meta` stamp — it adds that to everything it sends — but only the first can carry the
-application's: `call_tool()` accepts a `meta=` argument and `list_tools()` has no such parameter, so
-a tenant credential cannot reach the internal call. A server authorizing on `_meta` therefore
+code never issues.** Concretely, calling a tool the client has not listed yet makes `call_tool()`
+run `validate_tool_result()`, which issues its own `tools/list` to fetch the output schema. Both
+requests carry the SDK's own protocol `_meta` stamp — it adds that to everything it sends — but only
+the first carries the application's: the second is sent by the SDK itself, so a tenant credential
+cannot reach it, even though `list_tools()` accepts `meta=` when the application is the caller. A server authorizing on `_meta` therefore
 rejects its own client's internal call. Worse, the obvious workaround — exempt `tools/list` from
 authentication — reopens precisely the hole the design was closing.
 
@@ -90,11 +98,23 @@ The fix is to authenticate on the transport, via the SDK's `TokenVerifier` seam,
 property has its own test:
 
 ```python
-async def test_the_credential_covers_the_sdks_own_internal_calls(server):
-    async with connect(server, ACME_TOKEN) as acme:
-        result = await acme.call_tool("search_docs", {"query": "retention"})
+async def test_the_credential_covers_the_sdks_own_internal_calls(server: MCPServer) -> None:
+    recorder = WireRecorder()
+    app_meta = cast(RequestParamsMeta, {"app.example/tenant": "acme"})
+    async with connect(server, ACME_TOKEN, recorder=recorder) as acme:
+        result = await acme.call_tool("search_docs", {"query": "retention"}, meta=app_meta)
+
     assert not result.is_error
+    call = next(r for r in recorder.requests if r.method == "tools/call")
+    hidden = next(r for r in recorder.requests if r.method == "tools/list")
+    assert "app.example/tenant" in call.meta_keys
+    assert "app.example/tenant" not in hidden.meta_keys
+    assert "io.modelcontextprotocol/protocolVersion" in hidden.meta_keys
+    assert hidden.authorization == f"Bearer {ACME_TOKEN}"
 ```
+
+It asserts on what the server actually received. An earlier version asserted only that the call
+succeeded — which it would equally have done had the internal request never existed.
 
 <Aside type="tip" title="Interview signal">
   "Stateless protocol" and "per-request credentials in the request body" sound like the same idea.
@@ -107,6 +127,8 @@ async def test_the_credential_covers_the_sdks_own_internal_calls(server):
 
 - **Transport-level authentication**, checked before any handler runs — 401 without a credential,
   401 with an invalid one, both asserted against the real HTTP app.
+- **Tokens bound to this server.** Each token records the resource it was issued for (RFC 8707), and
+  a genuine tenant token minted for a different server gets a 401.
 - **Per-tenant discovery.** Each tenant's `tools/list` is filtered to its own grants.
 - **Authorization separate from filtering.** `tools/call` is checked independently, because a caller
   can always name a tool it never listed. A server that only filters the listing has published a UI
@@ -119,6 +141,26 @@ async def test_the_credential_covers_the_sdks_own_internal_calls(server):
   _new_ way to leak tenant data; the previous protocol revision had no `cacheScope` to get wrong.
 - **Statelessness proven, not assumed.** A test alternates tenants across three connections to one
   server object and asserts no identity carries over.
+
+## What re-verification found
+
+On 2026-10-08, re-verifying this page against `mcp` 2.3.0 turned up three faults in the lab itself.
+None of them was visible from a green CI run, which is the reason to record them.
+
+- **The tests ran the wrong protocol.** The harness connected through the low-level
+  `ClientSession`, whose `initialize()` performs the legacy handshake and negotiates `2025-11-25`.
+  Every test passed, and none exercised `2026-07-28`. The harness now uses the SDK's `Client`, and
+  a test asserts on the wire that the first request is `server/discover` and no `initialize` is
+  sent.
+- **The central test inferred instead of observing.** It is the one above, now asserting on what
+  the server received.
+- **It accepted tokens minted for other servers.** Nothing checked a token's resource: the
+  verifier did not, and the SDK did not until 2.2.0, and then only when asked —
+  `validate_token_resource` defaults off in 2.x and on in 3.0. The lab now sets it, and the SDK
+  floor is 2.2.0.
+
+Each new test was checked against the fault it exists to catch: pointing the harness back at
+`ClientSession`, or turning the resource check off, fails exactly the test written for it.
 
 ## Where the authentication boundary sits
 

@@ -3,8 +3,8 @@ title: "Module 15: Agent Identity and Access"
 sidebar:
   label: "15 · Agent Identity"
 description: Who an agent is, as distinct from what it may do — short-lived agent-scoped tokens instead of blanket on-behalf-of delegation, and why a remote MCP server must validate audience and scope itself rather than trusting its caller.
-version: 1.1.0
-lastUpdated: 2026-08-14
+version: 1.2.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-14
@@ -19,10 +19,18 @@ revisionHistory:
       The companion lab exists now. Replaced the "not yet built" note with the lab, and with the
       blast-radius numbers it measures.
     author: vinod
+  - version: 1.2.0
+    date: 2026-10-08
+    change: >-
+      Re-verified at the end of the 90-day window. The MCP authorization specification and all
+      four RFCs are unchanged, none obsoleted or updated. Corrected the CIMD citation: MCP
+      2026-07-28 references draft -00, but the IETF draft is at -02 (2026-07-06) and still a
+      draft; the mechanism this page describes is unchanged between them.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "MCP 2026-07-28 authorization spec; RFC 8693 (Token Exchange), RFC 8707 (Resource Indicators), RFC 9068 (JWT access tokens), RFC 9728 (Protected Resource Metadata); CIMD is draft-ietf-oauth-client-id-metadata-document-00"
-  verifiedOn: 2026-08-14
+  verifiedAgainst: "MCP 2026-07-28 authorization spec; RFC 8693 (Token Exchange), RFC 8707 (Resource Indicators), RFC 9068 (JWT access tokens), RFC 9728 (Protected Resource Metadata), none obsoleted or updated as of 2026-10-08; CIMD is draft-ietf-oauth-client-id-metadata-document-02, which MCP cites as -00"
+  verifiedOn: 2026-10-08
 category: learn-module
 moduleNumber: 15
 difficulty: advanced
@@ -155,9 +163,9 @@ clients can find the right authorization server rather than guessing or being co
 **Client registration is moving.** Dynamic Client Registration is deprecated as of `2026-07-28`,
 with Client ID Metadata Documents as the migration path — the client hosts a metadata document at a
 URL which becomes its `client_id`, removing the registration round-trip when client and server have
-no prior relationship. Note the maturity honestly: CIMD is an IETF **draft**
-(`draft-ietf-oauth-client-id-metadata-document-00`), and MCP says clients and authorization servers
-**SHOULD** support it, not MUST. New work should plan for it; nothing is broken today by DCR.
+no prior relationship. Note the maturity honestly: CIMD is an IETF **draft** — MCP `2026-07-28`
+cites revision `-00`, and the draft has since reached `-02` (2026-07-06) without changing that
+mechanism — and MCP says clients and authorization servers **SHOULD** support it, not MUST. New work should plan for it; nothing is broken today by DCR.
 
 <PrincipalPerspective title="The question to ask in the design review">
   Not "do we use OAuth?" — everyone says yes. Ask: *if I steal one token from this system, what can
@@ -467,4 +475,6 @@ phrase hides how much is missing.
 
 | Version | Date       | Change                                                                   |
 | ------- | ---------- | ------------------------------------------------------------------------ |
+| 1.2.0   | 2026-10-08 | Re-verified: specification and RFCs unchanged; CIMD citation corrected from `-00` to the current `-02`, noting MCP still cites `-00`. |
+| 1.1.0   | 2026-08-14 | The companion lab exists now; replaced the "not yet built" note with the lab and the blast-radius numbers it measures. |
 | 1.0.0   | 2026-08-14 | Initial publication, written against the MCP 2026-07-28 authorization spec and the OAuth RFCs it builds on. Suggested by [Shantanu Lodh](https://www.linkedin.com/in/shanlodh/). |
