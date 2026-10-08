@@ -1,8 +1,8 @@
 ---
 title: Reference
 description: One-page lookups for the tools and primitives referenced throughout the handbook.
-version: 1.3.0
-lastUpdated: 2026-08-12
+version: 1.4.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -19,6 +19,13 @@ revisionHistory:
   - version: 1.3.0
     date: 2026-08-12
     change: Published the four fast-moving lookups, each declaring what it was verified against.
+    author: vinod
+  - version: 1.4.0
+    date: 2026-10-08
+    change: >-
+      Added the Decision Models lookup, the fifth fast-moving page and the first on a 30-day
+      review window. Brought the verified-against table up to the re-verification: it still
+      listed the versions the four pages had moved off.
     author: vinod
 category: section-overview
 ---
@@ -50,20 +57,23 @@ the deeper material. Anything that needs more than that belongs in a Learn modul
 | [LangGraph](/reference/lookups/langgraph/)     | Agent orchestration        |
 | [RAG](/reference/lookups/rag/)                 | Retrieval architecture     |
 | [Vector DB](/reference/lookups/vector-db/)     | Data store                 |
+| [Decision Models](/reference/lookups/decision-models/) | Model category      |
 
-## The fast-moving four
+## The fast-moving five
 
-The last four cover subject matter that moves fast enough for editorial age to be the wrong
+The last five cover subject matter that moves fast enough for editorial age to be the wrong
 instrument — a page on MCP can be two months old and already wrong, while the Raft page can be two
 years old and still correct. Each therefore declares what it was checked against, and CI fails once
-one passes its 90-day review window rather than letting it quietly go stale.
+one passes its review window rather than letting it quietly go stale. The window is 90 days, except
+for Decision Models: a category four products old that changed weekly through September gets 30.
 
 | Topic                                      | Verified against         | Note                                                     |
 | ------------------------------------------ | ------------------------ | -------------------------------------------------------- |
 | [MCP](/reference/lookups/mcp/)             | MCP Specification `2026-07-28` | A protocol revision, so the spec date is the version |
-| [LangGraph](/reference/lookups/langgraph/) | `langgraph==1.2.11`      | A library, so the release is the version                 |
-| [RAG](/reference/lookups/rag/)             | LangChain `1.3.15`       | RAG is a pattern with no version; LangChain is the implementation baseline |
-| [Vector DB](/reference/lookups/vector-db/) | Pinecone API `2026-04`   | A category, not a product; Pinecone is the versioned anchor |
+| [LangGraph](/reference/lookups/langgraph/) | `langgraph==1.2.14`      | A library, so the release is the version                 |
+| [RAG](/reference/lookups/rag/)             | LangChain `1.4.3`        | RAG is a pattern with no version; LangChain is the implementation baseline |
+| [Vector DB](/reference/lookups/vector-db/) | Pinecone API `2026-07`   | A category, not a product; Pinecone is the versioned anchor |
+| [Decision Models](/reference/lookups/decision-models/) | Each vendor's own documentation, dated | Four products, one documented API shape, one still undocumented |
 
 The last two rows are the interesting ones. Neither RAG nor "vector database" has a version, and
 inventing one — "RAG 2.0" — would be a claim about currency that nothing backs. Naming a real
