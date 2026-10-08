@@ -3,12 +3,19 @@ title: "Module 5: Agent Engineering"
 sidebar:
   label: "5 · Agent Engineering"
 description: The agent loop as a bounded control loop — tool calling, planning vs. execution, memory, termination, and the safety boundaries that keep it from becoming a liability.
-version: 1.0.0
-lastUpdated: 2026-08-05
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Added a failure mode for decision models used as an agent's router or guardrail: a
+      confident wrong probability gates the agent exactly as well as a right one. Written as a
+      pattern; product specifics live in the Decision Models lookup.
     author: vinod
 freshness:
   # Covers the agent loop as a control-loop pattern rather than any specific
@@ -226,6 +233,16 @@ stop instead of a silent hang or an unbounded retry storm.
   not a mitigation.
 </FailureMode>
 
+<FailureMode title="A confident decision treated as a correct one">
+  An agent's next-action choice and its guardrails are bounded decisions, and a
+  [decision model](/reference/lookups/decision-models/) answers them faster and cheaper than an LLM —
+  with a probability that cannot fall outside the allowed set. That shape removes the malformed
+  answer, not the wrong one. A guardrail that passes anything above 0.9 lets through every
+  confidently wrong pass, silently, and an uncalibrated model is confidently wrong in a consistent
+  direction. Gate on a threshold you have measured against labelled outcomes, and route the
+  uncertain band to a slower check rather than forcing a verdict.
+</FailureMode>
+
 <FailureMode title="Tool call hallucination">
   A model can emit a call to a tool that doesn't exist, or with arguments that don't match the
   expected schema. Validate every tool call against its schema before execution — never
@@ -351,6 +368,16 @@ stop instead of a silent hang or an unbounded retry storm.
   not free.
 </InterviewQuestion>
 
+<InterviewQuestion difficulty="advanced" title="You replace an LLM guardrail with a decision model to cut latency. What changes about how it can fail?">
+  The failure moves from visible to silent. An LLM guardrail can return something unparseable,
+  which fails loudly; a decision model always returns a valid answer with a probability, so the
+  failure that remains is a confident wrong one, and nothing downstream will flag it. So the
+  guardrail now needs what the LLM version could skip: a threshold measured against labelled
+  outcomes, an uncertain band routed to a slower check instead of forced to a verdict, and
+  logging of every probability so drift and systematic overconfidence show up before an incident
+  does.
+</InterviewQuestion>
+
 ## Hands-on Lab
 
 [**Policy-Gated Tool Runtime**](/build/labs/policy-gated-tool-runtime/) implements this module's
@@ -389,3 +416,4 @@ verified token.
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-08-05 | Initial publication. |
+| 1.1.0 | 2026-10-08 | Added the failure mode of treating a decision model's confident answer as a correct one, and an interview question on decision models as guardrails. |

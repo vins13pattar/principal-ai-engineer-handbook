@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 3.1.0
+version: 3.2.0
 lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
@@ -186,6 +186,13 @@ revisionHistory:
       missing, and a Pinecone API version a quarter behind. The LangGraph deadlock is still
       present in 1.2.14.
     author: vinod
+  - version: 3.2.0
+    date: 2026-10-08
+    change: >-
+      Published the first half of the decision models plan: a Reference lookup on a 30-day
+      review window, a decision tier in Module 4, a failure mode in Module 5, and an episode.
+      The lab and the design review remain planned.
+    author: vinod
 category: section-overview
 ---
 
@@ -211,15 +218,16 @@ documents every lab from a run-it-and-verify-it angle. The [Interview](/intervie
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
 [Technical Leadership](/interview/tracks/technical-leadership/). [Reference](/reference/) is
-complete: thirteen lookups against a five-section page contract that CI enforces, with the four
+complete: fourteen lookups against a five-section page contract that CI enforces, with the five
 fast-moving ones — [MCP](/reference/lookups/mcp/), [LangGraph](/reference/lookups/langgraph/),
-[RAG](/reference/lookups/rag/), and [Vector DB](/reference/lookups/vector-db/) — each declaring the
-release it was verified against, on a 90-day review window CI fails once a page exceeds.
+[RAG](/reference/lookups/rag/), [Vector DB](/reference/lookups/vector-db/), and
+[Decision Models](/reference/lookups/decision-models/) — each declaring what it was verified
+against, on a review window CI fails once a page exceeds: 90 days, or 30 for Decision Models.
 [Cheat Sheets](/cheatsheets/) is complete: five activity-scoped sheets against a four-section
 contract CI enforces — three for interview rounds, two for the work itself.
 
 Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped)
-covers all 71 content pages — nearly twelve hours in total.
+covers all 72 content pages — twelve hours in total.
 
 ## What's next
 
@@ -277,8 +285,14 @@ v1.0 is a floor, not a finish. Two things are already scheduled:
   present in `1.2.14`. Next window closes 2027-01-06.
 - **Decision models** — the category Jev, Laya, OpenAI's Decisions API, and Cloudflare's Clef
   opened in September 2026: models that answer typed questions with probabilities instead of
-  generating text. Planned as a Reference lookup, sections in Modules 4 and 5, a lab measuring
-  calibration and the escalation threshold, and a design review. Nothing of it exists yet.
+  generating text. **Half shipped 2026-10-08:** the
+  [Decision Models](/reference/lookups/decision-models/) lookup, on a 30-day review window because
+  the category changed weekly through September; a decision tier in
+  [Module 4](/learn/modules/04-ai-infrastructure/); and a failure mode in
+  [Module 5](/learn/modules/05-agent-engineering/). **Still planned:** a lab measuring calibration
+  and the escalation threshold on Laya, which runs locally under Apache-2.0, and a design review
+  written from its evidence. OpenAI's API is described only as far as OpenAI has documented it,
+  which so far is not at all.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
@@ -340,7 +354,7 @@ path that hung an unpatched 100-step sweep until it was killed.
 
 ### The audio series: shipped
 
-Seventy-one episodes, **nearly twelve hours** of audio, from 3:00 on the shortest ADR to 22:24 on
+Seventy-two episodes, **twelve hours** of audio, from 3:00 on the shortest ADR to 22:24 on
 [Module 6](/learn/modules/06-mcp/) — measured from the episode manifests, not estimated. The model
 plans the arc and writes the two-voice dialogue; a local text-to-speech model speaks it.
 

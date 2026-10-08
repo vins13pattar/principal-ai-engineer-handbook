@@ -1,0 +1,142 @@
+---
+title: Decision Models
+description: Models that answer typed questions about a state with probabilities instead of generating text — Jev, Laya, Clef, and OpenAI's Decisions API — what the category is for, and why the number they return is not yet the number you should act on.
+version: 1.0.0
+lastUpdated: 2026-10-08
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-10-08
+    change: >-
+      Published the decision models lookup, sixteen days after the category's first product
+      shipped. Every figure carries who measured it, because almost none has been measured
+      independently.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "TypeSafe Jev API reference and confidence docs; Cloudflare Clef launch post and Workers AI model page (2026-10-01); Laya model card (convaiinnovations/laya); OpenAI Decisions API — limited preview, no public reference as of 2026-10-08"
+  verifiedOn: 2026-10-08
+  reviewAfterDays: 30
+category: Model category
+---
+
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/reference-decision-models.md";
+
+<EpisodePlayer
+  file="reference-decision-models.m4a"
+  duration="9:09"
+  model="Claude Sonnet 5"
+  generated="2026-10-08"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
+## At a Glance
+
+A **decision model** answers typed questions about a piece of state — a ticket, an email, a page, a
+JSON document — and returns a probability distribution over the answers you allowed, instead of
+generating text. It cannot produce an answer outside the set you defined, and it does not write
+tokens one at a time: the input is read once and every allowed answer is scored.
+
+The category launched under TypeSafe AI's name for it, **System One models** — the fast, intuitive
+half of Kahneman's two systems, set against an LLM's slower, deliberate one. "Decision model" is
+what Cloudflare and the open-source projects call it, and the more descriptive of the two.
+
+What it is for is the part of a production AI system that is not generation: **routing,
+classification, gating, and an agent's choice of next action**. Those calls pay an LLM's latency
+and cost for a bounded answer, and get back text that has to be parsed into one.
+
+```text
+state + { name: question, … } → one forward pass → { name: answer + probabilities, … }
+```
+
+Four products in sixteen days:
+
+| Product | From | Released | Weights | Shape |
+| --- | --- | --- | --- | --- |
+| Jev | TypeSafe AI | 2026-09-15, early access | Closed, hosted | Text in; the API the others copied |
+| Laya | Convai Innovations | 2026-09-18 | Apache-2.0 | A 421M encoder; options scored at `[MASK]` tokens |
+| Decisions API | OpenAI | 2026-09-29, limited preview | Closed, hosted | Built on GPT-6 Luna. No public reference yet |
+| Clef, Clef-flash | Cloudflare | 2026-10-01 | Apache-2.0 | 27B and 9B on frozen Qwen backbones; images accepted; Jev-API compatible |
+
+## Key Concepts
+
+| Concept | What it does |
+| --- | --- |
+| State | The input being judged. A string, object, or array in Jev's API |
+| Question | A named, typed decision about the state. Several share one state in one request, and answers return under the names you chose |
+| `noul` | Yes or no. Returns a probability from 0 to 1 |
+| `choice` | One of a labelled set of options. Returns the top option and a probability per option |
+| `score` | A position on an ordered rubric. Returns a probability-weighted score that can fall between levels |
+| Probabilities | The distribution over allowed answers — the thing that makes "escalate when unsure" implementable at all |
+| `confidence` | **TypeSafe's summary of how concentrated the distribution is** — 1 when all mass is on one answer, 0 when it is spread evenly. A measure of sharpness, not of being right |
+| Calibration | Whether an answer given 0.9 is right 90% of the time. The property a threshold depends on, and the one least measured so far |
+| Escalation threshold | The probability below which the decision tier hands off to an LLM or a person. Yours to fit, on your traffic |
+| Non-autoregressive | No token-by-token decoding. Clef reads the input once (prefill only) and scores the allowed answers in parallel |
+| Fine-tuning | How a general decision model becomes good at your decisions. Laya's card is explicit that its headline accuracy depends on it; Cloudflare launched an RL fine-tuning service alongside Clef |
+
+## Numbers That Matter
+
+Read the third column first. Almost every figure in this category was produced by the vendor or by
+a competitor.
+
+| Quantity | Value | Who measured or stated it |
+| --- | --- | --- |
+| `choice` options | Up to 255 | TypeSafe API reference |
+| `score` levels | 2 to 10 | TypeSafe API reference |
+| Questions per request, Clef | Up to 64 | Cloudflare model page |
+| Context window | Clef 65,536 tokens; Jev 32k | Cloudflare (the Jev figure is Cloudflare's statement about a competitor) |
+| Median latency over 43 benchmarks | Clef 209 ms, Clef-flash 39 ms, Jev 524 ms | **Cloudflare**, comparing itself to a competitor |
+| Decisions API latency | About 150 ms, against 1.6 s for a standard Luna call | Reported from OpenAI's DevDay slide, not from documentation. The baseline is OpenAI's own model |
+| Laya latency | 39.5 ms per question on a T4 GPU | Convai, the vendor |
+| Laya accuracy, zero-shot | 0.362 — **below** the 0.461 majority-class baseline | Convai, on its own model card |
+| Laya accuracy, fine-tuned | 0.766, against Jev 1.13.0 at 0.727 | Convai; the Jev number is third-party and not reproduced by Convai |
+| Laya calibration error (ECE) | 0.466 as shipped, 0.081 after per-type temperature fitting | Convai |
+| Clef price | $0.24 per million input tokens | Cloudflare model page |
+| Decisions API schema, price, rate limits | Not published | As of 2026-10-08 |
+
+## Common Gotchas
+
+- **`confidence` is not calibration.** TypeSafe defines it as how concentrated the distribution
+  is, and its own docs never claim the number matches observed accuracy. A model can be maximally
+  confident and wrong, and an uncalibrated one is confident and wrong systematically. Before a
+  threshold gates anything, measure what fraction of answers above it are actually right — on
+  your traffic, not the benchmark's.
+- **The shipped probabilities may not be calibrated either.** Laya's own card reports an expected
+  calibration error of 0.466 out of the box, falling to 0.081 only after temperature fitting.
+  Cloudflare trains Clef with a calibration loss and publishes no calibration metric. Assume you
+  have to fit it.
+- **"Cannot hallucinate" describes the output type, not the answer.** A typed answer cannot be
+  malformed or outside the set. It can still be the wrong member of the set, stated with a high
+  probability, in a form that skips every check text output would have triggered.
+- **Every benchmark is somebody's marketing.** Cloudflare's latency table is Cloudflare comparing
+  itself with a competitor. Laya's comparison uses Jev numbers it did not reproduce. No independent
+  evaluation exists yet. The decision that matters — whether a decision tier is right often enough
+  on your questions to skip the LLM — is not one any of them answers for you.
+- **Zero-shot is not the product.** Laya scores below a majority-class baseline before
+  fine-tuning. "General decision model" means a good starting point to specialise, not a drop-in
+  router.
+- **Option count is a quality variable.** Laya's card reports accuracy falling sharply at high
+  option counts (0.425 on a 77-label set). A `choice` with 200 options is a different problem from
+  one with 5, even though the API accepts both.
+- **API compatibility is not behavioural compatibility.** Clef accepts Jev's request shape, so
+  switching is an endpoint change. The probabilities that come back are a different model's, and
+  every threshold fitted on the old one has to be fitted again.
+- **The OpenAI API is not documented yet.** As of 2026-10-08 there is no public request schema,
+  endpoint reference, or price, and access is limited. Anything specific you read about it is
+  coverage, not documentation.
+
+## Where to Go Deeper
+
+- [Task-Based Model Routing](/architecture/systems/task-based-model-routing/) — the design review
+  for routing between models. A decision model is a router whose output is a probability rather
+  than a label, which is what makes "escalate when unsure" something you can implement and measure.
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — where a decision tier sits
+  between rules and an LLM, and what it costs.
+- [Module 5: Agent Engineering](/learn/modules/05-agent-engineering/) — an agent's next action and
+  its guardrails as decision questions.
+- Primary sources: TypeSafe's [API reference](https://docs.typesafe.ai/api) and
+  [confidence](https://docs.typesafe.ai/confidence) docs; Cloudflare's
+  [launch post](https://blog.cloudflare.com/clef-decision-models/) and
+  [model page](https://developers.cloudflare.com/workers-ai/models/clef/); the
+  [Laya model card](https://huggingface.co/convaiinnovations/laya).

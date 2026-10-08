@@ -37,6 +37,7 @@ const FAST_MOVING_TOPICS = [
   "rag",
   "vector",
   "evaluation",
+  "decision-model",
 ] as const;
 
 function isFastMovingTopic(relativePath: string): boolean {

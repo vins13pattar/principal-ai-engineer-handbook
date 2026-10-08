@@ -3,12 +3,20 @@ title: "Module 4: AI Infrastructure"
 sidebar:
   label: "4 · AI Infrastructure"
 description: The layered stack between "a model exists" and "a product reliably uses it" — build-vs-buy, cost modeling, non-determinism, and treating model swaps as deploys.
-version: 1.0.0
-lastUpdated: 2026-08-05
+version: 1.1.0
+lastUpdated: 2026-10-08
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-05
     change: Initial publication.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-10-08
+    change: >-
+      Added the decision tier: a model that answers a bounded question with a probability
+      instead of text, placed between rules and an LLM, and the calibration it has to earn
+      before a threshold can trust it. Vendor specifics live in the new Decision Models
+      lookup.
     author: vinod
 category: learn-module
 moduleNumber: 4
@@ -124,6 +132,23 @@ behavior exactly the way a code deploy does — and deserves the same tools: can
 traffic, compare quality/cost/latency against the baseline, and have a rollback path. Treating a
 prompt edit as "just a config change" with no evaluation gate is how quality regressions ship
 silently.
+
+**Most model calls are not generation, and a decision tier stops paying for generation on them.**
+Look at what a production system actually sends to a model and much of it is a bounded question:
+which queue does this ticket belong in, is this request in scope, should the agent call a tool or
+answer, is this output safe to return. Asking an LLM costs generation latency and generation price,
+and returns text that then has to be parsed back into the answer you wanted. A
+[decision model](/reference/lookups/decision-models/) answers the same question directly, from a
+set you define, with a probability attached. That places a tier between rules and an LLM:
+deterministic rules where the answer is certain, a decision model where it is bounded, an LLM
+where it is open-ended.
+
+The probability is what makes the tier useful — and what makes it dangerous. A threshold turns it
+into a routing policy: act above it, escalate to an LLM or a person below it. But a threshold is
+only as good as the calibration underneath it, and a vendor's notion of "confidence" may measure
+how concentrated the distribution is rather than how often it is right. Treat the threshold as
+something fitted on your own labelled traffic and re-fitted as it drifts — the same discipline as
+any other model change above, because that is what it is.
 
 <ResearchNote source='Chip Huyen, "Building LLM Applications for Production"'>
   One of the clearest treatments of why traditional software engineering practices (testing,
@@ -329,6 +354,15 @@ other production deploy would use, applied to a model swap instead of a code cha
   trigger — treat it as a deploy, per this module's Production Example.
 </InterviewQuestion>
 
+<InterviewQuestion difficulty="advanced" title="Your router is a decision model. It returns 0.92 for billing. What do you need to know before that skips the LLM?">
+  Whether 0.92 means anything. A decision model's probability is useful only if it is calibrated —
+  if answers it gives 0.9 are right about 90% of the time on this traffic — and a vendor's
+  confidence score may only measure how concentrated the distribution is. So: measure accuracy
+  above the threshold on labelled samples of real traffic, fit the threshold to the error rate the
+  route can tolerate, log every decision with its probability so drift is visible, and re-fit when
+  the traffic or the model changes. The benchmark the vendor published answers none of that.
+</InterviewQuestion>
+
 ## Hands-on Lab
 
 <LabCallout repoPath="labs/async-ai-gateway" status="production-ready">
@@ -361,3 +395,4 @@ task-based routing and request caching from this module in full depth as dedicat
 | Version | Date | Change |
 | --- | --- | --- |
 | 1.0.0 | 2026-08-05 | Initial publication. |
+| 1.1.0 | 2026-10-08 | Added the decision tier between rules and an LLM, and an interview question on trusting its probabilities. |
