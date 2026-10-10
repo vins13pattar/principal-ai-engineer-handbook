@@ -3,7 +3,7 @@
 _The 2026-07-28 revision didn't just tweak MCP's wire format — it removed the session entirely, and tracing that one change through architecture, security, and multi-tenant deployment reveals a general lesson about where state goes when a protocol stops carrying it._
 
 - **Source:** [reference:mcp](/reference/lookups/mcp/)
-- **Runtime:** 9:32 · 18 turns · 6 beats
+- **Runtime:** 9:35 · 18 turns · 6 beats
 - **Written by:** claude-sonnet-5 on 2026-08-23
 - **Voices:** af_heart (host), am_michael (guest)
 
@@ -47,7 +47,7 @@ _The 2026-07-28 revision didn't just tweak MCP's wire format — it removed the 
 
 **Host:** So here's the gotcha you promised. Under this stateless model, every request is self-describing — protocol version, client info, capabilities, all riding in \_meta on every call. So putting your own application credential in \_meta right next to them feels natural, right? Per-request identity for a per-request protocol.
 
-**Guest:** It feels natural and it's wrong, and the way it breaks is instructive. The Python SDK's call\_tool() doesn't just send your tools/call — internally it also calls validate\_tool\_result(), which fires off its own tools/list to check the output schema against what came back. Both requests get the SDK's protocol \_meta stamp, because it adds that to everything automatically, but call\_tool() is the only one that accepts a meta= argument for your application credential — list\_tools() has no such parameter, so there's no path for your token to reach that internal call. Authorize on \_meta and your server rejects its own client mid-request; the tempting fix, exempting tools/list from auth, just reopens the hole you built the credential check to close.
+**Guest:** It feels natural and it's wrong, and the way it breaks is instructive. When you call a tool the client hasn't listed yet, the Python SDK's call\_tool() doesn't just send your tools/call — internally it also calls validate\_tool\_result(), which fires off its own tools/list to fetch the output schema. Both requests get the SDK's protocol \_meta stamp, because it adds that to everything automatically, but only the first carries yours. The SDK sends that internal call itself, so even though list\_tools() takes a meta= argument when your code is the caller, nothing you passed reaches this one. Authorize on \_meta and your server rejects its own client mid-request; the tempting fix, exempting tools/list from auth, just reopens the hole you built the credential check to close.
 
 **Host:** Which is why the fix is boring by comparison — put it on the Authorization header instead, where the transport carries it on every request the SDK sends, whether your code issued that request or not. And that's really the generalizable lesson: 'stateless protocol' and 'per-request credential in the body' sound like the same design, but only one of them survives an SDK making calls on your behalf.
 

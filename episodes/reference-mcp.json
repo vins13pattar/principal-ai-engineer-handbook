@@ -10,7 +10,7 @@
       "host": "af_heart",
       "guest": "am_michael"
     },
-    "audioSeconds": 572
+    "audioSeconds": 575
   },
   "plan": {
     "topic": "MCP",
@@ -168,7 +168,7 @@
       {
         "speaker": "guest",
         "beat": 4,
-        "text": "It feels natural and it's wrong, and the way it breaks is instructive. The Python SDK's call_tool() doesn't just send your tools/call — internally it also calls validate_tool_result(), which fires off its own tools/list to check the output schema against what came back. Both requests get the SDK's protocol _meta stamp, because it adds that to everything automatically, but call_tool() is the only one that accepts a meta= argument for your application credential — list_tools() has no such parameter, so there's no path for your token to reach that internal call. Authorize on _meta and your server rejects its own client mid-request; the tempting fix, exempting tools/list from auth, just reopens the hole you built the credential check to close."
+        "text": "It feels natural and it's wrong, and the way it breaks is instructive. When you call a tool the client hasn't listed yet, the Python SDK's call_tool() doesn't just send your tools/call — internally it also calls validate_tool_result(), which fires off its own tools/list to fetch the output schema. Both requests get the SDK's protocol _meta stamp, because it adds that to everything automatically, but only the first carries yours. The SDK sends that internal call itself, so even though list_tools() takes a meta= argument when your code is the caller, nothing you passed reaches this one. Authorize on _meta and your server rejects its own client mid-request; the tempting fix, exempting tools/list from auth, just reopens the hole you built the credential check to close."
       },
       {
         "speaker": "host",

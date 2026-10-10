@@ -10,7 +10,7 @@
       "host": "af_heart",
       "guest": "am_michael"
     },
-    "audioSeconds": 510
+    "audioSeconds": 516
   },
   "plan": {
     "topic": "LangGraph",
@@ -142,7 +142,7 @@
       {
         "speaker": "guest",
         "beat": 3,
-        "text": "Right, that's the 0.x wreckage — the API surface changed across the 1.0 boundary and search hasn't caught up, so half of what you find is stale. Current is 1.2.11, and that's the generation with DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 — the stuff we're about to talk about. If you want a long support window pin to 1.0, that's the LTS line; 0.4 still gets patches but that's maintenance-only, not where anything new is landing."
+        "text": "Right, that's the 0.x wreckage — the API surface changed across the 1.0 boundary and search hasn't caught up, so half of what you find is stale. The current release is in the 1.2 line, and that's the generation with DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 — the stuff we're about to talk about. If you want a long support window, the 1.0 major is the LTS line. 0.4 gets security and critical fixes only, and that support ends in December 2026, so it's not somewhere to start anything."
       },
       {
         "speaker": "host",

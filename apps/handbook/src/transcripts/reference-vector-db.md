@@ -2,11 +2,11 @@
 
 **Host:** So let's start with the phrase everyone throws around: vector database. I think most people hear that and picture a database that stores embeddings, basically a fancy filing cabinet for vectors. Is that actually right?
 
-**Guest:** It's the most common misconception, and it undersells the whole thing. A vector DB is a search system for high-dimensional vectors — given a query vector, it returns the nearest ones fast, approximately. Storage is the least interesting part of it, and honestly hasn't been the differentiator in a long time. And here's the other thing: there's no single 'vector DB version' to point to. It's a category, not a product — index implementations differ enough between vendors that what sounds like a portable claim often isn't. We'll use Pinecone's 2026-04 API as a concrete anchor when we need one, but the concepts are vendor-neutral.
+**Guest:** It's the most common misconception, and it undersells the whole thing. A vector DB is a search system for high-dimensional vectors — given a query vector, it returns the nearest ones fast, approximately. Storage is the least interesting part of it, and honestly hasn't been the differentiator in a long time. And here's the other thing: there's no single 'vector DB version' to point to. It's a category, not a product — index implementations differ enough between vendors that what sounds like a portable claim often isn't. We'll use Pinecone's current stable API as a concrete anchor when we need one, but the concepts are vendor-neutral.
 
 **Host:** Okay so if it's a search category, what's actually being searched? I keep hearing about dense vectors and lexical search like they're competing approaches.
 
-**Guest:** They used to be treated as separate paths — embeddings go into a vector index for ANN search, while raw text goes into a lexical or full-text index for keyword search. But the category is converging: platforms increasingly fuse both into hybrid retrieval, then rerank before handing off context. Pinecone's full-text search preview is a good signal of that — in July 2026 it picked up fuzzy matching and n-gram substring search, which tells you where this is headed: the vector store is becoming the retrieval layer, not just the vector layer.
+**Guest:** They used to be treated as separate paths — embeddings go into a vector index for ANN search, while raw text goes into a lexical or full-text index for keyword search. But the category is converging: platforms increasingly fuse both into hybrid retrieval, then rerank before handing off context. Pinecone's full-text search is a good signal of that — it picked up fuzzy matching and n-gram substring search in July 2026, then went generally available in September, which tells you where this is headed: the vector store is becoming the retrieval layer, not just the vector layer.
 
 ### 2. The vocabulary that actually determines behavior
 
@@ -22,7 +22,7 @@
 
 **Host:** Let's get concrete, because I feel like this is where teams get burned in production. You mentioned Pinecone has date-based API versioning — walk me through why that's not just a footnote.
 
-**Guest:** So Pinecone ships a new stable API version quarterly, and each one is supported for at least twelve months, which gives you roughly nine months of overlap to migrate. Current stable is 2026-04, and you're supposed to send that explicitly as a header. The trap is what happens if you don't: an unversioned call doesn't default to the newest version, it falls back to the oldest supported stable one — so silently, you're pinned to the past, not the present.
+**Guest:** So Pinecone ships a new stable API version quarterly, and each one is supported for at least twelve months, which gives you roughly nine months of overlap to migrate. Current stable is 2026-07, and you're supposed to send that explicitly as a header — and moving the header is a code change, not a config change, because 2026-07 made index creation schema-only. The trap is what happens if you don't: an unversioned call doesn't default to the newest version, it falls back to the oldest supported stable one — so silently, you're pinned to the past, not the present.
 
 **Host:** That's a nasty default. What are the other choices that quietly lock you in, ones you don't get a do-over on?
 
