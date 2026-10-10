@@ -1,7 +1,7 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 3.3.0
+version: 3.3.1
 lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
@@ -201,6 +201,12 @@ revisionHistory:
       The lab found a yes/no question that scores chance with every answer at 100%, until it
       is reworded.
     author: vinod
+  - version: 3.3.1
+    date: 2026-10-10
+    change: >-
+      The LangGraph DeltaChannel deadlock, reported as #9270, is fixed on LangGraph's main by
+      #9235 and confirmed here. It is not yet in a release.
+    author: vinod
 category: section-overview
 ---
 
@@ -291,7 +297,8 @@ v1.0 is a floor, not a finish. Two things are already scheduled:
   accepted by any server, an SDK claim wrong since publication, a CIMD revision two behind, the
   LangGraph `0.4` line's end of support in December 2026, and Pinecone's API a quarter on. The
   [LangGraph deadlock](/build/labs/langgraph-checkpoint-cost/#still-present-in-1214) is still
-  present in `1.2.14`. Next window closes 2027-01-06.
+  present in `1.2.14`. It has since been fixed on LangGraph's `main` (#9235, confirmed here, not yet
+released). Next window closes 2027-01-06.
 - ~~**Decision models**~~ — shipped in two halves. On 2026-10-08 the
   [Decision Models](/reference/lookups/decision-models/) lookup, on a 30-day review window, a
   decision tier in [Module 4](/learn/modules/04-ai-infrastructure/), and a failure mode in

@@ -1,7 +1,7 @@
 ---
 title: LangGraph Checkpoint Cost
 description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a real deadlock in the pinned release.
-version: 1.2.0
+version: 1.3.0
 lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
@@ -25,6 +25,14 @@ revisionHistory:
     change: >-
       Reported the DeltaChannel deadlock upstream as langchain-ai/langgraph#9270, with a
       standalone reproduction verified on 1.2.14.
+    author: vinod
+  - version: 1.3.0
+    date: 2026-10-10
+    change: >-
+      The deadlock is fixed on LangGraph's main by #9235, merged 2026-10-09 and not yet
+      released. The fix was confirmed independently: the reproduction completes five runs out
+      of five at that commit with no workaround. The lab stays pinned to 1.2.11 and keeps its
+      workaround until a release ships the fix.
     author: vinod
 freshness:
   classification: fast-moving
@@ -239,6 +247,14 @@ and again on 2026-10-08 — so it was reported:
 **[langchain-ai/langgraph#9270](https://github.com/langchain-ai/langgraph/issues/9270)**, filed
 2026-10-10 with a standalone reproduction that hangs three runs out of three on `1.2.14` and the
 workaround that clears it.
+
+**Fixed upstream, not yet released.** A reply on the issue pointed to
+[#9235](https://github.com/langchain-ai/langgraph/pull/9235), merged 2026-10-09, three days after
+`1.2.14`. It captures each checkpoint's delta-write futures when the save is submitted rather than
+draining the shared list when a worker picks it up — exactly the order inversion described above.
+Checked here rather than taken on trust: at that commit (`cba111d8`) the same reproduction completed
+five runs out of five with no `max_concurrency`. As of 2026-10-10 the newest release is still
+`1.2.14`, so every released version has the bug, and the workaround stays until one does not.
 
 ### Still present in 1.2.14
 
