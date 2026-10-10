@@ -3,7 +3,7 @@
 _LangGraph isn't a nicer way to draw an agent loop — it's a runtime built around one mechanism, persistent per-step state, that happens to solve crash recovery and human approval at the same time; understanding that mechanism, its API surface, and where it silently breaks is the whole episode._
 
 - **Source:** [reference:langgraph](/reference/lookups/langgraph/)
-- **Runtime:** 8:30 · 17 turns · 5 beats
+- **Runtime:** 8:36 · 17 turns · 5 beats
 - **Written by:** claude-sonnet-5 on 2026-08-23
 - **Voices:** af_heart (host), am_michael (guest)
 
@@ -39,7 +39,7 @@ _LangGraph isn't a nicer way to draw an agent loop — it's a runtime built arou
 
 **Host:** Before we go further into failure modes, let's fix something that trips people up before they even write a node: which version are we actually talking about? Because if you google LangGraph right now you get a pile of examples that look reasonable and just don't run.
 
-**Guest:** Right, that's the 0.x wreckage — the API surface changed across the 1.0 boundary and search hasn't caught up, so half of what you find is stale. Current is 1.2.11, and that's the generation with DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 — the stuff we're about to talk about. If you want a long support window pin to 1.0, that's the LTS line; 0.4 still gets patches but that's maintenance-only, not where anything new is landing.
+**Guest:** Right, that's the 0.x wreckage — the API surface changed across the 1.0 boundary and search hasn't caught up, so half of what you find is stale. The current release is in the 1.2 line, and that's the generation with DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 — the stuff we're about to talk about. If you want a long support window, the 1.0 major is the LTS line. 0.4 gets security and critical fixes only, and that support ends in December 2026, so it's not somewhere to start anything.
 
 ---
 
