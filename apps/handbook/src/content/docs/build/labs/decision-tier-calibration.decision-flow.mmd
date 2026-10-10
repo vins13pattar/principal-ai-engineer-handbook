@@ -1,0 +1,11 @@
+flowchart TD
+    R([Request]) --> RU{"Rules decide it?"}
+    RU -->|yes| A1([Act: deterministic])
+    RU -->|no| D["Decision model<br/>typed question, one pass"]
+    D --> P{"Top probability ≥ threshold<br/>fitted on your labelled traffic"}
+    P -->|yes| A2([Act on the decision])
+    P -->|no| L["Escalate: LLM or person"]
+    L --> A3([Act on the slower answer])
+    A2 -. "sampled, labelled, logged" .-> M["Calibration monitor<br/>re-fit threshold on drift"]
+    L -. "outcomes" .-> M
+    M -. "new threshold" .-> P

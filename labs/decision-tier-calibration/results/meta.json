@@ -1,0 +1,66 @@
+{
+  "model": "convaiinnovations/laya",
+  "laya_version": "0.4.1",
+  "revision": "55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851",
+  "device": "mps",
+  "platform": "Darwin arm64",
+  "measured_on": "2026-10-10",
+  "seed": 20261010,
+  "sets": {
+    "twitter-financial-sentiment": {
+      "hub_id": "zeroshot/twitter-financial-news-sentiment",
+      "split": "validation",
+      "license": "MIT",
+      "rows_in_split": 2388,
+      "sampled": 1000,
+      "options": 3,
+      "question_type": "choice",
+      "latency_ms_p50": 43.9,
+      "latency_ms_p95": 53.0
+    },
+    "amazon-noul-is-positive": {
+      "hub_id": "fancyzhx/amazon_polarity",
+      "split": "test",
+      "license": "Apache-2.0",
+      "rows_in_split": 400000,
+      "sampled": 1000,
+      "options": 2,
+      "question_type": "noul",
+      "latency_ms_p50": 90.4,
+      "latency_ms_p95": 188.7
+    },
+    "amazon-noul-likes-product": {
+      "hub_id": "fancyzhx/amazon_polarity",
+      "split": "test",
+      "license": "Apache-2.0",
+      "rows_in_split": 400000,
+      "sampled": 1000,
+      "options": 2,
+      "question_type": "noul",
+      "latency_ms_p50": 115.4,
+      "latency_ms_p95": 250.9
+    },
+    "amazon-choice": {
+      "hub_id": "fancyzhx/amazon_polarity",
+      "split": "test",
+      "license": "Apache-2.0",
+      "rows_in_split": 400000,
+      "sampled": 1000,
+      "options": 2,
+      "question_type": "choice",
+      "latency_ms_p50": 90.6,
+      "latency_ms_p95": 185.3
+    },
+    "banking77": {
+      "hub_id": "legacy-datasets/banking77",
+      "split": "test",
+      "license": "CC-BY-4.0",
+      "rows_in_split": 3080,
+      "sampled": 1000,
+      "options": 77,
+      "question_type": "choice",
+      "latency_ms_p50": 203.4,
+      "latency_ms_p95": 311.2
+    }
+  }
+}

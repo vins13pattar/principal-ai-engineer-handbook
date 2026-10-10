@@ -1,0 +1,234 @@
+---
+title: "Architecture: Calibrated Decision Tier"
+sidebar:
+  label: "Calibrated Decision Tier"
+description: A reference architecture for putting a decision model between rules and an LLM — what the tier buys, why its threshold has to be fitted rather than chosen, and the two ways it fails silently that no vendor benchmark shows.
+version: 1.0.0
+lastUpdated: 2026-10-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-10-10
+    change: >-
+      Initial publication, backed by the labs/decision-tier-calibration implementation — phrasing
+      sensitivity, inverted confidence at high option counts, and a threshold that holds at three
+      options.
+    author: vinod
+freshness:
+  # The architecture -- tiered routing on a calibrated probability, a fitted
+  # threshold, a monitor that re-fits it -- does not depend on any release. The
+  # measured numbers are the backing lab's, pinned to one model revision, and the
+  # products are in the Decision Models lookup on its own 30-day window.
+  classification: slow-moving
+category: architecture
+maturity: emerging
+relatedAdrs: []
+---
+
+import {
+  Checklist,
+  EpisodePlayer,
+  FailureMode,
+  InterviewQuestion,
+  LabCallout,
+  TradeOff,
+  Warning,
+} from "@handbook/components";
+import Mermaid from "@handbook/diagrams/Mermaid.astro";
+import decisionFlow from "../../build/labs/decision-tier-calibration.decision-flow.mmd?raw";
+import { Content as Transcript } from "../../../../transcripts/architecture-calibrated-decision-tier.md";
+
+<EpisodePlayer
+  file="architecture-calibrated-decision-tier.m4a"
+  duration="9:43"
+  model="Claude Sonnet 5"
+  generated="2026-10-10"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
+## Problem
+
+Much of what a production AI system sends to a model is not generation. It is a bounded question —
+which queue, which tool, is this in scope, is this safe — paid for at generation's latency and price,
+and returned as text that has to be parsed back into the answer. A
+[decision model](/reference/lookups/decision-models/) answers the bounded question directly, from a
+set you define, with a probability over the answers.
+
+That probability is the whole design. Act on the confident answers, escalate the rest, and the
+expensive model only sees the traffic that needs it. The architecture works exactly as well as the
+probability is honest — and the backing lab found two ways it is not, both silent.
+
+## Requirements
+
+- Answer bounded decisions faster and cheaper than an LLM, without becoming less correct on the
+  answers it keeps.
+- Escalate the answers it should not keep, at a known and agreed error rate.
+- Detect when the probability stops meaning what it meant when the threshold was set.
+- Make the question's wording a reviewed, versioned part of the system.
+
+## Constraints
+
+**The threshold is fitted, not chosen.** It is a function of the model, the question's wording,
+the number of options, and the traffic. Change any of them and the error rate the threshold delivers
+changes, without anything raising.
+
+**Calibration has to be measured on your data.** Vendor accuracy figures come from vendor-chosen
+sets — the most cited one is labelled by LLM consensus, so it measures agreement with LLMs rather
+than correctness. A threshold needs labelled outcomes from your own traffic.
+
+**Option count is a hard limit, not a tuning knob.** In the backing lab, three options supported a
+threshold that held on held-out data; seventy-seven did not support one at all.
+
+## Request Flow
+
+<Mermaid code={decisionFlow} title="Three tiers, one threshold, and the monitor that keeps the threshold honest" />
+
+A request goes to the cheapest tier that can decide it. Rules take what is certain. The decision
+model takes what is bounded, but only keeps answers whose top probability clears a threshold fitted
+on labelled traffic; everything below goes to an LLM or a person. Kept answers are sampled and
+labelled, escalated ones contribute their outcomes, and a monitor re-fits the threshold when the
+relationship between stated confidence and actual accuracy moves.
+
+The monitor is not optional. Without it the threshold is a number that was right once.
+
+## Failure Modes
+
+<FailureMode title="A phrasing that is wrong with total confidence">
+  In the backing lab, "Is this product review positive?" scored 52.9% on 1,000 human-labelled
+  reviews — the majority baseline — with 998 answers stated at 100%. "Does the reviewer like the
+  product?" scored 91.2% on the same rows. A tier built on the first wording keeps every answer,
+  because every answer clears any threshold, and escalates nothing. Nothing is malformed, nothing is
+  slow, nothing raises. The only defence is to evaluate the wording on labelled data before it
+  ships, and to treat a wording change as a deploy.
+</FailureMode>
+
+<FailureMode title="Confidence that inverts at high option counts">
+  At 77 options the lab measured answers stated at 96% being right 64% of the time, while answers
+  stated at 9% were right 23%. A threshold on that signal keeps confidently wrong answers and
+  escalates some right ones. A single temperature cannot repair miscalibration that runs both ways —
+  fitting one left ECE unchanged. Split the decision instead: a coarse choice first, then a fine one
+  within the chosen group, so no single question carries dozens of options.
+</FailureMode>
+
+<FailureMode title="A threshold carried across a model swap">
+  Decision APIs are compatible by design — one vendor's client works against another's endpoint by
+  changing a URL. The probabilities that come back are a different model's. A threshold fitted on
+  the old model delivers an unknown error rate on the new one, and the lab's synthetic tests show the
+  shape: a threshold fitted on calibrated records misses its target on overconfident ones.
+</FailureMode>
+
+<FailureMode title="Escalation that never happens">
+  The failure above, seen from the escalation side: if the escalation rate drops to near zero, the
+  tier has either become very good or stopped being able to tell. Without labelled samples of the
+  kept answers, the two look identical.
+</FailureMode>
+
+## Scaling
+
+The decision model is cheap per call — the backing lab measured a median of 44 ms per 3-option
+question and 203 ms per 77-option one on a laptop GPU — and several questions about the same state
+share one pass. What scales badly is not throughput but labelling: the monitor needs fresh labelled
+outcomes in proportion to how fast traffic drifts, and those cost human time. Size the labelling
+budget before sizing the fleet.
+
+## Security
+
+A decision model used as a guardrail is an attack surface with a probability attached. Inputs
+crafted to push a harmful request above the threshold are the decision-tier version of prompt
+injection, and they fail closed only if the tier escalates — so the guardrail case wants a high
+threshold and a slow path that is genuinely independent. The question wording is configuration an
+attacker would like to change; it belongs under the same change control as the policy it encodes.
+
+## Trade-offs
+
+<TradeOff title="Coverage against error">
+  Every threshold trades the share of traffic the tier keeps against how often it is wrong on what it
+  keeps. On three-way financial sentiment the lab's fitted threshold kept 61% of traffic at 11.0%
+  error on held-out data; raising it keeps less and errs less. The right point is a business
+  decision about what a wrong kept answer costs against what an escalation costs — not a default.
+</TradeOff>
+
+<TradeOff title="One question with many options, or several with few">
+  One 77-way question is one call and an unusable probability. A coarse-then-fine split is two calls
+  and two probabilities that each have a chance of meaning something. The extra call is cheap; a
+  threshold that cannot be fitted is not.
+</TradeOff>
+
+<TradeOff title="Hosted against open weights">
+  A hosted decision API needs no GPU and no checkpoint, and its probabilities change when the vendor
+  ships a new version. Open weights pin the model — the lab's results are tied to one revision —
+  and make the calibration yours to measure and keep.
+</TradeOff>
+
+## Cost
+
+The tier saves money only on the traffic it keeps. At 61% coverage, 39% of requests pay for the
+decision model and the LLM — so the decision call has to be cheap enough that 0.61 × (LLM cost) of
+saving outweighs 1.0 × (decision cost) plus the labelling the monitor needs. At low coverage the
+tier is a cost, not a saving. Compute it from your own coverage curve, not from a vendor's latency
+table.
+
+## Observability
+
+- **Every decision with its probability**, its wording version, and its model revision.
+- **Escalation rate over time**, with alerts on movement in either direction — down is as
+  suspicious as up.
+- **Reliability on labelled samples**, binned: stated confidence against actual accuracy. ECE is the
+  summary; the bins are where a one-sided or inverted miscalibration shows.
+- **Realised error on kept answers**, against the target the threshold was fitted for.
+
+## Production Deployment
+
+<Checklist title="Before a decision tier keeps its first answer">
+  - The question's wording was evaluated on labelled data, and alternative wordings were compared.
+  - Option counts are small enough to calibrate; large label sets are split coarse-then-fine.
+  - The threshold was fitted on one labelled sample and checked on a held-out one.
+  - The target error rate and the cost of an escalation are written down and owned.
+  - Kept answers are sampled for labelling continuously, not only at launch.
+  - The threshold is re-fitted on a schedule and on any model, wording, or traffic change.
+  - A model swap — including to an API-compatible vendor — is treated as a re-fit, not a config change.
+</Checklist>
+
+<Warning title="What the backing lab does not cover">
+  Fine-tuned models, `score` questions, and hosted decision APIs. Laya's card says fine-tuning drives
+  its headline accuracy, so the lab's numbers describe the out-of-the-box model. The architecture's
+  rules — fit, hold out, monitor — do not depend on which of these you use; the numbers do.
+</Warning>
+
+<LabCallout repoPath="labs/decision-tier-calibration" status="production-shaped">
+  Laya 0.4.1 at a pinned revision, zero-shot, on three human-labelled sets: 5,000 decisions,
+  committed as numbers. It measures accuracy against baselines, calibration error with fits judged on
+  held-out data, reliability by bin, the coverage-error curve, and whether a threshold fitted for a
+  target error holds — and it found one rewording that moves a yes/no question from chance to 91%.
+  [Read the lab documentation →](/build/labs/decision-tier-calibration/)
+</LabCallout>
+
+## Interview Questions
+
+<InterviewQuestion difficulty="advanced" title="Your decision model scores 94% on the vendor benchmark. Can you skip the LLM for answers above 0.9?">
+  Not on that evidence. The benchmark's labels may not be ground truth — the most cited one is LLM
+  consensus — and accuracy says nothing about whether 0.9 means 90%. Sample my own traffic, label
+  it, check calibration bin by bin, fit the threshold for the error rate I can tolerate on one half,
+  confirm it on the other, and monitor it afterwards.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="advanced" title="The tier's escalation rate dropped to almost zero after a prompt change. Good news?">
+  Probably not. A wording change can make a decision model confidently wrong — in the backing lab one
+  phrasing scored chance with every answer at 100%. A falling escalation rate is consistent with a
+  model that improved and with one that lost the ability to doubt itself, and only labelled samples
+  of the kept answers tell them apart. Roll back the wording until they do.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="You need to route among 80 support intents. Would you use one decision-model question?">
+  No. At high option counts the probability stops being a usable escalation signal — the lab
+  measured 96% stated confidence being right 64% of the time at 77 options, with no threshold
+  reaching 10% error. Route coarse-then-fine: a handful of groups first, then the intent within the
+  group, each a question small enough to calibrate.
+</InterviewQuestion>
+
+<InterviewQuestion difficulty="intermediate" title="Why not just apply temperature scaling and move on?">
+  Because a single temperature moves every probability the same way, and real miscalibration is not
+  always one-sided. In the lab it improved one case genuinely, made another look better only by
+  turning a broken model into an honest coin flip, and left the rest neutral or worse. Measure the
+  reliability bins before and after on held-out data; keep it where it helps.
+</InterviewQuestion>

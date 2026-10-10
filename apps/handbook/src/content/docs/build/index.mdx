@@ -44,6 +44,12 @@ A lab is graded against the same rubric a real system design review would use:
   OpenTelemetry tracing. [Read the lab documentation →](/build/labs/async-ai-gateway/)
 </LabCallout>
 
+<LabCallout repoPath="labs/decision-tier-calibration" status="production-shaped">
+  Whether a decision model's probabilities can carry an escalation threshold: Laya on human-labelled
+  data, where one rewording moves a yes/no question from chance to 91%, and 77 options turn
+  confidence upside down. [Read the lab documentation →](/build/labs/decision-tier-calibration/)
+</LabCallout>
+
 <LabCallout repoPath="labs/durable-agent-task-engine" status="production-shaped">
   Lease-based task delivery with visibility timeouts and fencing tokens, idempotent submission,
   checkpointed resumption, and dead-lettering counted by delivery attempt rather than explicit
@@ -110,6 +116,7 @@ A lab is graded against the same rubric a real system design review would use:
 | [Semantic Cache](/build/labs/semantic-cache/)                       | Production-shaped |
 | [Evaluation Platform](/build/labs/evaluation-platform/)             | Production-shaped |
 | [Region Failover Budget](/build/labs/region-failover-budget/)       | Production-shaped |
+| [Decision Tier Calibration](/build/labs/decision-tier-calibration/) | Production-shaped |
 
 <Aside type="note" title="What the statuses mean">
   **Production-ready** means you could point real traffic at it: container, deployment manifest,

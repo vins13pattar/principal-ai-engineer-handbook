@@ -1,0 +1,165 @@
+---
+title: Decision Tier Calibration
+description: Whether a decision model's probabilities can carry an escalation threshold — Laya on human-labelled data, where one rewording moves a yes/no question from chance to 91%, and 77 options turn confidence upside down.
+version: 1.0.0
+lastUpdated: 2026-10-10
+revisionHistory:
+  - version: 1.0.0
+    date: 2026-10-10
+    change: >-
+      Initial lab documentation. Laya 0.4.1 at a pinned revision, zero-shot, on three
+      human-labelled sets: 5,000 measured decisions, committed as numbers.
+    author: vinod
+freshness:
+  classification: fast-moving
+  verifiedAgainst: "laya==0.4.1 at revision 55cf4c4ebb4ebe31b2550e8bdf3bd21b99753851, measured on an installed build"
+  verifiedOn: 2026-10-10
+category: lab
+repoPath: labs/decision-tier-calibration
+stack:
+  - Python 3.12+
+  - laya 0.4.1 (measure step only)
+  - standard library (analysis)
+labStatus: production-shaped
+---
+
+import { EpisodePlayer } from "@handbook/components";
+import { Content as Transcript } from "../../../../transcripts/lab-decision-tier-calibration.md";
+
+<EpisodePlayer
+  file="lab-decision-tier-calibration.m4a"
+  duration="7:18"
+  model="Claude Sonnet 5"
+  generated="2026-10-10"
+>
+  <Transcript slot="transcript" />
+</EpisodePlayer>
+
+import { Aside } from "@astrojs/starlight/components";
+
+The [Decision Models](/reference/lookups/decision-models/) lookup ends on a claim this lab exists to
+test: a decision model's probability is only worth acting on if it is calibrated, and nobody has
+measured that independently. This lab measures it, for the one decision model whose weights are
+open — **Laya**, Apache-2.0 — on **human-labelled** data, zero-shot: the version a team gets on its
+first day.
+
+Source: [`labs/decision-tier-calibration`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/decision-tier-calibration)
+
+<Aside type="caution" title="production-shaped, and what that means here">
+  The model, the data, and the measurements are real: `laya==0.4.1` at a pinned revision, 1,000
+  rows per set, run on Apple silicon. What is held fixed is the setting — zero-shot, no fine-tuning,
+  one phrasing per question unless stated. Laya's own card says fine-tuning drives its headline
+  accuracy, so these numbers describe the out-of-the-box model, not its ceiling. The measurement runs
+  locally; CI re-derives every number below from the committed results without the model.
+</Aside>
+
+## Why not the benchmark everyone cites
+
+TypeSafe's eval suite — the one Laya, Jev, and Clef all report against — labels its cases by a
+consensus of OpenAI and Anthropic models. Its own card says so: the labels are model-generated
+references. An accuracy figure on it measures agreement with LLMs, and calibration against it would
+be calibration to LLM agreement. It also declares no license.
+
+So this lab uses three sets labelled by people, under explicit licenses:
+`zeroshot/twitter-financial-news-sentiment` (MIT), `fancyzhx/amazon_polarity` (Apache-2.0), and
+Banking77 (CC-BY-4.0). Only numbers are committed — the row index, the human label, and the
+probabilities — never the text.
+
+## Finding 1: one rewording, from chance to 91%
+
+The same 1,000 Amazon reviews, the same decision, asked three ways:
+
+| Question | Accuracy | ECE as shipped |
+| --- | --- | --- |
+| `noul`: "Is this product review positive?" | **52.9%** — the majority baseline | 0.477 |
+| `noul`: "Does the reviewer like the product?" | 91.2% | 0.076 |
+| `choice`: negative / positive | 94.2% | 0.016 |
+
+The first phrasing is not merely inaccurate. It is wrong with total confidence: **998 of 1,000
+answers were stated at 100%**, and its probability of "yes" was effectively zero for positive and
+negative reviews alike. A decision tier built on it would wave everything through, certain of
+itself, and no threshold could catch it — there is nothing below the threshold to escalate.
+
+This was found by accident. The first run asked only the first phrasing and scored chance; probing
+whether the lab had misused the API turned up the second phrasing scoring 0.72 on a review the first
+called 0.0000. Laya's card mentions that `noul` answers can follow their option labels rather than
+the state. This is that, measured, and it means **a question's wording is part of the model's
+configuration** — something to test, version, and regression-check like any other.
+
+## Finding 2: at 77 options, confidence runs backwards
+
+On Banking77, stated confidence against how often it was right:
+
+| Stated confidence | Answers | Stated | Right |
+| --- | --- | --- | --- |
+| 0.0 – 0.2 | 361 | 9.3% | 23.0% |
+| 0.2 – 0.4 | 158 | 29.3% | 37.3% |
+| 0.4 – 0.6 | 114 | 49.4% | 39.5% |
+| 0.6 – 0.8 | 89 | 70.1% | 46.1% |
+| 0.8 – 1.0 | 278 | 95.9% | **64.0%** |
+
+Underconfident where it is unsure, badly overconfident where it is sure. A single temperature pushes
+every answer the same way, so it cannot correct miscalibration that runs in both directions: fitting
+one moved ECE from 0.178 to 0.177. And **no threshold reaches a 10% error rate** — answers given
+0.99 or more were right 73% of the time. At this option count the probability is not a usable
+escalation signal at all.
+
+## Finding 3: at 3 options, it works
+
+Financial-tweet sentiment is the case a decision tier is sold on, and it holds up. Calibration as
+shipped is reasonable (ECE 0.059, slightly underconfident in the middle), and the operational test
+passes: a threshold **fitted on one half for a 10% error rate delivered 11.0% on the other half**,
+while keeping 61% of traffic. Two-option sentiment as a `choice` did better still — ECE 0.016, 6.3%
+error on the held-out half with nothing escalated.
+
+## Finding 4: temperature scaling is not a general fix
+
+It improved ECE in two of five cases. One is real: the reworded `noul`, 0.076 to 0.026. The other
+is not — on the broken phrasing it moved ECE from 0.477 to 0.262 only by teaching a coin flip to
+admit it is one, with accuracy unchanged at 52.9%. On the other three it was neutral or slightly
+worse. Minimising log-likelihood is not the same objective as making the top answer's confidence
+honest, and the lab's numbers show the gap.
+
+## What makes the numbers trustworthy
+
+- **Every fit is judged on data it did not see.** Temperatures and thresholds are fitted on one
+  seeded half and evaluated on the other.
+- **The metric is cross-checked.** The lab's ECE was compared with Laya's own `ece_score` on all
+  five measured sets and matches to four decimals.
+- **The tests could fail.** Metric tests use synthetic records with miscalibration put there on
+  purpose, and assert the metrics recover it — including that a threshold fitted on calibrated
+  records misses its target on overconfident ones.
+- **The report reproduces.** CI re-derives every figure on this page from the committed results,
+  with no model, no network, and no GPU.
+
+## Run it
+
+```bash
+cd labs/decision-tier-calibration
+uv venv && uv pip install -e '.[dev]'
+.venv/bin/python -m decision_tier report     # every number above, from committed results
+
+uv pip install -e '.[measure]'               # local only: torch, laya, ~800 MB checkpoint
+.venv/bin/python -m decision_tier measure    # re-measures and rewrites results/
+```
+
+## Principal-level discussion points
+
+- **Is a decision tier worth it here?** Not a vendor question — a curve. Plot coverage against
+  error on your own labelled traffic, and find the point you can live with. On three-way sentiment
+  there is one; on 77-way intent there is not.
+- **Who owns the wording?** If one phrasing scores chance and another 91%, the prompt is
+  configuration with production consequences. It needs an owner, tests, and a review before it
+  changes.
+- **What is the threshold fitted on?** A threshold is a function of a model, a phrasing, and a
+  traffic mix. Change any of them — including switching to an API-compatible competitor — and the
+  threshold has to be fitted again.
+
+## Related
+
+- [Decision Models](/reference/lookups/decision-models/) — the category, and who measured what
+- [Calibrated Decision Tier](/architecture/systems/calibrated-decision-tier/) — the design review
+  built on this lab's evidence
+- [Module 4: AI Infrastructure](/learn/modules/04-ai-infrastructure/) — the decision tier between
+  rules and an LLM
+- [Model Router](/build/labs/model-router/) — routing between models, the decision this one feeds

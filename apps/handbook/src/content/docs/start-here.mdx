@@ -1,8 +1,8 @@
 ---
 title: Start here
 description: What each section of the handbook is for, how the same topic is covered across all of them, and three routes through the material depending on why you came.
-version: 1.2.0
-lastUpdated: 2026-10-08
+version: 1.3.0
+lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-09
@@ -18,6 +18,12 @@ revisionHistory:
   - version: 1.2.0
     date: 2026-10-08
     change: Added the thirteenth system — region failover, Module 11's lab and design review.
+    author: vinod
+  - version: 1.3.0
+    date: 2026-10-10
+    change: >-
+      Added the fourteenth system — the calibrated decision tier, with its lab and design
+      review.
     author: vinod
 category: section-overview
 ---
@@ -37,7 +43,7 @@ examined in a Principal-level loop.
 
 That scope shapes three choices worth knowing before you start:
 
-- **Depth on a few systems, not breadth across the field.** Thirteen systems, each seen from four
+- **Depth on a few systems, not breadth across the field.** Fourteen systems, each seen from four
   angles, rather than a linear course from first principles. If you want to know whether the
   handbook covers a topic, the table below is the honest answer.
 - **The code is production-shaped, not from-scratch.** The labs are services — typed, tested, and
@@ -58,8 +64,8 @@ this one for the systems built around them.
 | Section | What it is | Open it when |
 | --- | --- | --- |
 | [Learn](/learn/) | Sixteen modules, each with the same fifteen sections — mental model, architecture, implementation, failure modes, trade-offs, interview questions | You want to understand a topic properly, start to finish |
-| [Build](/build/) | Thirteen labs, each a real Python service with tests, type checking, and CI | You want to run something, break it, and see what happens |
-| [Architecture](/architecture/) | Thirteen design reviews — constraints, request flow, failure modes, cost, observability, deployment | You are designing something similar and need the decisions laid out |
+| [Build](/build/) | Fourteen labs, each a real Python service with tests, type checking, and CI | You want to run something, break it, and see what happens |
+| [Architecture](/architecture/) | Fourteen design reviews — constraints, request flow, failure modes, cost, observability, deployment | You are designing something similar and need the decisions laid out |
 | [Interview](/interview/) | Tracks organized by interview round, routing into the material that answers each one | You have an interview and want to know what the round samples |
 | [Reference](/reference/) | One-page lookups: what it is, the numbers, the gotchas | You need to check one fact quickly |
 | [Cheat Sheets](/cheatsheets/) | Printable one-page summaries | You want something to review on paper |
@@ -81,6 +87,7 @@ module, a design review, a lab, and a set of interview questions, and those four
 | Model routing | [Module 4](/learn/modules/04-ai-infrastructure/) | [Task-Based Model Routing](/architecture/systems/task-based-model-routing/) | [`model-router`](/build/labs/model-router/) |
 | Semantic caching | [Module 4](/learn/modules/04-ai-infrastructure/) | [Semantic Response Caching](/architecture/systems/semantic-response-caching/) | [`semantic-cache`](/build/labs/semantic-cache/) |
 | Model evaluation | [Module 4](/learn/modules/04-ai-infrastructure/) | [Continuous Model Evaluation](/architecture/systems/continuous-model-evaluation/) | [`evaluation-platform`](/build/labs/evaluation-platform/) |
+| Decision models and escalation | [Module 4](/learn/modules/04-ai-infrastructure/) | [Calibrated Decision Tier](/architecture/systems/calibrated-decision-tier/) | [`decision-tier-calibration`](/build/labs/decision-tier-calibration/) |
 | Agents calling tools safely | [Module 5](/learn/modules/05-agent-engineering/) | [Policy-Gated Tool Execution](/architecture/systems/policy-gated-tool-execution/) | [`policy-gated-tool-runtime`](/build/labs/policy-gated-tool-runtime/) |
 | MCP | [Module 6](/learn/modules/06-mcp/) | [Enterprise MCP Platform](/architecture/systems/enterprise-mcp-platform/) | [`multi-tenant-mcp-server`](/build/labs/multi-tenant-mcp-server/) |
 | Graph checkpointing | [Module 7](/learn/modules/07-langgraph/) | [Stateful Graph Checkpointing](/architecture/systems/stateful-graph-checkpointing/) | [`langgraph-checkpoint-cost`](/build/labs/langgraph-checkpoint-cost/) |
