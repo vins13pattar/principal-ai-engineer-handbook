@@ -1,8 +1,8 @@
 ---
 title: LangGraph Checkpoint Cost
 description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a real deadlock in the pinned release.
-version: 1.1.0
-lastUpdated: 2026-10-08
+version: 1.2.0
+lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-30
@@ -19,6 +19,12 @@ revisionHistory:
       deadlock is still present: the code path is identical, and an unpatched 60-step run hung
       three times out of three, while the max_concurrency workaround completed thirty of
       thirty. DeltaChannel is still marked beta.
+    author: vinod
+  - version: 1.2.0
+    date: 2026-10-10
+    change: >-
+      Reported the DeltaChannel deadlock upstream as langchain-ai/langgraph#9270, with a
+      standalone reproduction verified on 1.2.14.
     author: vinod
 freshness:
   classification: fast-moving
@@ -228,9 +234,11 @@ five minutes.** The one-line `max_concurrency` on the delta arm's `invoke` confi
 workaround, not a precaution — and byte counts under it match unpatched runs at step counts where
 the unpatched run does finish, so the workaround does not perturb the measurement.
 
-The LangGraph issue tracker was searched for this and **nothing matching was found** — first on
-2026-08-30, again on 2026-10-08. That is a statement about the search, not about the bug's
-reporting status.
+The LangGraph issue tracker was searched for this and nothing matching was found — on 2026-08-30
+and again on 2026-10-08 — so it was reported:
+**[langchain-ai/langgraph#9270](https://github.com/langchain-ai/langgraph/issues/9270)**, filed
+2026-10-10 with a standalone reproduction that hangs three runs out of three on `1.2.14` and the
+workaround that clears it.
 
 ### Still present in 1.2.14
 
