@@ -1,8 +1,8 @@
 ---
 title: Decision Models
 description: Models that answer typed questions about a state with probabilities instead of generating text — Jev, Laya, Clef, and OpenAI's Decisions API — what the category is for, and why the number they return is not yet the number you should act on.
-version: 1.0.0
-lastUpdated: 2026-10-08
+version: 1.1.0
+lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-10-08
@@ -10,6 +10,12 @@ revisionHistory:
       Published the decision models lookup, sixteen days after the category's first product
       shipped. Every figure carries who measured it, because almost none has been measured
       independently.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-10-10
+    change: >-
+      Linked the Decision Tier Calibration lab and its design review: the independent
+      calibration measurement this page said did not exist now exists, for Laya.
     author: vinod
 freshness:
   classification: fast-moving
@@ -128,6 +134,11 @@ a competitor.
 
 ## Where to Go Deeper
 
+- [Decision Tier Calibration](/build/labs/decision-tier-calibration/) — the independent
+  measurement this page says is missing, for Laya on human-labelled data: one rewording moves a
+  yes/no question from chance to 91%, and at 77 options confidence inverts.
+- [Calibrated Decision Tier](/architecture/systems/calibrated-decision-tier/) — the design review
+  written from it.
 - [Task-Based Model Routing](/architecture/systems/task-based-model-routing/) — the design review
   for routing between models. A decision model is a router whose output is a probability rather
   than a label, which is what makes "escalate when unsure" something you can implement and measure.

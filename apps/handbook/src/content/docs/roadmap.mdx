@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 3.2.0
-lastUpdated: 2026-10-08
+version: 3.3.0
+lastUpdated: 2026-10-10
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -193,6 +193,14 @@ revisionHistory:
       review window, a decision tier in Module 4, a failure mode in Module 5, and an episode.
       The lab and the design review remain planned.
     author: vinod
+  - version: 3.3.0
+    date: 2026-10-10
+    change: >-
+      Shipped the second half of the decision models plan: the Decision Tier Calibration lab
+      and the Calibrated Decision Tier design review. Fourteen labs, fourteen design reviews.
+      The lab found a yes/no question that scores chance with every answer at 100%, until it
+      is reworded.
+    author: vinod
 category: section-overview
 ---
 
@@ -210,10 +218,11 @@ The documentation platform (v0.1.0) and all sixteen Learn modules are complete:
 [Module 13: System Design](/learn/modules/13-system-design/) ·
 [Module 14: Leadership](/learn/modules/14-leadership/) ·
 [Module 15: Agent Identity](/learn/modules/15-agent-identity/).
-The [Architecture](/architecture/) section has a design-review page for **all thirteen labs**, each
-with a running implementation behind it, and the thirteenth —
-[Multi-Region AI Serving Failover](/architecture/systems/multi-region-ai-failover/) — shipped on the
-same day as its lab rather than after it. [Build](/build/)
+The [Architecture](/architecture/) section has a design-review page for **all fourteen labs**, each
+with a running implementation behind it, and the last two —
+[Multi-Region AI Serving Failover](/architecture/systems/multi-region-ai-failover/) and
+[Calibrated Decision Tier](/architecture/systems/calibrated-decision-tier/) — shipped on the same
+day as their labs rather than after them. [Build](/build/)
 documents every lab from a run-it-and-verify-it angle. The [Interview](/interview/) section now covers all three rounds:
 [AI Infrastructure System Design](/interview/tracks/ai-infrastructure-system-design/),
 [AI Systems Coding](/interview/tracks/ai-systems-coding/), and
@@ -227,7 +236,7 @@ against, on a review window CI fails once a page exceeds: 90 days, or 30 for Dec
 contract CI enforces — three for interview rounds, two for the work itself.
 
 Every one of those pages can also be listened to. The [audio series](#the-audio-series-shipped)
-covers all 72 content pages — twelve hours in total.
+covers all 74 content pages — twelve and a quarter hours in total.
 
 ## What's next
 
@@ -283,16 +292,15 @@ v1.0 is a floor, not a finish. Two things are already scheduled:
   LangGraph `0.4` line's end of support in December 2026, and Pinecone's API a quarter on. The
   [LangGraph deadlock](/build/labs/langgraph-checkpoint-cost/#still-present-in-1214) is still
   present in `1.2.14`. Next window closes 2027-01-06.
-- **Decision models** — the category Jev, Laya, OpenAI's Decisions API, and Cloudflare's Clef
-  opened in September 2026: models that answer typed questions with probabilities instead of
-  generating text. **Half shipped 2026-10-08:** the
-  [Decision Models](/reference/lookups/decision-models/) lookup, on a 30-day review window because
-  the category changed weekly through September; a decision tier in
-  [Module 4](/learn/modules/04-ai-infrastructure/); and a failure mode in
-  [Module 5](/learn/modules/05-agent-engineering/). **Still planned:** a lab measuring calibration
-  and the escalation threshold on Laya, which runs locally under Apache-2.0, and a design review
-  written from its evidence. OpenAI's API is described only as far as OpenAI has documented it,
-  which so far is not at all.
+- ~~**Decision models**~~ — shipped in two halves. On 2026-10-08 the
+  [Decision Models](/reference/lookups/decision-models/) lookup, on a 30-day review window, a
+  decision tier in [Module 4](/learn/modules/04-ai-infrastructure/), and a failure mode in
+  [Module 5](/learn/modules/05-agent-engineering/). On 2026-10-10 the
+  [Decision Tier Calibration](/build/labs/decision-tier-calibration/) lab and its design review,
+  [Calibrated Decision Tier](/architecture/systems/calibrated-decision-tier/). The lab measured Laya
+  on human-labelled data rather than the vendors' benchmark, whose labels are LLM consensus, and
+  found a yes/no question scoring chance with every answer stated at 100% — until one rewording
+  took it to 91%. The lookup's review window closes 2026-11-08.
 
 Labs are tracked separately from module versions, since a production-quality lab is a much larger
 unit of work than a module and shouldn't gate a version bump the way a module does. Nothing on this
@@ -313,6 +321,7 @@ table is planned — every lab below is built:
 | [Evaluation Platform](/build/labs/evaluation-platform/)           | Module 4, 12     | Production-shaped |
 | [LangGraph Checkpoint Cost](/build/labs/langgraph-checkpoint-cost/) | Module 7       | Production-shaped |
 | [Region Failover Budget](/build/labs/region-failover-budget/)     | Module 11        | Production-shaped |
+| [Decision Tier Calibration](/build/labs/decision-tier-calibration/) | Module 4, 5    | Production-shaped |
 
 ### Region Failover Budget: shipped with its design review
 
@@ -354,7 +363,7 @@ path that hung an unpatched 100-step sweep until it was killed.
 
 ### The audio series: shipped
 
-Seventy-two episodes, **twelve hours** of audio, from 3:00 on the shortest ADR to 22:24 on
+Seventy-four episodes, **twelve and a quarter hours** of audio, from 3:00 on the shortest ADR to 22:24 on
 [Module 6](/learn/modules/06-mcp/) — measured from the episode manifests, not estimated. The model
 plans the arc and writes the two-voice dialogue; a local text-to-speech model speaks it.
 
