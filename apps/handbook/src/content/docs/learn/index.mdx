@@ -1,8 +1,8 @@
 ---
 title: Learn
 description: Sixteen structured modules covering the Principal AI Engineer track, from engineering mindset through agent identity.
-version: 2.0.0
-lastUpdated: 2026-08-14
+version: 2.1.0
+lastUpdated: 2026-10-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -47,6 +47,10 @@ revisionHistory:
   - version: 2.0.0
     date: 2026-08-14
     change: Published Module 15 (Agent Identity and Access). The track is sixteen modules.
+    author: vinod
+  - version: 2.1.0
+    date: 2026-10-12
+    change: Pointed to where decision models are taught (Modules 4 and 5), and added Module 15 to the table.
     author: vinod
 category: section-overview
 ---
@@ -97,5 +101,16 @@ CI if one is missing.
 | 12  | [Observability](/learn/modules/12-observability/)                          | Published |
 | 13  | [System Design](/learn/modules/13-system-design/)                            | Published |
 | 14  | [Leadership](/learn/modules/14-leadership/)                                  | Published |
+| 15  | [Agent Identity and Access](/learn/modules/15-agent-identity/)               | Published |
 
-All fifteen modules are published. See the [Roadmap](/roadmap/) for what is being built next.
+All sixteen modules are published. See the [Roadmap](/roadmap/) for what is being built next.
+
+## Decision models
+
+Decision models — small, fast models that answer a bounded question with a probability instead of
+generating text — are taught inside existing modules rather than in a module of their own.
+[Module 4](/learn/modules/04-ai-infrastructure/) places a decision tier between rules and an LLM,
+and [Module 5](/learn/modules/05-agent-engineering/) covers the failure mode of treating a
+confident answer as a correct one. The vendor numbers are in the
+[Decision Models lookup](/reference/lookups/decision-models/), and the measurement is in the
+[Decision Tier Calibration lab](/build/labs/decision-tier-calibration/).
