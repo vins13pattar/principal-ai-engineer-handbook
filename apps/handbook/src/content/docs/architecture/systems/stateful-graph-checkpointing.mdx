@@ -3,8 +3,8 @@ title: "Architecture: Stateful Graph Checkpointing"
 sidebar:
   label: "Stateful Graph Checkpointing"
 description: A reference architecture for persisting the state of a resumable multi-step graph — why full-snapshot checkpointing is quadratic in step count, what incremental writes move to the read path, and the silent correctness condition that comes with them.
-version: 1.0.0
-lastUpdated: 2026-09-11
+version: 1.1.0
+lastUpdated: 2026-10-16
 revisionHistory:
   - version: 1.0.0
     date: 2026-09-11
@@ -13,12 +13,20 @@ revisionHistory:
       quadratic write curve, the read-side cost it trades against, the batching-invariance condition,
       and a real deadlock in the release the lab pins.
     author: vinod
+  - version: 1.1.0
+    date: 2026-10-16
+    change: >-
+      The deadlock the executor failure mode is drawn from was reported upstream and fixed in
+      langgraph 1.2.15, verified on 1.2.15 and 1.2.16. The failure mode stays — a shared bounded
+      pool is still where this class of bug lives — but it no longer describes a current release
+      as though the bug were standing.
+    author: vinod
 freshness:
   # Snapshot-versus-log persistence, the replay depth a periodic snapshot
   # bounds, and the associativity a fold over replayed writes requires are
   # storage-design fundamentals — they predate agent frameworks and are not
   # properties of any of them. The version-pinned claims on this page (a beta
-  # channel's stability, a deadlock in one release) are attributed to the
+  # channel's stability, a deadlock fixed in 1.2.15) are attributed to the
   # backing lab, which carries its own fast-moving declaration and review window.
   classification: slow-moving
 category: architecture
@@ -169,10 +177,13 @@ only one on this page that fails silently.
 
 <FailureMode title="Persistence contending with execution in one bounded pool">
   Checkpoint writes submitted into the same executor as node work do not merely queue; they can
-  invert. In the release the backing lab pins, a checkpoint task drains and waits on the set of
-  pending delta writes *as found at execution time* — which can include writes submitted after that
-  task was. Enough of those parked at once and every worker is blocked on a future that cannot start.
-  An unpatched 100-step sweep hung and was killed after five minutes.
+  invert. In LangGraph through `1.2.14`, a checkpoint task drained and waited on the set of pending
+  delta writes *as found at execution time* — which could include writes submitted after that task
+  was. Enough of those parked at once and every worker is blocked on a future that cannot start. The
+  backing lab's unpatched 100-step sweep hung and was killed after five minutes; the lab reported it
+  and it was fixed in `1.2.15` by capturing those futures at submission instead. The specific bug is
+  closed. The shape is not: any design that submits persistence work into the pool running the work
+  itself can invert this way, and the symptom is a hang rather than a slow queue.
 </FailureMode>
 
 <FailureMode title="Never snapshotting">
@@ -332,11 +343,12 @@ only one on this page that fails silently.
 </Checklist>
 
 <LabCallout repoPath="labs/langgraph-checkpoint-cost" status="production-shaped">
-  A running implementation against a pinned `langgraph==1.2.11`: three graphs differing only in how
+  A running implementation against a pinned `langgraph==1.2.16`: three graphs differing only in how
   state accumulates, a checkpointer wrapper that counts bytes on every path state is written through,
-  a resume sweep across snapshot frequencies, and tests pinning the batching-invariance failure and a
-  deadlock in the pinned release's incremental write path. It also records what it retracted — a first
-  table produced by an instrument that watched one call site.
+  a resume sweep across snapshot frequencies, and a test pinning the batching-invariance failure. It
+  also records what it retracted — a first table produced by an instrument that watched one call site
+  — and the deadlock it found in the incremental write path, which it reported upstream and has since
+  re-measured as fixed.
   [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
 </LabCallout>
 

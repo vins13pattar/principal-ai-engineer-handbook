@@ -1,12 +1,18 @@
 ---
 title: Build
 description: Production-quality labs that back the Learn track — real services, not toy demos.
-version: 1.0.0
-lastUpdated: 2026-08-04
+version: 1.1.0
+lastUpdated: 2026-10-16
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
     change: Published the Build section overview and documented the async-ai-gateway lab.
+    author: vinod
+  - version: 1.1.0
+    date: 2026-10-16
+    change: >-
+      The LangGraph checkpoint lab's deadlock is fixed upstream and verified; its callout here no
+      longer describes it as present in the pinned release.
     author: vinod
 category: section-overview
 ---
@@ -70,8 +76,9 @@ A lab is graded against the same rubric a real system design review would use:
 
 <LabCallout repoPath="labs/langgraph-checkpoint-cost" status="production-shaped">
   What it costs to checkpoint a LangGraph state that grows every step: a quadratic write curve
-  against `DeltaChannel`'s linear one, the resume cost that buys it, and a real deadlock in the
-  pinned release. [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
+  against `DeltaChannel`'s linear one, the resume cost that buys it, and a deadlock the lab found,
+  reported upstream, and re-measured as fixed.
+  [Read the lab documentation →](/build/labs/langgraph-checkpoint-cost/)
 </LabCallout>
 
 <LabCallout repoPath="labs/multi-tenant-mcp-server" status="production-shaped">

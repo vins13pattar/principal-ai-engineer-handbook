@@ -73,16 +73,27 @@ outright as **not yet stable**. Don't read the write-cost numbers the CLI
 prints as "use `DeltaChannel` in production without checking this first" --
 they're a measurement of a trade, not an endorsement.
 
-`langgraph==1.2.11`'s `DeltaChannel` write path can also deadlock at the step
-counts this lab sweeps (an order-inversion in its internal thread-pool
-scheduling -- see the docstring in `resume.py` for the full mechanism). This
-is not a theoretical risk: an unpatched 100-step delta sweep was run and
-hung, and was killed after 5 minutes. `cli.py` works around it by passing
-`max_concurrency` on the delta arm's `invoke` config; this is a workaround
-for a real bug in the pinned version, not a normal part of using the API, and
-byte counts under the patch match unpatched runs at step counts where the
-unpatched run does complete -- the workaround does not perturb the
-measurement.
+Through `langgraph==1.2.14` the `DeltaChannel` write path could also deadlock
+at the step counts this lab sweeps (an order inversion in its internal
+thread-pool scheduling -- see the docstring in `resume.py` for the full
+mechanism). It was not a theoretical risk: an unpatched 100-step delta sweep
+was run, hung, and was killed after 5 minutes. It was reported as
+[langchain-ai/langgraph#9270][issue] and fixed by [#9235][fix], first
+released in `1.2.15`.
+
+This lab pinned `1.2.11` and carried a `max_concurrency` workaround on the
+delta arm's `invoke` config for as long as that was the measured release. The
+pin is `1.2.16` now and the workaround is gone: with nothing passed, the CLI
+completed 5 runs of 5 and the delta graph completed 10 of 10 at 60 steps and
+5 of 5 at 100 steps on both `1.2.15` and `1.2.16`, against 0 of 3 at 60 steps
+on the old pin. Capping the executor at 2 workers -- the worse condition for
+an order inversion, and closer to a CI runner than this machine is -- 100
+steps completed 3 of 3 on `1.2.16` and 0 of 2 on `1.2.11`. Every byte count the CLI prints is unchanged from the ones
+measured on `1.2.11` under the workaround, which is what made moving the pin
+free.
+
+[issue]: https://github.com/langchain-ai/langgraph/issues/9270
+[fix]: https://github.com/langchain-ai/langgraph/pull/9235
 
 ## What's excluded, and why
 

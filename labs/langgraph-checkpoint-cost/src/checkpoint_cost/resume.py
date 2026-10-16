@@ -30,70 +30,63 @@ large difference in wall time (see "Actual replay depth" below): the timer
 is real end-to-end resume/``get_state`` latency, of which ancestor-write
 replay is only one part.
 
-**A real deadlock in langgraph 1.2.11's DeltaChannel write path, and why
-``max_concurrency`` is set on the ``invoke`` call below.** Every superstep
-submits a ``checkpointer.put_writes`` future to a bounded
+**A real deadlock in langgraph's DeltaChannel write path, fixed in 1.2.15.**
+Every superstep submits a ``checkpointer.put_writes`` future to a bounded
 ``ThreadPoolExecutor`` (sized ``min(32, os.cpu_count() + 4)`` by default,
 via LangChain's ``get_executor_for_config``) -- the *same* pool node
 execution itself is submitted to (``pregel/_runner.py``'s task-scheduling
 loop calls ``self.submit()``, i.e. the same ``BackgroundExecutor``). When a
 step writes to a ``DeltaChannel``, its ``put_writes`` future is *also*
-appended to ``self._delta_write_futs``
-(``pregel/_loop.py:495-498``). Separately, each step's checkpoint ``put`` is
-chained through ``_checkpointer_put_after_previous``
-(``_loop.py:1530-1547``): it is submitted to the same pool and, once running,
-waits on ``prev.result()`` where ``prev`` is the *previous* step's own
-checkpoint-put future.
+appended to the loop's ``_delta_write_futs`` list.
 
-That ``prev.result()`` chain alone cannot deadlock a strictly-FIFO pool: each
-task's ``prev`` was necessarily submitted earlier, so the earliest task in
-the chain has nothing left to wait on, must eventually get a worker, and
-unblocks the next one in turn. The actual deadlock condition is an *order
-inversion*, and it's specific to ``DeltaChannel``: before waiting on
-``prev``, ``_checkpointer_put_after_previous`` also drains and waits on
-``self._delta_write_futs``
-(``futs, self._delta_write_futs = self._delta_write_futs, []`` then
-``concurrent.futures.wait(futs)``, ``_loop.py:1538-1540``) -- and it drains
-whatever is in that list *at execution time*, not at the time this task was
-itself submitted. Because the main loop keeps advancing (submitting new
-steps' ``put_writes`` futures into ``_delta_write_futs``) while earlier
+Through ``1.2.14``, ``_checkpointer_put_after_previous`` drained that shared
+list and waited on whatever it held **at execution time, not at submission
+time**. Because the main loop keeps advancing while earlier
 ``_checkpointer_put_after_previous`` calls are still queued waiting for a
-free worker, a task that finally gets a worker can find ``_delta_write_futs``
+free worker, a task that finally got a worker could find ``_delta_write_futs``
 holding futures that were submitted to the pool *after* this task itself
-was -- i.e. a task can end up occupying a worker while waiting on another
-task that is queued behind it. With enough such tasks queued at once (and
-node-execution futures also competing for the same pool), every worker can
-simultaneously be parked waiting on a future that is stuck behind it in the
-queue: a genuine circular-wait deadlock, not merely a slow drain. I confirmed
-this is a real hang, not slowness, via ``faulthandler.dump_traceback_later``:
+was -- i.e. a task occupying a worker while waiting on another task queued
+behind it. With enough such tasks queued at once (and node-execution futures
+also competing for the same pool), every worker could simultaneously be
+parked waiting on a future stuck behind it in the queue: a genuine
+circular-wait deadlock, not merely a slow drain. That it was a real hang and
+not slowness was confirmed via ``faulthandler.dump_traceback_later``:
 repeated all-thread dumps showed every pool worker parked at
-``_loop.py:1543`` (``prev.result()``) or ``_loop.py:1540``
-(``concurrent.futures.wait(futs)``) with no progress across dump intervals of
-5-50s. Plain (non-``DeltaChannel``) graphs never hit this in testing: only a
-``DeltaChannel`` write appends to ``_delta_write_futs``, so only they add the
-second, execution-time-captured wait that makes the inversion possible.
+``prev.result()`` or ``concurrent.futures.wait(futs)`` with no progress
+across dump intervals of 5-50s. Plain (non-``DeltaChannel``) graphs never hit
+this: only a ``DeltaChannel`` write appends to ``_delta_write_futs``, so only
+they added the second, execution-time-captured wait that made the inversion
+possible.
 
-I observed hangs starting around ``steps`` in the low 40s against this
-machine's 14-worker default pool (10 CPUs), intermittently rather than
-deterministically at any fixed step count -- consistent with a scheduling
-race rather than a fixed depth threshold. I have not derived (or verified)
-a formula relating chain depth, pool size, and hang probability; "roughly
-3x the observed pool size was enough to hang here" is one machine's
-observation, not a rule this module relies on. Passing ``max_concurrency``
-in the ``invoke`` config raises the pool size to a value chosen well above
-any chain depth this lab's step counts reach -- not exhaustively
-stress-tested against arbitrarily large step counts -- which reproducibly
-avoided the deadlock across 60/60 fresh runs at ``steps=60`` in local
-testing (vs. failures within the first ~5 of 30 runs with no
-``max_concurrency`` set). See the Task 4 report for the full reproduction,
-and for a search of the langgraph issue tracker for this specific bug.
+Hangs started around ``steps`` in the low 40s against a 14-worker default
+pool (10 CPUs), intermittently rather than deterministically at any fixed
+step count -- consistent with a scheduling race rather than a fixed depth
+threshold. No formula relating chain depth, pool size, and hang probability
+was derived or verified; "roughly 3x the observed pool size was enough to
+hang here" was one machine's observation.
 
-``max_concurrency`` is set only on the ``invoke`` config below, not on
-``get_state``'s: ``Pregel._prepare_state_snapshot`` (what ``get_state`` calls
-into) never constructs a ``BackgroundExecutor`` -- it runs
+**The fix, and why there is no longer a workaround here.** Reported as
+``langchain-ai/langgraph#9270`` and fixed by ``#9235``, first carried by the
+``1.2.15`` release. ``_checkpointer_put_after_previous`` now takes a
+``delta_write_futs`` argument -- the futures captured when the save was
+submitted -- instead of draining the shared list when a worker picks the save
+up, so a save can no longer wait on a write queued behind it. While this lab
+pinned ``1.2.11`` these measurements ran with ``max_concurrency`` set on the
+``invoke`` config below, which raised the pool above any chain depth the step
+counts reach. The pin is ``1.2.16`` and that line is gone: with nothing
+passed, this sweep completed 5 runs of 5 and the lab's delta graph completed
+10 of 10 at 60 steps and 5 of 5 at 100 steps, on ``1.2.15`` and ``1.2.16``
+alike -- against 0 of 3 at 60 steps on the old pin. Checked on a small
+executor too, since CI runners have few cores and fewer workers is the worse
+condition for an order inversion: capping the pool at 2 workers, 100 steps
+completed 3 of 3 on ``1.2.16`` and 0 of 2 on ``1.2.11``.
+
+Note for anyone re-introducing a cap: it would only ever belong on ``invoke``,
+not on ``get_state``. ``Pregel._prepare_state_snapshot`` (what ``get_state``
+calls into) never constructs a ``BackgroundExecutor`` -- it runs
 ``channels_from_checkpoint``, ``prepare_next_tasks``, and
-``dict(get_subgraphs())`` synchronously on the calling thread. Setting
-``max_concurrency`` there would be inert.
+``dict(get_subgraphs())`` synchronously on the calling thread, so a cap there
+is inert.
 """
 
 from __future__ import annotations
@@ -105,11 +98,6 @@ from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import InMemorySaver
 
 from checkpoint_cost.graphs import build_delta
-
-# Chosen well above any checkpoint-put future chain depth this lab's step
-# counts reach, to avoid the DeltaChannel thread-pool deadlock described in
-# the module docstring. Only meaningful on `invoke` -- see docstring.
-_MAX_CONCURRENCY = 256
 
 
 @dataclass(frozen=True)
@@ -127,8 +115,7 @@ def measure_resume(steps: int, snapshot_frequency: int, payload_bytes: int) -> R
     base_config: RunnableConfig = {
         "configurable": {"thread_id": f"resume-{steps}-{snapshot_frequency}"}
     }
-    invoke_config: RunnableConfig = {**base_config, "max_concurrency": _MAX_CONCURRENCY}
-    compiled.invoke({"items": [], "remaining": steps}, invoke_config)
+    compiled.invoke({"items": [], "remaining": steps}, base_config)
 
     # A fresh compile against the same saver: nothing from the first run's
     # compiled graph or its channels is reachable here, so the only thing the

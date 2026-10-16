@@ -1,8 +1,8 @@
 ---
 title: Roadmap
 description: Current platform version and the content authoring schedule ahead.
-version: 3.3.1
-lastUpdated: 2026-10-10
+version: 3.4.0
+lastUpdated: 2026-10-16
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-04
@@ -207,6 +207,15 @@ revisionHistory:
       The LangGraph DeltaChannel deadlock, reported as #9270, is fixed on LangGraph's main by
       #9235 and confirmed here. It is not yet in a release.
     author: vinod
+  - version: 3.4.0
+    date: 2026-10-16
+    change: >-
+      The deadlock fix is released. #9270 was closed as completed against 1.2.15, and the
+      reproduction was re-run rather than taken on the closure — ten of ten at 60 steps and five
+      of five at 100 on both 1.2.15 and 1.2.16, against zero of three on the old pin. The lab's
+      pin moves to 1.2.16 and its max_concurrency workaround is deleted; every published byte
+      count reproduces exactly on the new pin, unpatched.
+    author: vinod
 category: section-overview
 ---
 
@@ -296,9 +305,10 @@ v1.0 is a floor, not a finish. Two things are already scheduled:
   it was not a formality: it found the MCP lab's tests running the legacy protocol, its tokens
   accepted by any server, an SDK claim wrong since publication, a CIMD revision two behind, the
   LangGraph `0.4` line's end of support in December 2026, and Pinecone's API a quarter on. The
-  [LangGraph deadlock](/build/labs/langgraph-checkpoint-cost/#still-present-in-1214) is still
-  present in `1.2.14`. It has since been fixed on LangGraph's `main` (#9235, confirmed here, not yet
-released). Next window closes 2027-01-06.
+  [LangGraph deadlock](/build/labs/langgraph-checkpoint-cost/#a-deadlock-in-langgraphs-deltachannel-write-path--found-here-reported-fixed)
+  it found has since been reported, fixed upstream by #9235, released in `1.2.15`, and re-measured
+  here on `1.2.15` and `1.2.16` — so the lab's pin moved and its workaround is gone. Next window
+  closes 2027-01-06.
 - ~~**Decision models**~~ — shipped in two halves. On 2026-10-08 the
   [Decision Models](/reference/lookups/decision-models/) lookup, on a 30-day review window, a
   decision tier in [Module 4](/learn/modules/04-ai-infrastructure/), and a failure mode in
@@ -348,14 +358,19 @@ are inputs for the reader to replace. RPO is deliberately out of scope, for reas
 
 [Module 7](/learn/modules/07-langgraph/) was one of two lab-shaped modules with no lab. It has one
 now: [**LangGraph Checkpoint Cost**](/build/labs/langgraph-checkpoint-cost/), built against a pinned
-`langgraph==1.2.11` rather than against the API from memory.
+`langgraph` release rather than against the API from memory — `1.2.11` at first, `1.2.16` since
+2026-10-16.
 
 It measures what the module and the [LangGraph lookup](/reference/lookups/langgraph/) both assert
 without a number. A plain accumulating channel writes about **1.34 MB over 100 steps**; the same
 accumulation through `DeltaChannel` writes about **60 KB** — quadratic against linear. It also
 measures the read side that buys, records that `DeltaChannel` is beta with an explicitly unstable
-on-disk contract, and characterises a **real deadlock** in the pinned release's `DeltaChannel` write
-path that hung an unpatched 100-step sweep until it was killed.
+on-disk contract, and characterised a **real deadlock** in the `DeltaChannel` write path that hung
+an unpatched 100-step sweep until it was killed. That one went the whole distance: searched for,
+not found, reported as
+[#9270](https://github.com/langchain-ai/langgraph/issues/9270), fixed by
+[#9235](https://github.com/langchain-ai/langgraph/pull/9235), released in `1.2.15`, and verified
+here on the release rather than on the closure.
 
 **It shipped without two things, and both have since been supplied:**
 
