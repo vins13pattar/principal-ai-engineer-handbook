@@ -2,7 +2,7 @@
 name = "checkpoint-cost"
 version = "0.1.0"
 requires-python = ">=3.12"
-dependencies = ["langgraph==1.2.11"]
+dependencies = ["langgraph==1.2.16"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]

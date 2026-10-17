@@ -17,16 +17,15 @@ from checkpoint_cost.resume import measure_resume
 STEP_COUNTS = [10, 25, 50, 100]
 PAYLOAD = 256
 
-# langgraph 1.2.11's DeltaChannel write path can deadlock: an order inversion
-# in `_checkpointer_put_after_previous` lets a task occupy a thread-pool
-# worker while waiting on a future queued behind it (full mechanism in
-# resume.py's module docstring, which hits the same bug on the resume side
-# and applies the same fix). This is load-bearing, not precautionary: an
-# unpatched 100-step delta sweep was observed to hang and was killed after 5
-# minutes. Passing `max_concurrency` does not perturb the measurement --
-# byte counts under the patch match unpatched runs at step counts where the
-# unpatched run does complete.
-_DELTA_MAX_CONCURRENCY = 256
+# Through langgraph 1.2.14 the DeltaChannel write path could deadlock -- an
+# order inversion in `_checkpointer_put_after_previous` let a task occupy a
+# thread-pool worker while waiting on a future queued behind it (full
+# mechanism in resume.py's module docstring). The delta arm below carried a
+# `max_concurrency` workaround for as long as this lab pinned 1.2.11; it is
+# gone with the pin moved to 1.2.16, which carries the fix (#9235, first
+# released in 1.2.15). The tables are unaffected either way: the byte counts
+# printed here are identical to the ones measured on 1.2.11 under the
+# workaround.
 
 
 def _sweep_write_path_with_full_accounting(
@@ -34,7 +33,6 @@ def _sweep_write_path_with_full_accounting(
     step_counts: list[int],
     payload_bytes: int,
     expected_items: Callable[[int], int] = lambda steps: steps,
-    max_concurrency: int | None = None,
     **builder_kwargs: object,
 ) -> list[WriteReport]:
     """Like ``sweep.sweep_write_path`` (Task 3), but also records
@@ -57,12 +55,7 @@ def _sweep_write_path_with_full_accounting(
     for steps in step_counts:
         saver = MeasuringSaver(InMemorySaver())
         graph = builder(payload_bytes=payload_bytes, **builder_kwargs)
-        base_config: RunnableConfig = {"configurable": {"thread_id": f"sweep-{steps}"}}
-        config: RunnableConfig = (
-            {**base_config, "max_concurrency": max_concurrency}
-            if max_concurrency is not None
-            else base_config
-        )
+        config: RunnableConfig = {"configurable": {"thread_id": f"sweep-{steps}"}}
 
         result = graph.compile(checkpointer=saver).invoke(
             {"items": [], "remaining": steps}, config
@@ -117,7 +110,6 @@ def main() -> None:
                 build_delta,
                 STEP_COUNTS,
                 PAYLOAD,
-                max_concurrency=_DELTA_MAX_CONCURRENCY,
                 snapshot_frequency=1000,
             )
         )

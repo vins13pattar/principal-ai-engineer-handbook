@@ -1,8 +1,8 @@
 ---
 title: LangGraph
 description: A durable orchestration runtime for agent workflows — state and reducers, checkpointers, interrupts, and the 1.2-generation additions for delta state, per-node timeouts, error recovery, and typed event streaming.
-version: 1.1.0
-lastUpdated: 2026-10-08
+version: 1.1.1
+lastUpdated: 2026-10-16
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-12
@@ -23,6 +23,13 @@ revisionHistory:
       security and critical fixes only, and that support ends in December 2026. Added
       interrupt()'s response_schema (new in 1.2.12) and the gotcha that a JSON Schema dict is
       not validated.
+    author: vinod
+  - version: 1.1.1
+    date: 2026-10-16
+    change: >-
+      Updated the current-release row to 1.2.16 and named the DeltaChannel deadlock fix that
+      1.2.15 carries. The API surface above is still the one verified against 1.2.14 — the row
+      says so rather than implying a fresh pass.
     author: vinod
 freshness:
   classification: fast-moving
@@ -92,7 +99,7 @@ source of code that does not run.
 
 | Quantity | Value | Why it matters |
 | --- | --- | --- |
-| Current Python release | `1.2.14` | Released 2026-10-06; this page re-verified against it on 2026-10-08 |
+| Current Python release | `1.2.16` | Released 2026-10-16. This page's API surface was last re-verified against `1.2.14` on 2026-10-08; `1.2.15` carries the `DeltaChannel` write-path deadlock fix the [checkpoint-cost lab](/build/labs/langgraph-checkpoint-cost/) reported and verified |
 | Architectural baseline | The `1.2` generation | DeltaChannel, per-node timeouts, error handlers, draining, streaming v3 |
 | LTS line | The `1.0` major | Active until `2.0` ships, then at least a year of maintenance |
 | Maintenance line | `0.4` | Security and critical fixes only, ending December 2026. Last release `0.4.9`, 2025-06-25 |

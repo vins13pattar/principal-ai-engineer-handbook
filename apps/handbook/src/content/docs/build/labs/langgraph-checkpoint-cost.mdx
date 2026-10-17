@@ -1,8 +1,8 @@
 ---
 title: LangGraph Checkpoint Cost
-description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a real deadlock in the pinned release.
-version: 1.3.0
-lastUpdated: 2026-10-10
+description: What it costs to checkpoint a LangGraph state that grows every step — a quadratic write curve against DeltaChannel's linear one, the read-side cost that buys it, and a deadlock this lab found, reported, and has now seen fixed.
+version: 2.0.0
+lastUpdated: 2026-10-16
 revisionHistory:
   - version: 1.0.0
     date: 2026-08-30
@@ -34,15 +34,24 @@ revisionHistory:
       of five at that commit with no workaround. The lab stays pinned to 1.2.11 and keeps its
       workaround until a release ships the fix.
     author: vinod
+  - version: 2.0.0
+    date: 2026-10-16
+    change: >-
+      The fix is released: #9270 was closed as completed against 1.2.15. Verified here rather
+      than taken on the closure — the reproduction that hung three of three on the old pin
+      completes ten of ten at 60 steps and five of five at 100 on both 1.2.15 and 1.2.16. So
+      the pin moves to 1.2.16 and the max_concurrency workaround is deleted from the lab, which
+      cost nothing: every byte count on this page is identical on the new pin, unpatched.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "langgraph==1.2.11 (pinned, measured) and 1.2.14 (test suite, deadlock reproduction, and DeltaChannel status re-checked on an installed build)"
-  verifiedOn: 2026-10-08
+  verifiedAgainst: "langgraph==1.2.16 (pinned, re-measured, deadlock reproduction run unpatched); fix first released in 1.2.15 and verified there too"
+  verifiedOn: 2026-10-16
 category: lab
 repoPath: labs/langgraph-checkpoint-cost
 stack:
   - Python 3.12+
-  - langgraph 1.2.11
+  - langgraph 1.2.16
 labStatus: production-shaped
 ---
 
@@ -64,7 +73,9 @@ import { Aside } from "@astrojs/starlight/components";
 [LangGraph lookup](/reference/lookups/langgraph/) says large accumulated state gets slower every
 step because the whole value is re-serialized per checkpoint. Both are claims about cost. This lab
 puts bytes on them, on the actual serialization path LangGraph uses, and then measures what the
-recommended fix costs on the other side.
+recommended fix costs on the other side. It also found a deadlock on that path, reported it, and
+has since watched it get fixed — the one claim on this page that is no longer true of a current
+release, and the section below says so rather than quietly dropping it.
 
 Source: [`labs/langgraph-checkpoint-cost`](https://github.com/vins13pattar/principal-ai-engineer-handbook/tree/main/labs/langgraph-checkpoint-cost)
 
@@ -163,9 +174,10 @@ full snapshot is close enough behind. `snapshot_frequency` is the dial, and the 
 snapshot is written at all, so every resume replays the full run.
 
 **This page deliberately publishes no table of those timings, and that absence is the result.**
-The three byte tables above are bit-for-bit identical across all **twelve** runs on record, all on
-the same installed build — that sameness is a property of a deterministic serialization path, not
-evidence of reproduction across independently sourced environments, so it is stated as a run count
+The three byte tables above are bit-for-bit identical across all **twelve** runs on record on the
+original `1.2.11` pin, and across five more on `1.2.16` on a different machine when the pin moved —
+seventeen runs, two releases, no byte different. That sameness is a property of a deterministic
+serialization path rather than of a carefully held-still environment, so it is stated as run counts
 and no more. The resume timings are not identical, and two earlier drafts of this page were
 wrong about them in opposite directions — first quoting one run's figures as if they were the
 number, then fitting a two-decimal interval to six runs that the next five runs fell outside. A
@@ -176,7 +188,13 @@ time. What twelve runs do support is two claims, and the section rests on them:
   well under a millisecond in every run on an unloaded machine (see the contention note below). That
   is the honest size of `DeltaChannel`'s deferred cost: real, measurable, and small at this scale.
 - **Ordering.** The never-snapshot sweep point was the slowest in every run, because it is the
-  deepest replay. That is what the section actually argues, and it is the part that reproduces.
+  deepest replay. That is what the section actually argues, and it is the part that reproduces —
+  including on the `1.2.16` re-measurement, where it was slowest in all five runs.
+
+The scale claim is the one that travels least well, and the pin move is evidence for saying so.
+On the container the re-measurement ran in, every configuration still resumed **under a
+millisecond**, but the figures sat above the original machine's — hundreds of microseconds rather
+than tens. Same code, same release, different hardware. Take the bound, not the band.
 
 Run the CLI yourself and you get the raw figures, which is the right place for them.
 
@@ -210,16 +228,16 @@ this lab's contact with the API says why:
   and it is named in the docstring as **not yet stable**. Anything reading delta state back out
   itself, rather than through `get_state`, is coupled to internals that may move.
 - It requires a **batching-invariant reducer**, and cannot check that you gave it one. See below.
-- In the pinned release, its write path can deadlock. See below.
+- Its write path could deadlock through `1.2.14`, which is fixed from `1.2.15`. See below.
 
 None of that makes it the wrong choice, and the stated expectation above makes it a smaller bet than
 "beta storage format" usually implies. It makes it a choice with conditions attached, which "the
 fix" does not communicate at all.
 
-## A real deadlock in langgraph 1.2.11
+## A deadlock in LangGraph's DeltaChannel write path — found here, reported, fixed
 
-The `DeltaChannel` write path in `langgraph==1.2.11` can deadlock, and the mechanism is worth
-stating precisely because the obvious explanation is wrong.
+Through `langgraph==1.2.14` the `DeltaChannel` write path could deadlock, and the mechanism is
+worth stating precisely because the obvious explanation is wrong.
 
 Node execution and checkpoint writes share one bounded `ThreadPoolExecutor`
 (`pregel/_runner.py:260` submits node work into the same pool). That alone does not deadlock
@@ -228,42 +246,65 @@ strictly-FIFO pool the earliest task in that chain has nothing left to wait on, 
 unblocks the next. A reader who knows how `ThreadPoolExecutor` dispatches would correctly reject
 "both waits happen in the same bounded pool" as an explanation.
 
-The actual condition is an **order inversion**, and it is specific to `DeltaChannel`. Before waiting
-on its predecessor, `_checkpointer_put_after_previous` drains `self._delta_write_futs` and waits on
-whatever is in that list **at execution time, not at submission time**
-(`pregel/_loop.py:1538-1540`). The main loop keeps advancing while earlier put tasks sit queued, so
-a task that finally gets a worker can find itself waiting on `put_writes` futures that were
+The actual condition was an **order inversion**, and it was specific to `DeltaChannel`. Before
+waiting on its predecessor, `_checkpointer_put_after_previous` drained `self._delta_write_futs` and
+waited on whatever was in that list **at execution time, not at submission time**
+(`pregel/_loop.py:1538-1540` on `1.2.11`). The main loop keeps advancing while earlier put tasks
+sit queued, so a task that finally got a worker could find itself waiting on `put_writes` futures
 submitted to the pool *after it was* — occupying a worker while blocked on something queued behind
 it. With enough of those parked at once, every worker is waiting on a future that cannot start.
 That is circular wait, not slow drain.
 
-This is not theoretical. **An unpatched 100-step delta sweep was run, hung, and was killed after
-five minutes.** The one-line `max_concurrency` on the delta arm's `invoke` config is a load-bearing
-workaround, not a precaution — and byte counts under it match unpatched runs at step counts where
-the unpatched run does finish, so the workaround does not perturb the measurement.
+This was not theoretical. **An unpatched 100-step delta sweep was run, hung, and was killed after
+five minutes.** For as long as the lab pinned `1.2.11`, the one-line `max_concurrency` on the delta
+arm's `invoke` config was a load-bearing workaround, not a precaution.
 
 The LangGraph issue tracker was searched for this and nothing matching was found — on 2026-08-30
 and again on 2026-10-08 — so it was reported:
 **[langchain-ai/langgraph#9270](https://github.com/langchain-ai/langgraph/issues/9270)**, filed
 2026-10-10 with a standalone reproduction that hangs three runs out of three on `1.2.14` and the
-workaround that clears it.
+workaround that clears it. It was fixed by
+[#9235](https://github.com/langchain-ai/langgraph/pull/9235), merged 2026-10-09, and closed as
+completed on 2026-10-16 with a maintainer naming that PR and `1.2.15`. The release date is the one
+PyPI records for `1.2.15`: 2026-10-12.
 
-**Fixed upstream, not yet released.** A reply on the issue pointed to
-[#9235](https://github.com/langchain-ai/langgraph/pull/9235), merged 2026-10-09, three days after
-`1.2.14`. It captures each checkpoint's delta-write futures when the save is submitted rather than
-draining the shared list when a worker picks it up — exactly the order inversion described above.
-Checked here rather than taken on trust: at that commit (`cba111d8`) the same reproduction completed
-five runs out of five with no `max_concurrency`. As of 2026-10-10 the newest release is still
-`1.2.14`, so every released version has the bug, and the workaround stays until one does not.
+The fix is the inversion closed at its source: `_checkpointer_put_after_previous` now **takes** a
+`delta_write_futs` argument — the futures captured when the save was submitted — instead of draining
+the shared list when a worker picks the save up. A save can no longer wait on a write queued behind
+it.
 
-### Still present in 1.2.14
+### Verified against the releases, not against the closure
 
-Re-checked on 2026-10-08 against `langgraph==1.2.14`, three patch releases later. `1.2.13` shipped
-five `DeltaChannel` fixes, none of them this one: `_checkpointer_put_after_previous` is
-byte-for-byte unchanged (now `pregel/_loop.py:1604-1606`). The lab's own delta graph, run at 60
-steps with no `max_concurrency`, **hung three times out of three**; with the workaround it completed
-**thirty times out of thirty**. The lab's full test suite passes on `1.2.14` unchanged. Its pin
-stays at `1.2.11`, because that is the release its byte counts were measured on.
+A closed issue is a claim like any other, so the reproduction was re-run rather than trusted.
+Same graph, same `snapshot_frequency`, nothing passed for `max_concurrency`, each run in a fresh
+process under a kill-timeout:
+
+| langgraph | 60 steps | 100 steps | 100 steps, 2-worker pool | CLI, workaround removed |
+| --------- | -------- | --------- | ------------------------ | ----------------------- |
+| `1.2.11`  | 0 of 3   | —         | 0 of 2                   | hangs                   |
+| `1.2.15`  | 10 of 10 | 5 of 5    | —                        | —                       |
+| `1.2.16`  | 10 of 10 | 5 of 5    | 3 of 3                   | 5 of 5                  |
+
+The third column is the one that decided it. A *smaller* pool is the worse condition for an order
+inversion — fewer workers, so fewer parked tasks are needed to consume all of them — and CI runners
+have far fewer cores than the machine this was measured on. Capping the executor at two workers
+hangs the old pin outright and changes nothing on the new one.
+
+So the pin moved to `1.2.16` and the workaround was deleted from `cli.py` and `resume.py`. **That
+cost nothing, which is the part worth checking rather than assuming:** every byte count on this
+page reproduces exactly on the new pin with no workaround — all three tables, bit for bit, across
+five consecutive runs. The resume sweep's ordering holds too, with the never-snapshot point slowest
+in every run. A pin that exists to keep numbers reproducible can only move when the numbers say it
+may.
+
+### What it looked like before
+
+`1.2.13` shipped five `DeltaChannel` fixes, none of them this one: on `1.2.14`,
+`_checkpointer_put_after_previous` was still byte-for-byte what `1.2.11` had (by then at
+`pregel/_loop.py:1604-1606`). Re-checked on 2026-10-08, the lab's own delta graph at 60 steps with
+no `max_concurrency` **hung three times out of three**; with the workaround it completed **thirty
+times out of thirty**. Every release from `1.2.11` to `1.2.14` carried the bug, which is why the
+workaround stayed as long as it did.
 
 ## What else the tests pin
 
@@ -315,6 +356,11 @@ byte tables above plus the resume sweep, whose raw timings are deliberately not 
   hardest if you read delta state yourself, and the representation underneath `get_state` is itself
   only expected, not guaranteed, to stay readable. Know which of the two risks you are actually
   taking, and how firm the assurance under it is, before you quote either to a review.
+- **A workaround is a liability with no owner unless you give it one.** The `max_concurrency` line
+  sat in this lab for six weeks doing real work and reading like a tuning choice. What eventually
+  removed it was not the upstream fix landing but someone going back: filing the bug, watching the
+  release, re-running the reproduction, and checking that the numbers the pin existed to protect
+  survived the move. A fix you have not re-measured is a changelog entry, not a verification.
 - **A silent correctness failure beats a loud cost failure, every time.** The quadratic write curve
   is visible on a dashboard. A non-associative reducer producing 13 items where 25 lived is visible
   to nobody.
