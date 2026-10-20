@@ -7,8 +7,8 @@ The plan and its status live in
 ```bash
 pnpm --filter @handbook/video layout   # .mmd diagrams -> src/generated/*.layout.json (ELK)
 pnpm --filter @handbook/video studio   # preview in Remotion Studio
-pnpm --filter @handbook/video still src/index.ts Mcp out/frame.png --frame=640
-pnpm --filter @handbook/video render src/index.ts Mcp out/mcp.mp4
+pnpm --filter @handbook/video still Mcp out/frame.png --frame=640
+pnpm --filter @handbook/video render Mcp out/mcp.mp4
 ```
 
 In a cloud container without a regular Chrome, add
@@ -27,7 +27,7 @@ in [`docs/PODCAST.md`](../../docs/PODCAST.md)) and reuses the root `podcast.conf
 pnpm --filter @handbook/video narrate 06-mcp --dry-run          # size and estimate, no setup needed
 pnpm --filter @handbook/video narrate 06-mcp --voice am_michael  # speak every scene
 pnpm --filter @handbook/video narrate 06-mcp --scene roles       # one scene
-pnpm --filter @handbook/video render src/index.ts McpNarrated out/mcp.mp4
+pnpm --filter @handbook/video render McpNarrated out/mcp.mp4
 ```
 
 Audio lands in `public/narration/<slug>/` (not committed). Each scene's measured length is written
