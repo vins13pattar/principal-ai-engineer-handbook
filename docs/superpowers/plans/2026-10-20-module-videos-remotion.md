@@ -213,8 +213,13 @@ What the pilot showed:
   (`--browser-executable` plus `--chrome-mode=headless-shell`). Narration and the final render are
   meant to run on the author's Mac.
 
-Not built yet: narration audio, word timestamps and captions, per-scene audio sync, a 4K render
-measurement, the YouTube upload path, and the `check:videos` gate.
+Narration step built (`scripts/narrate.ts`) and tested end to end with a stand-in voice runner:
+per-scene WAVs, measured lengths, a committed manifest, skip-if-unchanged, a stale-audio guard, and
+a `McpNarrated` composition that renders the audio into the video. It has not run against Kokoro,
+which needs Apple silicon.
+
+Not built yet: word timestamps and captions, a 4K render measurement, the YouTube upload path, the
+`check:videos` gate, and the VoiceStudio adapter for the author's own voice.
 
 ## Risks
 

@@ -248,6 +248,12 @@ importers:
         specifier: 4.5.4
         version: 4.5.4
     devDependencies:
+      '@handbook/podcast-engine':
+        specifier: workspace:*
+        version: link:../podcast-engine
+      '@handbook/podcast-providers':
+        specifier: workspace:*
+        version: link:../podcast-providers
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1

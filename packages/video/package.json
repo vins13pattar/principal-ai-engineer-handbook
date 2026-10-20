@@ -10,7 +10,8 @@
     "still": "remotion still src/index.ts",
     "render": "remotion render src/index.ts",
     "test": "vitest run",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "narrate": "node --experimental-strip-types scripts/narrate.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.537",
@@ -28,6 +29,8 @@
     "@types/react": "19.3.0",
     "elkjs": "0.12.0",
     "typescript": "6.0.3",
-    "vitest": "4.1.10"
+    "vitest": "4.1.10",
+    "@handbook/podcast-engine": "workspace:*",
+    "@handbook/podcast-providers": "workspace:*"
   }
 }

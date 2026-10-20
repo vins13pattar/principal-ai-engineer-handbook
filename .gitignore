@@ -83,3 +83,6 @@ apps/handbook/public/podcast/
 
 # Rendered video
 packages/video/out/
+
+# Spoken narration is regenerated on the machine with the synthesis runner
+packages/video/public/narration/

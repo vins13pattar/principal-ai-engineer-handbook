@@ -17,3 +17,21 @@ In a cloud container without a regular Chrome, add
 Scripts live in `src/videos/<slug>.ts`. Scene lengths come from the narration text until a scene
 has `audioSeconds`, so the script is the one artifact to edit. Re-run `layout` after changing a
 diagram. Rendered video is not committed.
+
+## Narration
+
+Narration runs on the machine that has the synthesis runner (Kokoro on Apple silicon, set up as
+in [`docs/PODCAST.md`](../../docs/PODCAST.md)) and reuses the root `podcast.config.json`.
+
+```bash
+pnpm --filter @handbook/video narrate 06-mcp --dry-run          # size and estimate, no setup needed
+pnpm --filter @handbook/video narrate 06-mcp --voice am_michael  # speak every scene
+pnpm --filter @handbook/video narrate 06-mcp --scene roles       # one scene
+pnpm --filter @handbook/video render src/index.ts McpNarrated out/mcp.mp4
+```
+
+Audio lands in `public/narration/<slug>/` (not committed). Each scene's measured length is written
+to `src/videos/<slug>.audio.json` (committed), and the `McpNarrated` composition sizes every scene
+from it. Unchanged scenes are skipped on a re-run, and a scene whose text changed after it was
+spoken fails the render rather than playing stale audio. `Mcp` stays the silent, estimated cut.
+Pronunciation fixes for the speech model live in `src/videos/speech.ts`.
