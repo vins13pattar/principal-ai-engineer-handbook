@@ -218,8 +218,24 @@ per-scene WAVs, measured lengths, a committed manifest, skip-if-unchanged, a sta
 a `McpNarrated` composition that renders the audio into the video. It has not run against Kokoro,
 which needs Apple silicon.
 
-Not built yet: word timestamps and captions, a 4K render measurement, the YouTube upload path, the
-`check:videos` gate, and the VoiceStudio adapter for the author's own voice.
+Timing, captions, and YouTube metadata are built and unit-tested without audio:
+
+- `scripts/transcribe.ts` records word times with whisper.cpp; `cue` phrases in a script then move
+  each reveal to the word that explains it, ahead of it by a quarter second. A phrase it cannot
+  find is reported, and that reveal keeps its estimate. A test checks that every cue phrase in the
+  script is actually spoken in its scene.
+- `scripts/captions.ts` writes SRT captions in the page's wording (the recogniser hears "M C P",
+  the caption says "MCP"), at most two lines of 42 characters.
+- `scripts/youtube.ts` writes the title, description, chapters and tags to paste into YouTube. It
+  includes the AI-narration line.
+- **4K render speed, measured:** about 1.1 frames per second here at 3840×2160 against about 8 at
+  1080p, so roughly two hours versus twenty minutes for the module 6 cut in this container. An
+  Apple-silicon Mac should differ; measure there before planning a batch.
+
+Not built yet: running `transcribe` against real narration (whisper.cpp needs a build step and
+could not be installed in the cloud container), the VoiceStudio adapter for the author's own
+voice, an automatic YouTube upload (manual upload is fine for sixteen videos, and API uploads from
+an unaudited project may be locked to private), and the `check:videos` gate.
 
 ## Risks
 

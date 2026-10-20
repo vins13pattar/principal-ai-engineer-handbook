@@ -86,3 +86,6 @@ packages/video/out/
 
 # Spoken narration is regenerated on the machine with the synthesis runner
 packages/video/public/narration/
+
+# whisper.cpp build, model, and temp audio
+packages/video/.whisper/

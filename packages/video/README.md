@@ -35,3 +35,16 @@ to `src/videos/<slug>.audio.json` (committed), and the `McpNarrated` composition
 from it. Unchanged scenes are skipped on a re-run, and a scene whose text changed after it was
 spoken fails the render rather than playing stale audio. `Mcp` stays the silent, estimated cut.
 Pronunciation fixes for the speech model live in `src/videos/speech.ts`.
+
+## Timing, captions, and YouTube
+
+```bash
+pnpm --filter @handbook/video transcribe 06-mcp   # word times via whisper.cpp; also lists cues it could not find
+pnpm --filter @handbook/video captions 06-mcp     # out/06-mcp.srt, in the page's wording
+pnpm --filter @handbook/video youtube 06-mcp      # out/06-mcp.youtube.md: title, description, chapters, tags
+```
+
+`transcribe` builds whisper.cpp once into `.whisper/` (needs a C++ toolchain and ffmpeg) and writes
+`src/videos/<slug>.timing.json`. In a script, give a reveal a `cue` phrase taken from the narration
+and it lands on that word. Avoid words the speech lexicon rewrites (HTTP, MCP, stdio) in a cue.
+Run `youtube` after `narrate` so chapter times use the real lengths.

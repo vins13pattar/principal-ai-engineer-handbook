@@ -254,6 +254,9 @@ importers:
       '@handbook/podcast-providers':
         specifier: workspace:*
         version: link:../podcast-providers
+      '@remotion/install-whisper-cpp':
+        specifier: 4.0.537
+        version: 4.0.537
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1
@@ -1417,6 +1420,9 @@ packages:
 
   '@remotion/elevenlabs@4.0.537':
     resolution: {integrity: sha512-NRW6rEdhSnxq40YY/i9WKFki3iTV6lj1ns+B5xQrpZTGMtOEww2GXsTg/t6dlNJqBx1pTj8r+n+VwMiMuny3Ow==}
+
+  '@remotion/install-whisper-cpp@4.0.537':
+    resolution: {integrity: sha512-Bi9zcI+C/hQE0/U7ImoEd2P/cUoh+d7ISG7g24j7cJqiq12+LRm7e/lNwv/tcYrYzus6lgw/ayEO5ocAkm/sVQ==}
 
   '@remotion/licensing@4.0.537':
     resolution: {integrity: sha512-D1FFftZ1VbANJXWW9xREuQFaE7whQCkhB6deklQqknQta9Vb9b/CKFqjk7ZBT8Nan+Bs7m+9+5wsd6FKF2wU1g==}
@@ -6143,6 +6149,10 @@ snapshots:
     dependencies:
       '@remotion/captions': 4.0.537
       zod: 4.5.4
+
+  '@remotion/install-whisper-cpp@4.0.537':
+    dependencies:
+      '@remotion/captions': 4.0.537
 
   '@remotion/licensing@4.0.537': {}
 

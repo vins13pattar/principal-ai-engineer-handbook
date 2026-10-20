@@ -31,11 +31,21 @@ export type Scene =
       layout: "hostClientServer" | "statelessRouting";
       steps: DiagramStep[];
     })
-  | (Base & { kind: "cards"; cards: Card[]; columns: number; at: number[]; footer?: string })
+  | (Base & {
+      kind: "cards";
+      cards: Card[];
+      columns: number;
+      at: number[];
+      /** Phrases from the narration that each card enters on, parallel to `cards`. */
+      cues?: string[];
+      footer?: string;
+      footerAt?: number;
+      footerCue?: string;
+    })
   | (Base & {
       kind: "anatomy";
       lines: { text: string; group: "route" | "meta" | "plain" }[];
-      notes: { group: "route" | "meta"; title: string; body: string; at: number }[];
+      notes: { group: "route" | "meta"; title: string; body: string; at: number; cue?: string }[];
     })
   | (Base & {
       kind: "compare";
@@ -43,13 +53,26 @@ export type Scene =
       right: { title: string; rows: Row[] };
       footer: string;
       at: number[];
+      /** Phrases for the left column, the right column, and the footer, in that order. */
+      cues?: string[];
     });
+
+/** What the YouTube page for a video needs beyond its scenes. */
+export interface YouTubeMeta {
+  /** The text that follows "Module NN:" in the video title. */
+  titleSuffix: string;
+  /** One or two sentences that open the description, before the chapters. */
+  summary: string;
+  links: { label: string; url: string }[];
+  tags: string[];
+}
 
 export interface VideoScript {
   slug: string;
   tag: string;
   chapter: string;
   title: string;
+  youtube: YouTubeMeta;
   scenes: Scene[];
 }
 

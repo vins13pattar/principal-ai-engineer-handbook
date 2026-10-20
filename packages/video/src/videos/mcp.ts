@@ -10,6 +10,30 @@ export const mcp: VideoScript = {
   tag: "MODULE 06",
   chapter: "MCP",
   title: "MCP: why the protocol went stateless",
+  youtube: {
+    titleSuffix: "MCP: why the protocol went stateless",
+    summary:
+      "How the Model Context Protocol splits host, client and server, who decides to invoke each primitive, and why its 2026-07-28 revision removed the handshake and the session. Module 6 of the Principal AI Engineer Handbook.",
+    links: [
+      {
+        label: "Module 6 (written, with transcript)",
+        url: "https://handbook.vinodspattar.in/learn/modules/06-mcp/",
+      },
+      {
+        label: "Lab: Multi-Tenant MCP Server",
+        url: "https://handbook.vinodspattar.in/build/labs/multi-tenant-mcp-server/",
+      },
+      { label: "Full handbook", url: "https://handbook.vinodspattar.in/" },
+    ],
+    tags: [
+      "MCP",
+      "Model Context Protocol",
+      "AI engineering",
+      "distributed systems",
+      "system design",
+      "stateless",
+    ],
+  },
   scenes: [
     {
       id: "problem",
@@ -27,10 +51,16 @@ export const mcp: VideoScript = {
         "MCP splits the system into three roles, and the split is the whole design. The host is the application running the conversation, an IDE or a chat client. Inside it, a client manages the connection to exactly one server. A server is a separate process exposing capabilities, and the guidance is one small, focused server per integration. Here the filesystem server speaks JSON-RPC over stdio, while the GitHub server speaks it over Streamable HTTP, so nothing forces every server onto the same transport. Because each connection is its own client, a misbehaving server only affects its own client, not the whole host. The host then aggregates everything, tools, resources and prompts, into one context for the model.",
       steps: [
         { at: 0, show: ["Host", "C1", "C2"], focus: ["Host"] },
-        { at: 0.36, show: ["S1", "e1"], focus: ["C1", "S1", "e1"] },
-        { at: 0.5, show: ["S2", "e2"], focus: ["C2", "S2", "e2"] },
+        {
+          at: 0.36,
+          cue: "Here the filesystem server",
+          show: ["S1", "e1"],
+          focus: ["C1", "S1", "e1"],
+        },
+        { at: 0.5, cue: "while the GitHub server", show: ["S2", "e2"], focus: ["C2", "S2", "e2"] },
         {
           at: 0.82,
+          cue: "The host then aggregates everything",
           show: ["Model", "e3"],
           focus: ["Host", "Model", "e3"],
           camera: ["Host", "C1", "C2", "S1", "S2", "Model", "e1", "e2", "e3"],
@@ -45,6 +75,12 @@ export const mcp: VideoScript = {
         "Servers expose three kinds of capability, and what matters is who decides to use each one. Tools are model-controlled: the model decides to call them, the same function-calling mechanics as Module 5, standardized across servers. Resources are application-controlled data, like files or database rows, that the host decides to attach to context. Prompts are user-controlled templates, often surfaced as slash commands, that the user decides to run. That is a security boundary, not just a taxonomy. Expose read this file as a resource and the host stays in control. Expose it as a tool and you have handed the model the decision.",
       columns: 3,
       at: [0.2, 0.42, 0.6],
+      cues: [
+        "Tools are model-controlled",
+        "Resources are application-controlled",
+        "Prompts are user-controlled",
+      ],
+      footerCue: "Expose read this file as a resource",
       cards: [
         {
           title: "Tools",
@@ -70,16 +106,30 @@ export const mcp: VideoScript = {
         "Now the change. Under the previous revision, a connection began with an initialize handshake and a session ID. Every later request had to return to the same server instance, because that instance held the session state. So the load balancer needed sticky routing, and instance B could never pick up where A left off. That is the exact lesson of Module 2 about state ownership, arriving as a protocol redesign. The 2026-07-28 revision removes the handshake and the session. Every request now carries what the server needs, so the load balancer can route on headers alone, and any instance can serve any request. Rolling deploys get easier, and there is no session store to operate or leak.",
       steps: [
         { at: 0, show: ["Before", "BC", "BLB", "e1"], focus: ["Before"], camera: ["Before"] },
-        { at: 0.2, show: ["BS1", "e2"], focus: ["BLB", "BS1", "e2"], camera: ["Before"] },
-        { at: 0.36, show: ["BS2", "e3"], focus: ["BLB", "BS2", "e3"], camera: ["Before"] },
+        {
+          at: 0.2,
+          cue: "Every later request had to return",
+          show: ["BS1", "e2"],
+          focus: ["BLB", "BS1", "e2"],
+          camera: ["Before"],
+        },
+        {
+          at: 0.36,
+          cue: "instance B could never pick up",
+          show: ["BS2", "e3"],
+          focus: ["BLB", "BS2", "e3"],
+          camera: ["Before"],
+        },
         {
           at: 0.5,
+          cue: "revision removes the handshake",
           show: ["After", "AC", "ALB", "e4", "e8"],
           focus: ["After", "AC", "ALB", "e4"],
           camera: ["After"],
         },
         {
           at: 0.7,
+          cue: "route on headers alone",
           show: ["AS1", "AS2", "AS3", "e5", "e6", "e7"],
           focus: ["ALB", "AS1", "AS2", "AS3", "e5", "e6", "e7"],
           camera: ["After"],
@@ -109,12 +159,14 @@ export const mcp: VideoScript = {
           title: "Routable",
           body: "Gateways and rate limiters decide without parsing the body.",
           at: 0.3,
+          cue: "First, headers",
         },
         {
           group: "meta",
           title: "Self-describing",
           body: "Version, client, and capabilities travel on every request.",
           at: 0.62,
+          cue: "Second, the protocol version",
         },
       ],
     },
@@ -126,6 +178,12 @@ export const mcp: VideoScript = {
         "Four failure modes are worth knowing. Tool poisoning: a server writes a tool description that manipulates the model, and descriptions are part of the model's context. Trusting model arguments: validate every tools slash call against your own schema, always. Trusting headers without checking the body: a server that never verifies Mcp-Method and Mcp-Name against the body lets a caller route a request as a cheap operation while executing an expensive one, and the specification requires servers to reject disagreement. And session assumptions carried into a stateless server: a cached identity or capability set that works on one replica in development, then fails intermittently behind a load balancer in production.",
       columns: 2,
       at: [0.1, 0.32, 0.5, 0.78],
+      cues: [
+        "Tool poisoning",
+        "Trusting model arguments",
+        "Trusting headers without checking the body",
+        "session assumptions carried into a stateless server",
+      ],
       cards: [
         {
           title: "Tool poisoning",
@@ -180,6 +238,11 @@ export const mcp: VideoScript = {
       footer:
         "HTTP+SSE is deprecated · Stateless costs bytes per request, buys scaling without affinity",
       at: [0.1, 0.34, 0.8],
+      cues: [
+        "is the simplest",
+        "serves remote and shared servers",
+        "Second, statelessness costs bytes",
+      ],
     },
     {
       id: "recap",
@@ -189,6 +252,11 @@ export const mcp: VideoScript = {
         "Three things to take away. One: MCP separates host, client and server, with one client per server connection. Two: tools, resources and prompts differ by who decides to invoke them, and that is a security boundary. Three: the 2026-07-28 revision removed the handshake and the session, so every request is self-describing and any instance can serve it. To go further, build the multi-tenant MCP server lab, and test the statelessness yourself by round-robining requests across replicas. Links are in the description.",
       columns: 3,
       at: [0.1, 0.3, 0.52],
+      cues: [
+        "separates host, client and server",
+        "differ by who decides to invoke them",
+        "removed the handshake and the session",
+      ],
       cards: [
         {
           title: "1 · Three roles",

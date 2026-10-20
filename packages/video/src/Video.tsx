@@ -49,6 +49,7 @@ const Body: React.FC<{ scene: Scene }> = ({ scene }) => {
           columns={scene.columns}
           at={scene.at}
           {...(scene.footer ? { footer: scene.footer } : {})}
+          {...(scene.footerAt === undefined ? {} : { footerAt: scene.footerAt })}
         />
       );
     case "anatomy":

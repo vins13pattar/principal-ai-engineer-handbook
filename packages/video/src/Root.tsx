@@ -2,11 +2,13 @@ import React from "react";
 import { Composition } from "remotion";
 import { Video, totalFrames } from "./Video.tsx";
 import { withAudio, type AudioManifest } from "./videos/audio.ts";
+import { withTiming, type TimingManifest } from "./videos/timing.ts";
+import mcpTiming from "./videos/06-mcp.timing.json";
 import mcpAudio from "./videos/06-mcp.audio.json";
 import { mcp } from "./videos/mcp.ts";
 import { size } from "./theme.ts";
 
-const narrated = withAudio(mcp, mcpAudio as AudioManifest);
+const narrated = withTiming(withAudio(mcp, mcpAudio as AudioManifest), mcpTiming as TimingManifest);
 
 /**
  * Two compositions per video: the silent cut that renders anywhere from the script alone, and the

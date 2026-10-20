@@ -11,7 +11,10 @@
     "render": "remotion render src/index.ts",
     "test": "vitest run",
     "check": "tsc --noEmit",
-    "narrate": "node --experimental-strip-types scripts/narrate.ts"
+    "narrate": "node --experimental-strip-types scripts/narrate.ts",
+    "transcribe": "node --experimental-strip-types scripts/transcribe.ts",
+    "captions": "node --experimental-strip-types scripts/captions.ts",
+    "youtube": "node --experimental-strip-types scripts/youtube.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.537",
@@ -31,6 +34,7 @@
     "typescript": "6.0.3",
     "vitest": "4.1.10",
     "@handbook/podcast-engine": "workspace:*",
-    "@handbook/podcast-providers": "workspace:*"
+    "@handbook/podcast-providers": "workspace:*",
+    "@remotion/install-whisper-cpp": "4.0.537"
   }
 }
