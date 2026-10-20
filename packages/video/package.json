@@ -1,0 +1,33 @@
+{
+  "name": "@handbook/video",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Remotion project that renders the Learn module videos from the handbook's own content.",
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "layout": "node --experimental-strip-types scripts/layout-diagrams.ts",
+    "still": "remotion still src/index.ts",
+    "render": "remotion render src/index.ts",
+    "test": "vitest run",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.537",
+    "@remotion/media-utils": "4.0.537",
+    "@remotion/paths": "4.0.537",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "remotion": "4.0.537",
+    "zod": "4.5.4",
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.20.1",
+    "@types/react": "19.3.0",
+    "elkjs": "0.12.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.10"
+  }
+}

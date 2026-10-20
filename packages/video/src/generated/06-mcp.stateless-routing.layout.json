@@ -1,0 +1,335 @@
+{
+  "name": "06-mcp.stateless-routing",
+  "width": 3508,
+  "height": 746,
+  "nodes": [
+    {
+      "id": "Before",
+      "kind": "group",
+      "label": ["2025-11-25: session-bound"],
+      "parent": null,
+      "x": 40,
+      "y": 40,
+      "w": 1261,
+      "h": 666
+    },
+    {
+      "id": "BC",
+      "kind": "node",
+      "label": ["Client"],
+      "parent": "Before",
+      "x": 620,
+      "y": 163,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "BLB",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": "Before",
+      "x": 577,
+      "y": 334,
+      "w": 287,
+      "h": 87
+    },
+    {
+      "id": "BS1",
+      "kind": "node",
+      "label": ["Server instance A", "(holds session state)"],
+      "parent": "Before",
+      "x": 462,
+      "y": 536,
+      "w": 421,
+      "h": 126
+    },
+    {
+      "id": "BS2",
+      "kind": "node",
+      "label": ["Server instance B"],
+      "parent": "Before",
+      "x": 903,
+      "y": 536,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "After",
+      "kind": "group",
+      "label": ["2026-07-28: stateless"],
+      "parent": null,
+      "x": 1965,
+      "y": 54,
+      "w": 1502.5,
+      "h": 637
+    },
+    {
+      "id": "AC",
+      "kind": "node",
+      "label": ["Client"],
+      "parent": "After",
+      "x": 2469,
+      "y": 177,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "ALB",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": "After",
+      "x": 2425,
+      "y": 379,
+      "w": 287,
+      "h": 87
+    },
+    {
+      "id": "AS1",
+      "kind": "node",
+      "label": ["Server instance A"],
+      "parent": "After",
+      "x": 2694,
+      "y": 560,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "AS2",
+      "kind": "node",
+      "label": ["Server instance B"],
+      "parent": "After",
+      "x": 3068,
+      "y": 560,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "AS3",
+      "kind": "node",
+      "label": ["Server instance C"],
+      "parent": "After",
+      "x": 2320,
+      "y": 560,
+      "w": 354,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "BC",
+      "to": "BLB",
+      "path": [
+        {
+          "x": 720,
+          "y": 250
+        },
+        {
+          "x": 720,
+          "y": 334
+        }
+      ],
+      "label": {
+        "lines": ["initialize → session id"],
+        "x": 555,
+        "y": 270,
+        "w": 330,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e2",
+      "from": "BLB",
+      "to": "BS1",
+      "path": [
+        {
+          "x": 673,
+          "y": 421
+        },
+        {
+          "x": 673,
+          "y": 536
+        }
+      ],
+      "label": {
+        "lines": ["every later request must return", "to the same instance"],
+        "x": 454,
+        "y": 441,
+        "w": 437,
+        "h": 75
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e3",
+      "from": "BLB",
+      "to": "BS2",
+      "path": [
+        {
+          "x": 768,
+          "y": 421
+        },
+        {
+          "x": 768,
+          "y": 431
+        },
+        {
+          "x": 1080,
+          "y": 431
+        },
+        {
+          "x": 1080,
+          "y": 536
+        }
+      ],
+      "label": {
+        "lines": ["cannot route here"],
+        "x": 956,
+        "y": 457,
+        "w": 249,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false
+    },
+    {
+      "id": "e4",
+      "from": "AC",
+      "to": "ALB",
+      "path": [
+        {
+          "x": 2569,
+          "y": 264
+        },
+        {
+          "x": 2569,
+          "y": 379
+        }
+      ],
+      "label": {
+        "lines": ["Mcp-Method + Mcp-Name headers", "_meta: version + capabilities"],
+        "x": 2364,
+        "y": 284,
+        "w": 410,
+        "h": 75
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e5",
+      "from": "ALB",
+      "to": "AS1",
+      "path": [
+        {
+          "x": 2569,
+          "y": 466
+        },
+        {
+          "x": 2569,
+          "y": 486
+        },
+        {
+          "x": 2871,
+          "y": 486
+        },
+        {
+          "x": 2871,
+          "y": 560
+        }
+      ],
+      "label": {
+        "lines": ["routes on headers alone"],
+        "x": 2706,
+        "y": 496,
+        "w": 330,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e6",
+      "from": "ALB",
+      "to": "AS2",
+      "path": [
+        {
+          "x": 2641,
+          "y": 466
+        },
+        {
+          "x": 2641,
+          "y": 476
+        },
+        {
+          "x": 3245,
+          "y": 476
+        },
+        {
+          "x": 3245,
+          "y": 560
+        }
+      ],
+      "label": {
+        "lines": ["any instance can serve it"],
+        "x": 3067,
+        "y": 496,
+        "w": 357,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e7",
+      "from": "ALB",
+      "to": "AS3",
+      "path": [
+        {
+          "x": 2497,
+          "y": 466
+        },
+        {
+          "x": 2497,
+          "y": 560
+        }
+      ],
+      "label": {
+        "lines": ["no affinity required"],
+        "x": 2353,
+        "y": 496,
+        "w": 289,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false
+    },
+    {
+      "id": "e8",
+      "from": "Before",
+      "to": "After",
+      "path": [
+        {
+          "x": 1301,
+          "y": 373
+        },
+        {
+          "x": 1965,
+          "y": 373
+        }
+      ],
+      "label": {
+        "lines": ["removing the handshake removes", "the affinity requirement"],
+        "x": 1421,
+        "y": 335,
+        "w": 424,
+        "h": 75
+      },
+      "dashed": true,
+      "bidirectional": false
+    }
+  ]
+}

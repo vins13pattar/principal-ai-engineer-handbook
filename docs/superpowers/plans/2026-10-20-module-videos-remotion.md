@@ -1,7 +1,9 @@
 # Module videos with Remotion — plan
 
-> **Status:** planned, not started. Nothing below exists in the repo yet. This is a plan at the level
-> of format, architecture, and phases; each phase gets its own task-level plan when it starts.
+> **Status:** in progress. Phases 0–1 are built for module 6 as a pilot (`packages/video`): the
+> Mermaid → ELK → animated-diagram path works, and a silent, estimated-timing cut of the module 6
+> video renders. Narration, timestamps, QA, and publishing are not built. See
+> [Status and findings](#status-and-findings).
 
 **Goal:** One short, narrated, diagram-driven video for each of the sixteen Learn modules, rendered
 at the highest quality we can sustain, produced as code so it can be re-rendered when a module
@@ -18,21 +20,21 @@ matching is an inference, and the pilot below is how we check it.
 
 ## Decisions already made
 
-| Decision       | Choice                                                                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Video engine   | [Remotion](https://www.remotion.dev/docs) — React components rendered to video                                                                                          |
-| License        | Remotion's Free License: individuals and companies of up to 3 people, all features, unlimited commercial use. **Terms apply, and we must upgrade if the organization grows.** |
-| Source of truth | The handbook pages and their `.mmd` diagrams. Videos are derived, never hand-edited.                                                                                    |
-| Format         | 5–8 minute explainer per module, animated diagrams, voice-over, burned-in or sidecar captions                                                                            |
+| Decision        | Choice                                                                                                                                                                        |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Video engine    | [Remotion](https://www.remotion.dev/docs) — React components rendered to video                                                                                                |
+| License         | Remotion's Free License: individuals and companies of up to 3 people, all features, unlimited commercial use. **Terms apply, and we must upgrade if the organization grows.** |
+| Source of truth | The handbook pages and their `.mmd` diagrams. Videos are derived, never hand-edited.                                                                                          |
+| Format          | 5–8 minute explainer per module, animated diagrams, voice-over, burned-in or sidecar captions                                                                                 |
 
 ## Open decisions
 
-| Decision          | Options                                                                    | Recommendation                                                                                                              |
-| ----------------- | -------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Narration voice   | Local Kokoro (free, already wired), or a premium TTS or a human recording  | Pilot with Kokoro, then A/B one module against a premium voice. "Highest quality" is limited more by the voice than the picture. |
-| Master resolution | 1080p, or 4K                                                               | Compose at 1920×1080 and render at `--scale=2` for a 3840×2160 master. Publish 1080p and 4K from the same composition.       |
-| Hosting           | Cloudflare Stream or R2, or YouTube embeds                                 | R2 with an HLS ladder if we want no third-party player. YouTube if reach matters more than control.                          |
-| Pilot module      | Any                                                                        | Module 6 (MCP): two diagrams, an existing episode to compare against, and a measured 17.8 minutes of prose to condense.      |
+| Decision          | Options                                                                                                     | Recommendation                                                                                                                                         |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Narration voice   | Local Kokoro (free, already wired), a clone of the author's own voice through VoiceStudio, or a premium TTS | Pilot with Kokoro. A/B it against a VoiceStudio clone of the author's voice, which needs a clean 1–2 minute recording and a read of its model licence. |
+| Master resolution | 1080p, or 4K                                                                                                | Compose at 1920×1080 and render at `--scale=2` for a 3840×2160 master. Publish 1080p and 4K from the same composition.                                 |
+| Hosting           | **Decided: YouTube**, on the Atlas of Engineering channel, with one playlist per series                     | The handbook is the first playlist. Videos are embedded on module pages with the privacy-enhanced embed.                                               |
+| Pilot module      | Any                                                                                                         | Module 6 (MCP): two diagrams, an existing episode to compare against, and a measured 17.8 minutes of prose to condense.                                |
 
 ## Quality bar
 
@@ -127,15 +129,15 @@ the fallback is hand-built scenes for the modules that need them, which costs mo
 
 A small set of reusable scenes, so sixteen videos look like one series:
 
-| Scene            | Use                                                              |
-| ---------------- | ---------------------------------------------------------------- |
-| Cold open        | The problem in one sentence over a stripped-down visual          |
-| Diagram build    | The main scene: step-by-step reveal, camera, highlighted path    |
-| Failure replay   | A request or message animated along the diagram until it fails   |
-| Trade-off        | Two options side by side with the deciding constraint called out |
-| Code focus       | Syntax-highlighted excerpt with line-range emphasis              |
-| Lab screencast   | A recorded terminal run, trimmed and captioned                   |
-| Recap            | Three takeaways and the link to the lab and interview questions  |
+| Scene          | Use                                                              |
+| -------------- | ---------------------------------------------------------------- |
+| Cold open      | The problem in one sentence over a stripped-down visual          |
+| Diagram build  | The main scene: step-by-step reveal, camera, highlighted path    |
+| Failure replay | A request or message animated along the diagram until it fails   |
+| Trade-off      | Two options side by side with the deciding constraint called out |
+| Code focus     | Syntax-highlighted excerpt with line-range emphasis              |
+| Lab screencast | A recorded terminal run, trimmed and captioned                   |
+| Recap          | Three takeaways and the link to the lab and interview questions  |
 
 Lab screencasts are recorded deterministically with a terminal-recording tool (VHS or asciinema)
 from a script, so they can be regenerated, then embedded with Remotion's video components.
@@ -183,19 +185,50 @@ render in the background.
 Re-render is one command. Re-measure watch time by chapter once there is data, and cut where
 viewers leave.
 
+## Status and findings
+
+Built for module 6 (MCP) as the pilot, in `packages/video`:
+
+- Remotion 4 project, brand tokens, fonts bundled with the project (no network fetch at render),
+  one shared motion language, and a scene library: fan-out, diagram build, cards, request anatomy,
+  and compare.
+- `scripts/layout-diagrams.ts` turns the module's `.mmd` files into fixed positions with ELK, so
+  diagram edits flow into the video. Tests cover the Mermaid subset parser.
+- `src/videos/mcp.ts` holds the module 6 script: eight scenes, 830 words of narration, an estimated
+  5:23 until real audio is measured.
+
+What the pilot showed:
+
+- **Auto layout works, with three fixes it needed:** wrap long group titles, put edge labels inline
+  on their edge, and let a step frame the camera on something other than what is bright. The
+  stateless diagram also wants a per-diagram override to lay out side by side instead of stacked.
+- **Camera framing carries readability.** Whole diagrams are too small to read at 1080p; stepwise
+  zoom keeps text well above the size floor.
+- **Render speed:** about 8 frames per second at 1080p in this container, which projects to roughly
+  20 minutes for the module 6 cut. 4K is not yet measured.
+- **Output format:** the config renders 10-bit H.264 to avoid banding in the dark gradients. Some
+  players, including QuickTime, may not play 10-bit H.264; YouTube accepts it. Confirm on your
+  machine, and switch the pixel format to `yuv420p` if you need a file that plays everywhere.
+- **Environment:** the cloud container renders with the Playwright headless shell
+  (`--browser-executable` plus `--chrome-mode=headless-shell`). Narration and the final render are
+  meant to run on the author's Mac.
+
+Not built yet: narration audio, word timestamps and captions, per-scene audio sync, a 4K render
+measurement, the YouTube upload path, and the `check:videos` gate.
+
 ## Risks
 
-| Risk                                                                                  | Mitigation                                                                                      |
-| ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| Auto-laid-out diagrams look worse than hand-built ones                                | Per-diagram position overrides; fall back to hand-built scenes for the few that need them        |
-| Narration quality limits the whole series                                             | A/B a premium voice in the pilot before committing sixteen videos to Kokoro                      |
-| 4K at 30–60 fps renders are slow                                                      | Measure in Phase 0; render from a cache of per-scene clips; consider Remotion Lambda or cloud render if needed |
-| Apple-silicon-only narration blocks CI                                                | Keep narration a local, cached step; the render only needs the committed audio hash             |
-| Video drifts from the page after edits                                                | Content hash in the manifest and a `check:videos` gate                                           |
-| Factual errors introduced by script generation                                        | Review stage against the page, then a human edit of every script before narration               |
-| Remotion license terms change, or the organization grows past the Free License limit  | Re-read the license page before each major batch; the compositions are React and portable enough to reconsider |
-| Large files in the repo                                                               | Rendered video is never committed; only manifests and scripts                                    |
-| Synthetic narration                                                                   | Disclose the voice is synthetic on the video page, as the podcast episodes presumably do        |
+| Risk                                                                                 | Mitigation                                                                                                     |
+| ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| Auto-laid-out diagrams look worse than hand-built ones                               | Per-diagram position overrides; fall back to hand-built scenes for the few that need them                      |
+| Narration quality limits the whole series                                            | A/B a premium voice in the pilot before committing sixteen videos to Kokoro                                    |
+| 4K at 30–60 fps renders are slow                                                     | Measure in Phase 0; render from a cache of per-scene clips; consider Remotion Lambda or cloud render if needed |
+| Apple-silicon-only narration blocks CI                                               | Keep narration a local, cached step; the render only needs the committed audio hash                            |
+| Video drifts from the page after edits                                               | Content hash in the manifest and a `check:videos` gate                                                         |
+| Factual errors introduced by script generation                                       | Review stage against the page, then a human edit of every script before narration                              |
+| Remotion license terms change, or the organization grows past the Free License limit | Re-read the license page before each major batch; the compositions are React and portable enough to reconsider |
+| Large files in the repo                                                              | Rendered video is never committed; only manifests and scripts                                                  |
+| Synthetic narration                                                                  | Disclose the voice is synthetic on the video page, as the podcast episodes presumably do                       |
 
 ## Cost
 

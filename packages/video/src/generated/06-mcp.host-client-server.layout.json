@@ -1,0 +1,165 @@
+{
+  "name": "06-mcp.host-client-server",
+  "width": 1905,
+  "height": 608,
+  "nodes": [
+    {
+      "id": "Host",
+      "kind": "group",
+      "label": ["Host application (e.g. an", "IDE or chat client)"],
+      "parent": null,
+      "x": 40,
+      "y": 40,
+      "w": 661,
+      "h": 395
+    },
+    {
+      "id": "C1",
+      "kind": "node",
+      "label": ["Client 1"],
+      "parent": "Host",
+      "x": 454,
+      "y": 197,
+      "w": 203,
+      "h": 87
+    },
+    {
+      "id": "C2",
+      "kind": "node",
+      "label": ["Client 2"],
+      "parent": "Host",
+      "x": 454,
+      "y": 304,
+      "w": 203,
+      "h": 87
+    },
+    {
+      "id": "S1",
+      "kind": "node",
+      "label": ["Server: filesystem", "(exposes Resources)"],
+      "parent": null,
+      "x": 1477,
+      "y": 89,
+      "w": 388,
+      "h": 126
+    },
+    {
+      "id": "S2",
+      "kind": "node",
+      "label": ["Server: GitHub", "(exposes Tools)"],
+      "parent": null,
+      "x": 1477,
+      "y": 285,
+      "w": 321,
+      "h": 126
+    },
+    {
+      "id": "Model",
+      "kind": "node",
+      "label": ["Model"],
+      "parent": null,
+      "x": 1477,
+      "y": 481,
+      "w": 200,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "C1",
+      "to": "S1",
+      "path": [
+        {
+          "x": 657,
+          "y": 241
+        },
+        {
+          "x": 706,
+          "y": 241
+        },
+        {
+          "x": 716,
+          "y": 241
+        },
+        {
+          "x": 716,
+          "y": 152
+        },
+        {
+          "x": 1477,
+          "y": 152
+        }
+      ],
+      "label": {
+        "lines": ["JSON-RPC over stdio"],
+        "x": 954,
+        "y": 129,
+        "w": 276,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": true
+    },
+    {
+      "id": "e2",
+      "from": "C2",
+      "to": "S2",
+      "path": [
+        {
+          "x": 657,
+          "y": 348
+        },
+        {
+          "x": 706,
+          "y": 348
+        },
+        {
+          "x": 1477,
+          "y": 348
+        }
+      ],
+      "label": {
+        "lines": ["JSON-RPC over Streamable HTTP"],
+        "x": 887,
+        "y": 325,
+        "w": 410,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": true
+    },
+    {
+      "id": "e3",
+      "from": "Host",
+      "to": "Model",
+      "path": [
+        {
+          "x": 701,
+          "y": 358
+        },
+        {
+          "x": 716,
+          "y": 358
+        },
+        {
+          "x": 716,
+          "y": 525
+        },
+        {
+          "x": 1477,
+          "y": 525
+        }
+      ],
+      "label": {
+        "lines": ["aggregated tools + resources + prompts"],
+        "x": 826,
+        "y": 502,
+        "w": 531,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false
+    }
+  ]
+}
