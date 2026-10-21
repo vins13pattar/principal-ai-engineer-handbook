@@ -1,0 +1,714 @@
+{
+  "name": "13-system-design.design-method",
+  "width": 4058,
+  "height": 1763,
+  "nodes": [
+    {
+      "id": "START",
+      "kind": "node",
+      "label": ["New AI system"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 2734,
+      "y": 1057,
+      "w": 319,
+      "h": 87
+    },
+    {
+      "id": "CONSTRAINTS",
+      "kind": "node",
+      "label": [
+        "Establish constraints",
+        "volume, latency, correctness,",
+        "data boundary, cost per call"
+      ],
+      "parent": null,
+      "shape": "box",
+      "x": 2523,
+      "y": 1314,
+      "w": 556,
+      "h": 165
+    },
+    {
+      "id": "WORKLOAD",
+      "kind": "node",
+      "label": [
+        "Characterize the workload",
+        "arrival shape, payload size,",
+        "read/write mix, tail sensitivity"
+      ],
+      "parent": null,
+      "shape": "box",
+      "x": 3412,
+      "y": 348,
+      "w": 606,
+      "h": 165
+    },
+    {
+      "id": "CAPACITY",
+      "kind": "node",
+      "label": ["Model capacity and cost", "Little's Law, tokens per call,", "dominant cost line"],
+      "parent": null,
+      "shape": "box",
+      "x": 3180,
+      "y": 683,
+      "w": 573,
+      "h": 165
+    },
+    {
+      "id": "HARD",
+      "kind": "node",
+      "label": ["Which decision is", "hardest to reverse?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 108,
+      "y": 351,
+      "w": 440,
+      "h": 162
+    },
+    {
+      "id": "DATA",
+      "kind": "node",
+      "label": ["Data boundary", "and permission model"],
+      "parent": null,
+      "shape": "box",
+      "x": 81,
+      "y": 703,
+      "w": 405,
+      "h": 126
+    },
+    {
+      "id": "STATE",
+      "kind": "node",
+      "label": ["State ownership", "and durability"],
+      "parent": null,
+      "shape": "box",
+      "x": 556,
+      "y": 703,
+      "w": 321,
+      "h": 126
+    },
+    {
+      "id": "CONTRACT",
+      "kind": "node",
+      "label": ["External contract", "and versioning"],
+      "parent": null,
+      "shape": "box",
+      "x": 947,
+      "y": 703,
+      "w": 354,
+      "h": 126
+    },
+    {
+      "id": "DECOMPOSE",
+      "kind": "node",
+      "label": ["Decompose into components", "with one owner each"],
+      "parent": null,
+      "shape": "box",
+      "x": 472,
+      "y": 1018,
+      "w": 489,
+      "h": 126
+    },
+    {
+      "id": "EVAL",
+      "kind": "node",
+      "label": ["Define the quality signal", "eval set, thresholds,", "regression gate"],
+      "parent": null,
+      "shape": "box",
+      "x": 472,
+      "y": 1314,
+      "w": 489,
+      "h": 165
+    },
+    {
+      "id": "OBSERVE",
+      "kind": "node",
+      "label": ["Define the operational signal", "SLOs, burn rate, cost per request"],
+      "parent": null,
+      "shape": "box",
+      "x": 1413,
+      "y": 368,
+      "w": 623,
+      "h": 126
+    },
+    {
+      "id": "REVERSIBLE",
+      "kind": "node",
+      "label": ["Reversible", "within one deploy?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 1513,
+      "y": 685,
+      "w": 423,
+      "h": 162
+    },
+    {
+      "id": "SHIP",
+      "kind": "node",
+      "label": ["Ship behind a flag", "and measure"],
+      "parent": null,
+      "shape": "box",
+      "x": 2181,
+      "y": 361,
+      "w": 371,
+      "h": 126
+    },
+    {
+      "id": "EVIDENCE",
+      "kind": "node",
+      "label": ["Name the evidence that", "would change the decision"],
+      "parent": null,
+      "shape": "box",
+      "x": 1550,
+      "y": 1334,
+      "w": 489,
+      "h": 126
+    },
+    {
+      "id": "MEASURE",
+      "kind": "node",
+      "label": ["Compare against the", "declared thresholds"],
+      "parent": null,
+      "shape": "box",
+      "x": 2173,
+      "y": 709,
+      "w": 388,
+      "h": 126
+    },
+    {
+      "id": "DONE",
+      "kind": "node",
+      "label": ["Design holds"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 2151,
+      "y": 1314,
+      "w": 302,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "START",
+      "to": "CONSTRAINTS",
+      "path": [
+        {
+          "x": 2894,
+          "y": 1144
+        },
+        {
+          "x": 2894,
+          "y": 1314
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "CONSTRAINTS",
+      "to": "WORKLOAD",
+      "path": [
+        {
+          "x": 2801,
+          "y": 1479
+        },
+        {
+          "x": 2801,
+          "y": 1659
+        },
+        {
+          "x": 3129,
+          "y": 1659
+        },
+        {
+          "x": 3129,
+          "y": 168
+        },
+        {
+          "x": 3715,
+          "y": 168
+        },
+        {
+          "x": 3715,
+          "y": 348
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "WORKLOAD",
+      "to": "CAPACITY",
+      "path": [
+        {
+          "x": 3715,
+          "y": 513
+        },
+        {
+          "x": 3715,
+          "y": 523
+        },
+        {
+          "x": 3562,
+          "y": 523
+        },
+        {
+          "x": 3562,
+          "y": 683
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "CAPACITY",
+      "to": "HARD",
+      "path": [
+        {
+          "x": 3371,
+          "y": 683
+        },
+        {
+          "x": 3371,
+          "y": 40
+        },
+        {
+          "x": 1362,
+          "y": 40
+        },
+        {
+          "x": 1362,
+          "y": 1723
+        },
+        {
+          "x": 40,
+          "y": 1723
+        },
+        {
+          "x": 40,
+          "y": 523
+        },
+        {
+          "x": 196,
+          "y": 523
+        },
+        {
+          "x": 196,
+          "y": 513
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "HARD",
+      "to": "DATA",
+      "path": [
+        {
+          "x": 284,
+          "y": 513
+        },
+        {
+          "x": 284,
+          "y": 703
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "HARD",
+      "to": "STATE",
+      "path": [
+        {
+          "x": 372,
+          "y": 513
+        },
+        {
+          "x": 372,
+          "y": 587
+        },
+        {
+          "x": 717,
+          "y": 587
+        },
+        {
+          "x": 717,
+          "y": 703
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "HARD",
+      "to": "CONTRACT",
+      "path": [
+        {
+          "x": 460,
+          "y": 513
+        },
+        {
+          "x": 460,
+          "y": 523
+        },
+        {
+          "x": 1124,
+          "y": 523
+        },
+        {
+          "x": 1124,
+          "y": 703
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "DATA",
+      "to": "DECOMPOSE",
+      "path": [
+        {
+          "x": 284,
+          "y": 829
+        },
+        {
+          "x": 284,
+          "y": 858
+        },
+        {
+          "x": 594,
+          "y": 858
+        },
+        {
+          "x": 594,
+          "y": 1018
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "STATE",
+      "to": "DECOMPOSE",
+      "path": [
+        {
+          "x": 717,
+          "y": 829
+        },
+        {
+          "x": 717,
+          "y": 1018
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "CONTRACT",
+      "to": "DECOMPOSE",
+      "path": [
+        {
+          "x": 1124,
+          "y": 829
+        },
+        {
+          "x": 1124,
+          "y": 858
+        },
+        {
+          "x": 839,
+          "y": 858
+        },
+        {
+          "x": 839,
+          "y": 1018
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "DECOMPOSE",
+      "to": "EVAL",
+      "path": [
+        {
+          "x": 717,
+          "y": 1144
+        },
+        {
+          "x": 717,
+          "y": 1314
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "EVAL",
+      "to": "OBSERVE",
+      "path": [
+        {
+          "x": 717,
+          "y": 1479
+        },
+        {
+          "x": 717,
+          "y": 1659
+        },
+        {
+          "x": 1351,
+          "y": 1659
+        },
+        {
+          "x": 1351,
+          "y": 168
+        },
+        {
+          "x": 1725,
+          "y": 168
+        },
+        {
+          "x": 1725,
+          "y": 368
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e13",
+      "from": "OBSERVE",
+      "to": "REVERSIBLE",
+      "path": [
+        {
+          "x": 1725,
+          "y": 494
+        },
+        {
+          "x": 1725,
+          "y": 685
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e14",
+      "from": "REVERSIBLE",
+      "to": "SHIP",
+      "path": [
+        {
+          "x": 1654,
+          "y": 847
+        },
+        {
+          "x": 1654,
+          "y": 858
+        },
+        {
+          "x": 1509,
+          "y": 858
+        },
+        {
+          "x": 1561,
+          "y": 1597
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 1478,
+        "y": 1059,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e15",
+      "from": "REVERSIBLE",
+      "to": "EVIDENCE",
+      "path": [
+        {
+          "x": 1795,
+          "y": 847
+        },
+        {
+          "x": 1795,
+          "y": 1334
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 1771,
+        "y": 1059,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e16",
+      "from": "EVIDENCE",
+      "to": "SHIP",
+      "path": [
+        {
+          "x": 1795,
+          "y": 1460
+        },
+        {
+          "x": 1795,
+          "y": 1659
+        },
+        {
+          "x": 2089,
+          "y": 1659
+        },
+        {
+          "x": 2089,
+          "y": 104
+        },
+        {
+          "x": 2428,
+          "y": 104
+        },
+        {
+          "x": 2428,
+          "y": 361
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e17",
+      "from": "SHIP",
+      "to": "MEASURE",
+      "path": [
+        {
+          "x": 2367,
+          "y": 487
+        },
+        {
+          "x": 2367,
+          "y": 709
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e18",
+      "from": "MEASURE",
+      "to": "DONE",
+      "path": [
+        {
+          "x": 2302,
+          "y": 835
+        },
+        {
+          "x": 2302,
+          "y": 1314
+        }
+      ],
+      "label": {
+        "lines": ["Within budget"],
+        "x": 2204,
+        "y": 1059,
+        "w": 195,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e19",
+      "from": "MEASURE",
+      "to": "CONSTRAINTS",
+      "path": [
+        {
+          "x": 2432,
+          "y": 835
+        },
+        {
+          "x": 2432,
+          "y": 858
+        },
+        {
+          "x": 2514,
+          "y": 858
+        },
+        {
+          "x": 2514,
+          "y": 1154
+        },
+        {
+          "x": 2708,
+          "y": 1154
+        },
+        {
+          "x": 2708,
+          "y": 1314
+        }
+      ],
+      "label": {
+        "lines": ["Outside budget"],
+        "x": 2409,
+        "y": 1059,
+        "w": 209,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

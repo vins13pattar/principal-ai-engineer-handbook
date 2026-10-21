@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mcp } from "./mcp.ts";
+import { mcp } from "./06-mcp.ts";
 import { spokenText } from "./speech.ts";
 import {
   alignWords,
@@ -23,7 +23,9 @@ function spoken(scene: Scene): Word[] {
 }
 
 function cuesOf(scene: Scene): string[] {
-  if (scene.kind === "diagram") return scene.steps.flatMap((s) => (s.cue ? [s.cue] : []));
+  if (scene.kind === "diagram" || scene.kind === "sequence") {
+    return scene.steps.flatMap((s) => (s.cue ? [s.cue] : []));
+  }
   return scene.beats.flatMap((b) => (b.cue ? [b.cue] : []));
 }
 

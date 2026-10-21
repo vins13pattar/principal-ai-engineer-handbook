@@ -62,7 +62,7 @@ export const mcp: VideoScript = {
     {
       id: "roles",
       kind: "diagram",
-      layout: "hostClientServer",
+      layout: "06-mcp.host-client-server",
       headline: "One client per server",
       narration:
         "MCP splits the system into three roles, and the split is the whole design. The host is the application running the conversation, an IDE or a chat client. Inside it, a client manages the connection to exactly one server. A server is a separate process exposing capabilities, and the guidance is one small, focused server per integration. Here the filesystem server speaks JSON-RPC over stdio, while the GitHub server speaks it over Streamable HTTP, so nothing forces every server onto the same transport. Because each connection is its own client, a misbehaving server only affects its own client, not the whole host. The host then aggregates everything, tools, resources and prompts, into one context for the model.",
@@ -107,7 +107,7 @@ export const mcp: VideoScript = {
     {
       id: "stateless",
       kind: "diagram",
-      layout: "statelessRouting",
+      layout: "06-mcp.stateless-routing",
       headline: "Removing the handshake",
       narration:
         "Now the change. Under the previous revision, a connection began with an initialize handshake and a session ID. Every later request had to return to the same server instance, because that instance held the session state. So the load balancer needed sticky routing, and instance B could never pick up where A left off. That is the exact lesson of Module 2 about state ownership, arriving as a protocol redesign. The 2026-07-28 revision removes the handshake and the session. Every request now carries what the server needs, so the load balancer can route on headers alone, and any instance can serve any request. Rolling deploys get easier, and there is no session store to operate or leak.",
@@ -190,20 +190,40 @@ export const mcp: VideoScript = {
       headline: "Where it breaks",
       narration:
         "Four failure modes are worth knowing. Tool poisoning: a server writes a tool description that manipulates the model, and descriptions are part of the model's context. Trusting model arguments: validate every tools slash call against your own schema, always. Trusting headers without checking the body: a server that never verifies Mcp-Method and Mcp-Name against the body lets a caller route a request as a cheap operation while executing an expensive one, and the specification requires servers to reject disagreement. And session assumptions carried into a stateless server: a cached identity or capability set that works on one replica in development, then fails intermittently behind a load balancer in production.",
+      map: {
+        regions: [{ title: "Server instance", x: 1034, y: 82, w: 694, h: 366 }],
+        places: [
+          { id: "model", label: ["Model"], x: 0, y: 226, w: 210, h: 90 },
+          { id: "host", label: ["Host", "with clients"], x: 294, y: 226, w: 250, h: 90 },
+          { id: "lb", label: ["Load balancer"], x: 644, y: 226, w: 250, h: 90 },
+          { id: "desc", label: ["tool descriptions"], x: 1064, y: 146, w: 634, h: 70 },
+          { id: "call", label: ["tools/call handler"], x: 1064, y: 246, w: 634, h: 70 },
+          { id: "state", label: ["cached session state"], x: 1064, y: 346, w: 634, h: 70 },
+        ],
+        links: [
+          { from: "model", to: "host", arrow: "both" },
+          { from: "host", to: "lb", arrow: "both" },
+          { from: "lb", to: "call", arrow: "both" },
+        ],
+      },
       hazards: [
         {
+          at: "desc",
           title: "Tool poisoning",
           body: "A server can write a description that steers the model beyond what the tool does.",
         },
         {
+          at: "call",
           title: "Trusting model arguments",
           body: "Validate every tools/call against your own schema, always.",
         },
         {
+          at: "lb",
           title: "Headers that disagree with the body",
           body: "Route as a cheap call, execute an expensive one. The specification requires rejection.",
         },
         {
+          at: "state",
           title: "Session assumptions",
           body: "Cached identity or capabilities work on one replica, then fail behind a load balancer.",
         },

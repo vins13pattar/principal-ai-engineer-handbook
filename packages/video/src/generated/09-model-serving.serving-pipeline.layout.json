@@ -1,0 +1,453 @@
+{
+  "name": "09-model-serving.serving-pipeline",
+  "width": 3006,
+  "height": 2140,
+  "nodes": [
+    {
+      "id": "Fleet",
+      "kind": "group",
+      "label": ["Autoscaled fleet"],
+      "parent": null,
+      "shape": "box",
+      "x": 80,
+      "y": 816,
+      "w": 2886,
+      "h": 808
+    },
+    {
+      "id": "GPU",
+      "kind": "group",
+      "label": ["Model server (single GPU /", "replica)"],
+      "parent": "Fleet",
+      "shape": "box",
+      "x": 362,
+      "y": 944,
+      "w": 1576,
+      "h": 631
+    },
+    {
+      "id": "Prefill",
+      "kind": "node",
+      "label": ["Prefill: process full prompt (compute-bound)"],
+      "parent": "GPU",
+      "shape": "box",
+      "x": 973,
+      "y": 1101,
+      "w": 808,
+      "h": 87
+    },
+    {
+      "id": "KV",
+      "kind": "node",
+      "label": ["KV cache"],
+      "parent": "GPU",
+      "shape": "store",
+      "x": 1257,
+      "y": 1208,
+      "w": 240,
+      "h": 109
+    },
+    {
+      "id": "Decode",
+      "kind": "node",
+      "label": ["Decode: generate one token at a time (memory-bandwidth-bound)"],
+      "parent": "GPU",
+      "shape": "box",
+      "x": 790,
+      "y": 1337,
+      "w": 1093,
+      "h": 87
+    },
+    {
+      "id": "Out",
+      "kind": "node",
+      "label": ["Stream tokens to caller"],
+      "parent": "GPU",
+      "shape": "box",
+      "x": 1291,
+      "y": 1444,
+      "w": 455,
+      "h": 87
+    },
+    {
+      "id": "GPU2",
+      "kind": "node",
+      "label": ["Model server (replica 2)"],
+      "parent": "Fleet",
+      "shape": "box",
+      "x": 2450,
+      "y": 944,
+      "w": 472,
+      "h": 87
+    },
+    {
+      "id": "GPUN",
+      "kind": "node",
+      "label": ["Model server (replica N)"],
+      "parent": "Fleet",
+      "shape": "box",
+      "x": 1958,
+      "y": 944,
+      "w": 472,
+      "h": 87
+    },
+    {
+      "id": "Req",
+      "kind": "node",
+      "label": ["Incoming requests"],
+      "parent": null,
+      "shape": "box",
+      "x": 1958,
+      "y": 40,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "Sched",
+      "kind": "node",
+      "label": ["Continuous batching scheduler"],
+      "parent": null,
+      "shape": "box",
+      "x": 964,
+      "y": 297,
+      "w": 556,
+      "h": 87
+    },
+    {
+      "id": "Evict",
+      "kind": "node",
+      "label": ["Preempt / reject"],
+      "parent": null,
+      "shape": "box",
+      "x": 1724,
+      "y": 2013,
+      "w": 337,
+      "h": 87
+    },
+    {
+      "id": "LB",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": null,
+      "shape": "box",
+      "x": 2050,
+      "y": 554,
+      "w": 287,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Req",
+      "to": "Sched",
+      "path": [
+        {
+          "x": 2076,
+          "y": 127
+        },
+        {
+          "x": 2076,
+          "y": 137
+        },
+        {
+          "x": 1242,
+          "y": 137
+        },
+        {
+          "x": 1242,
+          "y": 297
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Sched",
+      "to": "Prefill",
+      "path": [
+        {
+          "x": 1242,
+          "y": 384
+        },
+        {
+          "x": 1242,
+          "y": 811
+        },
+        {
+          "x": 1242,
+          "y": 1101
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Prefill",
+      "to": "KV",
+      "path": [
+        {
+          "x": 1377,
+          "y": 1188
+        },
+        {
+          "x": 1377,
+          "y": 1208
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "KV",
+      "to": "Decode",
+      "path": [
+        {
+          "x": 1337,
+          "y": 1317
+        },
+        {
+          "x": 1337,
+          "y": 1337
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Decode",
+      "to": "Sched",
+      "path": [
+        {
+          "x": 1154,
+          "y": 1424
+        },
+        {
+          "x": 1154,
+          "y": 1629
+        },
+        {
+          "x": 1154,
+          "y": 1639
+        },
+        {
+          "x": 40,
+          "y": 1639
+        },
+        {
+          "x": 40,
+          "y": 394
+        },
+        {
+          "x": 1103,
+          "y": 394
+        },
+        {
+          "x": 1103,
+          "y": 384
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Decode",
+      "to": "Out",
+      "path": [
+        {
+          "x": 1519,
+          "y": 1424
+        },
+        {
+          "x": 1519,
+          "y": 1444
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Sched",
+      "to": "Prefill",
+      "path": [
+        {
+          "x": 1381,
+          "y": 384
+        },
+        {
+          "x": 1381,
+          "y": 394
+        },
+        {
+          "x": 1511,
+          "y": 394
+        },
+        {
+          "x": 1511,
+          "y": 811
+        },
+        {
+          "x": 1511,
+          "y": 1101
+        }
+      ],
+      "label": {
+        "lines": ["new request joins mid-batch"],
+        "x": 1319,
+        "y": 576,
+        "w": 383,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "KV",
+      "to": "Evict",
+      "path": [
+        {
+          "x": 1417,
+          "y": 1317
+        },
+        {
+          "x": 1417,
+          "y": 1327
+        },
+        {
+          "x": 1893,
+          "y": 1327
+        },
+        {
+          "x": 1893,
+          "y": 2013
+        }
+      ],
+      "label": {
+        "lines": ["evicted under memory pressure"],
+        "x": 1688,
+        "y": 1799,
+        "w": 410,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "LB",
+      "to": "GPU",
+      "path": [
+        {
+          "x": 2122,
+          "y": 641
+        },
+        {
+          "x": 2122,
+          "y": 651
+        },
+        {
+          "x": 1521,
+          "y": 651
+        },
+        {
+          "x": 1521,
+          "y": 811
+        },
+        {
+          "x": 1521,
+          "y": 944
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "LB",
+      "to": "GPU2",
+      "path": [
+        {
+          "x": 2265,
+          "y": 641
+        },
+        {
+          "x": 2265,
+          "y": 651
+        },
+        {
+          "x": 2686,
+          "y": 651
+        },
+        {
+          "x": 2686,
+          "y": 944
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "LB",
+      "to": "GPUN",
+      "path": [
+        {
+          "x": 2194,
+          "y": 641
+        },
+        {
+          "x": 2194,
+          "y": 944
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "Req",
+      "to": "LB",
+      "path": [
+        {
+          "x": 2194,
+          "y": 127
+        },
+        {
+          "x": 2194,
+          "y": 554
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

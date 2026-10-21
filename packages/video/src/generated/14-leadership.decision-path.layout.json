@@ -1,0 +1,678 @@
+{
+  "name": "14-leadership.decision-path",
+  "width": 6882,
+  "height": 696,
+  "nodes": [
+    {
+      "id": "SIGNAL",
+      "kind": "node",
+      "label": ["A problem surfaces", "incident, cost spike, blocked team"],
+      "parent": null,
+      "shape": "box",
+      "x": 583,
+      "y": 530,
+      "w": 640,
+      "h": 126
+    },
+    {
+      "id": "FRAME",
+      "kind": "node",
+      "label": ["Frame it as a decision", "what question needs answering"],
+      "parent": null,
+      "shape": "box",
+      "x": 1393,
+      "y": 530,
+      "w": 556,
+      "h": 126
+    },
+    {
+      "id": "REVERSIBLE",
+      "kind": "node",
+      "label": ["Reversible in", "one deploy?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 2119,
+      "y": 479,
+      "w": 339,
+      "h": 162
+    },
+    {
+      "id": "OWNER",
+      "kind": "node",
+      "label": ["The team closest to it decides", "no review, no meeting"],
+      "parent": null,
+      "shape": "box",
+      "x": 3320,
+      "y": 436,
+      "w": 573,
+      "h": 126
+    },
+    {
+      "id": "SHIP",
+      "kind": "node",
+      "label": ["Ship and measure"],
+      "parent": null,
+      "shape": "box",
+      "x": 4063,
+      "y": 422,
+      "w": 337,
+      "h": 87
+    },
+    {
+      "id": "WRITE",
+      "kind": "node",
+      "label": ["Write it down", "context, options, cost of each"],
+      "parent": null,
+      "shape": "box",
+      "x": 5510,
+      "y": 253,
+      "w": 573,
+      "h": 126
+    },
+    {
+      "id": "CIRCULATE",
+      "kind": "node",
+      "label": ["Circulate for written objection", "async, timeboxed"],
+      "parent": null,
+      "shape": "box",
+      "x": 6253,
+      "y": 40,
+      "w": 589,
+      "h": 126
+    },
+    {
+      "id": "DISAGREE",
+      "kind": "node",
+      "label": ["Objection", "on constraints", "or conclusions?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 40,
+      "y": 161,
+      "w": 373,
+      "h": 201
+    },
+    {
+      "id": "RESOLVE",
+      "kind": "node",
+      "label": ["Resolve the constraint first", "most arguments end here"],
+      "parent": null,
+      "shape": "box",
+      "x": 4570,
+      "y": 189,
+      "w": 539,
+      "h": 126
+    },
+    {
+      "id": "EVIDENCE",
+      "kind": "node",
+      "label": ["Name the evidence that", "would settle it, and its cost"],
+      "parent": null,
+      "shape": "box",
+      "x": 1393,
+      "y": 219,
+      "w": 556,
+      "h": 126
+    },
+    {
+      "id": "DECIDE",
+      "kind": "node",
+      "label": ["Decide and record", "including what was rejected"],
+      "parent": null,
+      "shape": "box",
+      "x": 2628,
+      "y": 240,
+      "w": 522,
+      "h": 126
+    },
+    {
+      "id": "SPIKE",
+      "kind": "node",
+      "label": ["Timeboxed spike"],
+      "parent": null,
+      "shape": "box",
+      "x": 2128,
+      "y": 238,
+      "w": 321,
+      "h": 87
+    },
+    {
+      "id": "ENFORCE",
+      "kind": "node",
+      "label": ["Encode it in a mechanism", "linter, test, review gate"],
+      "parent": null,
+      "shape": "box",
+      "x": 3362,
+      "y": 240,
+      "w": 489,
+      "h": 126
+    },
+    {
+      "id": "REVISIT",
+      "kind": "node",
+      "label": ["Evidence contradicts", "the record?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 4625,
+      "y": 385,
+      "w": 457,
+      "h": 162
+    },
+    {
+      "id": "HOLD",
+      "kind": "node",
+      "label": ["Decision holds"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 5510,
+      "y": 449,
+      "w": 336,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "SIGNAL",
+      "to": "FRAME",
+      "path": [
+        {
+          "x": 1223,
+          "y": 593
+        },
+        {
+          "x": 1393,
+          "y": 593
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "FRAME",
+      "to": "REVERSIBLE",
+      "path": [
+        {
+          "x": 1949,
+          "y": 593
+        },
+        {
+          "x": 1959,
+          "y": 593
+        },
+        {
+          "x": 1959,
+          "y": 560
+        },
+        {
+          "x": 2119,
+          "y": 560
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "REVERSIBLE",
+      "to": "OWNER",
+      "path": [
+        {
+          "x": 2458,
+          "y": 533
+        },
+        {
+          "x": 2468,
+          "y": 533
+        },
+        {
+          "x": 2468,
+          "y": 499
+        },
+        {
+          "x": 3320,
+          "y": 499
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 2859,
+        "y": 476,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "OWNER",
+      "to": "SHIP",
+      "path": [
+        {
+          "x": 3893,
+          "y": 499
+        },
+        {
+          "x": 3903,
+          "y": 499
+        },
+        {
+          "x": 3903,
+          "y": 480
+        },
+        {
+          "x": 4063,
+          "y": 480
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "REVERSIBLE",
+      "to": "WRITE",
+      "path": [
+        {
+          "x": 2458,
+          "y": 587
+        },
+        {
+          "x": 2468,
+          "y": 587
+        },
+        {
+          "x": 2468,
+          "y": 602
+        },
+        {
+          "x": 5414,
+          "y": 602
+        },
+        {
+          "x": 5414,
+          "y": 348
+        },
+        {
+          "x": 5510,
+          "y": 348
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 4208,
+        "y": 579,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "WRITE",
+      "to": "CIRCULATE",
+      "path": [
+        {
+          "x": 6083,
+          "y": 316
+        },
+        {
+          "x": 6093,
+          "y": 316
+        },
+        {
+          "x": 6093,
+          "y": 124
+        },
+        {
+          "x": 6253,
+          "y": 124
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "CIRCULATE",
+      "to": "DISAGREE",
+      "path": [
+        {
+          "x": 6253,
+          "y": 82
+        },
+        {
+          "x": 423,
+          "y": 82
+        },
+        {
+          "x": 423,
+          "y": 201
+        },
+        {
+          "x": 413,
+          "y": 201
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "DISAGREE",
+      "to": "RESOLVE",
+      "path": [
+        {
+          "x": 413,
+          "y": 241
+        },
+        {
+          "x": 487,
+          "y": 241
+        },
+        {
+          "x": 487,
+          "y": 146
+        },
+        {
+          "x": 4410,
+          "y": 146
+        },
+        {
+          "x": 4410,
+          "y": 252
+        },
+        {
+          "x": 4570,
+          "y": 252
+        }
+      ],
+      "label": {
+        "lines": ["Constraints"],
+        "x": 2205,
+        "y": 123,
+        "w": 168,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "DISAGREE",
+      "to": "EVIDENCE",
+      "path": [
+        {
+          "x": 413,
+          "y": 282
+        },
+        {
+          "x": 1393,
+          "y": 282
+        }
+      ],
+      "label": {
+        "lines": ["Conclusions"],
+        "x": 819,
+        "y": 259,
+        "w": 168,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "DISAGREE",
+      "to": "DECIDE",
+      "path": [
+        {
+          "x": 413,
+          "y": 322
+        },
+        {
+          "x": 423,
+          "y": 322
+        },
+        {
+          "x": 423,
+          "y": 438
+        },
+        {
+          "x": 2468,
+          "y": 438
+        },
+        {
+          "x": 2468,
+          "y": 324
+        },
+        {
+          "x": 2628,
+          "y": 324
+        }
+      ],
+      "label": {
+        "lines": ["Neither"],
+        "x": 1614,
+        "y": 415,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "RESOLVE",
+      "to": "WRITE",
+      "path": [
+        {
+          "x": 5109,
+          "y": 252
+        },
+        {
+          "x": 5119,
+          "y": 252
+        },
+        {
+          "x": 5119,
+          "y": 285
+        },
+        {
+          "x": 5510,
+          "y": 285
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "EVIDENCE",
+      "to": "SPIKE",
+      "path": [
+        {
+          "x": 1949,
+          "y": 282
+        },
+        {
+          "x": 2128,
+          "y": 282
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e13",
+      "from": "SPIKE",
+      "to": "DECIDE",
+      "path": [
+        {
+          "x": 2449,
+          "y": 282
+        },
+        {
+          "x": 2628,
+          "y": 282
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e14",
+      "from": "DECIDE",
+      "to": "ENFORCE",
+      "path": [
+        {
+          "x": 3150,
+          "y": 303
+        },
+        {
+          "x": 3362,
+          "y": 303
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e15",
+      "from": "ENFORCE",
+      "to": "SHIP",
+      "path": [
+        {
+          "x": 3851,
+          "y": 303
+        },
+        {
+          "x": 3903,
+          "y": 303
+        },
+        {
+          "x": 3903,
+          "y": 451
+        },
+        {
+          "x": 4063,
+          "y": 451
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e16",
+      "from": "SHIP",
+      "to": "REVISIT",
+      "path": [
+        {
+          "x": 4400,
+          "y": 466
+        },
+        {
+          "x": 4625,
+          "y": 466
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e17",
+      "from": "REVISIT",
+      "to": "WRITE",
+      "path": [
+        {
+          "x": 5082,
+          "y": 439
+        },
+        {
+          "x": 5119,
+          "y": 439
+        },
+        {
+          "x": 5119,
+          "y": 349
+        },
+        {
+          "x": 5350,
+          "y": 349
+        },
+        {
+          "x": 5350,
+          "y": 316
+        },
+        {
+          "x": 5510,
+          "y": 316
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 5279,
+        "y": 326,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e18",
+      "from": "REVISIT",
+      "to": "HOLD",
+      "path": [
+        {
+          "x": 5082,
+          "y": 493
+        },
+        {
+          "x": 5510,
+          "y": 493
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 5286,
+        "y": 470,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

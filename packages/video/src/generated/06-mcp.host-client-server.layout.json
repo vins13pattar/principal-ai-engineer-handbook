@@ -8,6 +8,7 @@
       "kind": "group",
       "label": ["Host application (e.g. an", "IDE or chat client)"],
       "parent": null,
+      "shape": "box",
       "x": 40,
       "y": 40,
       "w": 661,
@@ -18,6 +19,7 @@
       "kind": "node",
       "label": ["Client 1"],
       "parent": "Host",
+      "shape": "box",
       "x": 454,
       "y": 197,
       "w": 203,
@@ -28,6 +30,7 @@
       "kind": "node",
       "label": ["Client 2"],
       "parent": "Host",
+      "shape": "box",
       "x": 454,
       "y": 304,
       "w": 203,
@@ -38,6 +41,7 @@
       "kind": "node",
       "label": ["Server: filesystem", "(exposes Resources)"],
       "parent": null,
+      "shape": "box",
       "x": 1577,
       "y": 89,
       "w": 388,
@@ -48,6 +52,7 @@
       "kind": "node",
       "label": ["Server: GitHub", "(exposes Tools)"],
       "parent": null,
+      "shape": "box",
       "x": 1577,
       "y": 285,
       "w": 321,
@@ -58,6 +63,7 @@
       "kind": "node",
       "label": ["Model"],
       "parent": null,
+      "shape": "box",
       "x": 1577,
       "y": 481,
       "w": 200,
@@ -99,7 +105,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": true
+      "bidirectional": true,
+      "arrow": true
     },
     {
       "id": "e2",
@@ -127,7 +134,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": true
+      "bidirectional": true,
+      "arrow": true
     },
     {
       "id": "e3",
@@ -159,7 +167,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     }
   ]
 }

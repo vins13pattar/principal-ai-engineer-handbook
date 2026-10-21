@@ -43,7 +43,7 @@ const Row: React.FC<{ point: Point; index: number; at: number; y: number }> = ({
       }}
     >
       <svg width={240} height={150} viewBox="0 0 240 150" style={{ flex: "none" }}>
-        <Glyph index={index} />
+        <Glyph index={index} {...(point.glyph ? { kind: point.glyph } : {})} />
       </svg>
       <div>
         <div
@@ -109,8 +109,9 @@ const node = (x: number, y: number, w = 56, h = 40) => (
   />
 );
 
-const Glyph: React.FC<{ index: number }> = ({ index }) => {
-  if (index === 0) {
+const Glyph: React.FC<{ index: number; kind?: string }> = ({ index, kind }) => {
+  const g = kind ?? (index === 0 ? "chain" : index === 1 ? "axis" : "fan");
+  if (g === "chain") {
     return (
       <g>
         {node(10, 55)}
@@ -150,7 +151,7 @@ const Glyph: React.FC<{ index: number }> = ({ index }) => {
       </g>
     );
   }
-  if (index === 1) {
+  if (g === "axis") {
     return (
       <g>
         <line x1={20} y1={75} x2={220} y2={75} stroke={color.brand500} strokeWidth={3} />
@@ -195,6 +196,123 @@ const Glyph: React.FC<{ index: number }> = ({ index }) => {
         >
           user
         </text>
+      </g>
+    );
+  }
+  if (g === "loop") {
+    return (
+      <g fill="none" stroke={color.route} strokeWidth={3.4} strokeLinecap="round">
+        <path d="M 150 75 A 50 36 0 1 1 120 40" />
+        <path d="M 120 40 L 136 36 M 120 40 L 124 56" />
+        <rect
+          x={72}
+          y={60}
+          width={56}
+          height={30}
+          rx={8}
+          fill={color.place}
+          stroke={color.brand300}
+          strokeWidth={2}
+        />
+      </g>
+    );
+  }
+  if (g === "stack") {
+    return (
+      <g>
+        {[20, 55, 90].map((y, i) => (
+          <rect
+            key={y}
+            x={50 + i * 10}
+            y={y}
+            width={120}
+            height={32}
+            rx={9}
+            fill={color.place}
+            stroke={i === 0 ? color.route : color.brand300}
+            strokeWidth={2}
+          />
+        ))}
+      </g>
+    );
+  }
+  if (g === "gate") {
+    return (
+      <g>
+        <rect
+          x={20}
+          y={60}
+          width={50}
+          height={30}
+          rx={8}
+          fill={color.place}
+          stroke={color.brand300}
+          strokeWidth={2}
+        />
+        <rect x={104} y={30} width={10} height={90} rx={3} fill={color.brand400} />
+        <rect x={128} y={30} width={10} height={90} rx={3} fill={color.brand400} />
+        <rect
+          x={170}
+          y={60}
+          width={50}
+          height={30}
+          rx={8}
+          fill={color.place}
+          stroke={color.brand300}
+          strokeWidth={2}
+        />
+        <path d="M 70 75 L 104 75 M 138 75 L 170 75" stroke={color.route} strokeWidth={3} />
+      </g>
+    );
+  }
+  if (g === "split") {
+    return (
+      <g>
+        <rect
+          x={14}
+          y={58}
+          width={52}
+          height={34}
+          rx={9}
+          fill={color.place}
+          stroke={color.brand300}
+          strokeWidth={2}
+        />
+        {[28, 92].map((y) => (
+          <React.Fragment key={y}>
+            <rect
+              x={170}
+              y={y - 14}
+              width={52}
+              height={34}
+              rx={9}
+              fill={color.place}
+              stroke={color.brand300}
+              strokeWidth={2}
+            />
+            <path
+              d={`M 66 75 L 118 75 L 118 ${y + 3} L 170 ${y + 3}`}
+              fill="none"
+              stroke={color.route}
+              strokeWidth={2.6}
+            />
+          </React.Fragment>
+        ))}
+      </g>
+    );
+  }
+  if (g === "tick") {
+    return (
+      <g>
+        <circle cx={120} cy={75} r={46} fill={color.place} stroke={color.ok} strokeWidth={3.4} />
+        <path
+          d="M 98 76 L 114 92 L 146 58"
+          fill="none"
+          stroke={color.ok}
+          strokeWidth={6}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
       </g>
     );
   }

@@ -14,7 +14,11 @@
     "narrate": "node --experimental-strip-types scripts/narrate.ts",
     "transcribe": "node --experimental-strip-types scripts/transcribe.ts",
     "captions": "node --experimental-strip-types scripts/captions.ts",
-    "youtube": "node --experimental-strip-types scripts/youtube.ts"
+    "youtube": "node --experimental-strip-types scripts/youtube.ts",
+    "sync": "node --experimental-strip-types scripts/sync-videos.ts",
+    "render:module": "node --experimental-strip-types scripts/render-module.ts",
+    "status": "node --experimental-strip-types scripts/status.ts",
+    "sheet": "node --experimental-strip-types scripts/sheet.ts"
   },
   "dependencies": {
     "@remotion/cli": "4.0.537",
@@ -37,6 +41,8 @@
     "vitest": "4.1.10",
     "@handbook/podcast-engine": "workspace:*",
     "@handbook/podcast-providers": "workspace:*",
-    "@remotion/install-whisper-cpp": "4.0.537"
+    "@remotion/install-whisper-cpp": "4.0.537",
+    "@remotion/bundler": "4.0.537",
+    "@remotion/renderer": "4.0.537"
   }
 }

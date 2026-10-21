@@ -1,0 +1,571 @@
+{
+  "name": "12-observability.signal-pipeline",
+  "width": 2560,
+  "height": 2079,
+  "nodes": [
+    {
+      "id": "Signals",
+      "kind": "group",
+      "label": ["Three signals, one request"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 773,
+      "w": 2431.5,
+      "h": 468
+    },
+    {
+      "id": "Logs",
+      "kind": "node",
+      "label": ["Log lines: request_id, tenant_id, ..."],
+      "parent": "Signals",
+      "shape": "box",
+      "x": 468,
+      "y": 896,
+      "w": 690,
+      "h": 87
+    },
+    {
+      "id": "Metrics",
+      "kind": "node",
+      "label": ["Rate / Errors / Duration counters"],
+      "parent": "Signals",
+      "shape": "box",
+      "x": 1178,
+      "y": 896,
+      "w": 623,
+      "h": 87
+    },
+    {
+      "id": "SpanRoot",
+      "kind": "node",
+      "label": ["Span: handle_request"],
+      "parent": "Signals",
+      "shape": "box",
+      "x": 1821,
+      "y": 896,
+      "w": 405,
+      "h": 87
+    },
+    {
+      "id": "SpanLLM",
+      "kind": "node",
+      "label": ["Span: llm.call (tokens, cost, model)"],
+      "parent": "Signals",
+      "shape": "box",
+      "x": 1755,
+      "y": 1003,
+      "w": 673,
+      "h": 87
+    },
+    {
+      "id": "SpanTool",
+      "kind": "node",
+      "label": ["Span: tool.call (name, latency)"],
+      "parent": "Signals",
+      "shape": "box",
+      "x": 1797,
+      "y": 1110,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "Req",
+      "kind": "node",
+      "label": ["Incoming request"],
+      "parent": null,
+      "shape": "box",
+      "x": 1321,
+      "y": 40,
+      "w": 337,
+      "h": 87
+    },
+    {
+      "id": "Svc",
+      "kind": "node",
+      "label": ["Instrumented service"],
+      "parent": null,
+      "shape": "box",
+      "x": 1287,
+      "y": 297,
+      "w": 405,
+      "h": 87
+    },
+    {
+      "id": "Collector",
+      "kind": "node",
+      "label": ["Collector"],
+      "parent": null,
+      "shape": "box",
+      "x": 1380,
+      "y": 1416,
+      "w": 220,
+      "h": 87
+    },
+    {
+      "id": "LogStore",
+      "kind": "node",
+      "label": ["Log store"],
+      "parent": null,
+      "shape": "store",
+      "x": 1053,
+      "y": 1673,
+      "w": 240,
+      "h": 109
+    },
+    {
+      "id": "MetricStore",
+      "kind": "node",
+      "label": ["Metrics store"],
+      "parent": null,
+      "shape": "store",
+      "x": 1686,
+      "y": 1673,
+      "w": 287,
+      "h": 109
+    },
+    {
+      "id": "TraceStore",
+      "kind": "node",
+      "label": ["Trace store"],
+      "parent": null,
+      "shape": "store",
+      "x": 1363,
+      "y": 1673,
+      "w": 253,
+      "h": 109
+    },
+    {
+      "id": "SLO",
+      "kind": "node",
+      "label": ["SLO burn-rate alerting"],
+      "parent": null,
+      "shape": "box",
+      "x": 1990,
+      "y": 1952,
+      "w": 438,
+      "h": 87
+    },
+    {
+      "id": "Debug",
+      "kind": "node",
+      "label": ["Trace-based debugging: one request_id, every span"],
+      "parent": null,
+      "shape": "box",
+      "x": 1028,
+      "y": 1952,
+      "w": 892,
+      "h": 87
+    },
+    {
+      "id": "EvalHarness",
+      "kind": "node",
+      "label": ["Eval harness (Module 4)"],
+      "parent": null,
+      "shape": "box",
+      "x": 2054,
+      "y": 1416,
+      "w": 455,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Req",
+      "to": "Svc",
+      "path": [
+        {
+          "x": 1490,
+          "y": 127
+        },
+        {
+          "x": 1490,
+          "y": 297
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Svc",
+      "to": "Logs",
+      "path": [
+        {
+          "x": 1388,
+          "y": 384
+        },
+        {
+          "x": 1388,
+          "y": 394
+        },
+        {
+          "x": 813,
+          "y": 394
+        },
+        {
+          "x": 813,
+          "y": 896
+        }
+      ],
+      "label": {
+        "lines": ["structured logs"],
+        "x": 702,
+        "y": 554,
+        "w": 222,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Svc",
+      "to": "Metrics",
+      "path": [
+        {
+          "x": 1490,
+          "y": 384
+        },
+        {
+          "x": 1490,
+          "y": 768
+        },
+        {
+          "x": 1490,
+          "y": 896
+        }
+      ],
+      "label": {
+        "lines": ["RED metrics"],
+        "x": 1406,
+        "y": 554,
+        "w": 168,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "Svc",
+      "to": "SpanRoot",
+      "path": [
+        {
+          "x": 1591,
+          "y": 384
+        },
+        {
+          "x": 1591,
+          "y": 394
+        },
+        {
+          "x": 2024,
+          "y": 394
+        },
+        {
+          "x": 2024,
+          "y": 768
+        },
+        {
+          "x": 2024,
+          "y": 896
+        }
+      ],
+      "label": {
+        "lines": ["spans, one trace"],
+        "x": 1906,
+        "y": 554,
+        "w": 236,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "SpanRoot",
+      "to": "SpanLLM",
+      "path": [
+        {
+          "x": 2091,
+          "y": 983
+        },
+        {
+          "x": 2091,
+          "y": 1003
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "SpanLLM",
+      "to": "SpanTool",
+      "path": [
+        {
+          "x": 2091,
+          "y": 1090
+        },
+        {
+          "x": 2091,
+          "y": 1110
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Logs",
+      "to": "Collector",
+      "path": [
+        {
+          "x": 813,
+          "y": 983
+        },
+        {
+          "x": 813,
+          "y": 1256
+        },
+        {
+          "x": 1435,
+          "y": 1256
+        },
+        {
+          "x": 1435,
+          "y": 1416
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "Metrics",
+      "to": "Collector",
+      "path": [
+        {
+          "x": 1490,
+          "y": 983
+        },
+        {
+          "x": 1490,
+          "y": 1246
+        },
+        {
+          "x": 1490,
+          "y": 1416
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "SpanRoot",
+      "to": "Collector",
+      "path": [
+        {
+          "x": 1956,
+          "y": 983
+        },
+        {
+          "x": 1956,
+          "y": 993
+        },
+        {
+          "x": 1744,
+          "y": 993
+        },
+        {
+          "x": 1744,
+          "y": 1246
+        },
+        {
+          "x": 1744,
+          "y": 1256
+        },
+        {
+          "x": 1545,
+          "y": 1256
+        },
+        {
+          "x": 1545,
+          "y": 1416
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "Collector",
+      "to": "LogStore",
+      "path": [
+        {
+          "x": 1435,
+          "y": 1503
+        },
+        {
+          "x": 1435,
+          "y": 1513
+        },
+        {
+          "x": 1173,
+          "y": 1513
+        },
+        {
+          "x": 1173,
+          "y": 1673
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "Collector",
+      "to": "MetricStore",
+      "path": [
+        {
+          "x": 1545,
+          "y": 1503
+        },
+        {
+          "x": 1545,
+          "y": 1513
+        },
+        {
+          "x": 1830,
+          "y": 1513
+        },
+        {
+          "x": 1830,
+          "y": 1673
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "Collector",
+      "to": "TraceStore",
+      "path": [
+        {
+          "x": 1490,
+          "y": 1503
+        },
+        {
+          "x": 1490,
+          "y": 1673
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e13",
+      "from": "MetricStore",
+      "to": "SLO",
+      "path": [
+        {
+          "x": 1830,
+          "y": 1782
+        },
+        {
+          "x": 1830,
+          "y": 1792
+        },
+        {
+          "x": 2136,
+          "y": 1792
+        },
+        {
+          "x": 2136,
+          "y": 1952
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e14",
+      "from": "TraceStore",
+      "to": "Debug",
+      "path": [
+        {
+          "x": 1490,
+          "y": 1782
+        },
+        {
+          "x": 1490,
+          "y": 1792
+        },
+        {
+          "x": 1474,
+          "y": 1792
+        },
+        {
+          "x": 1474,
+          "y": 1952
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e15",
+      "from": "EvalHarness",
+      "to": "SLO",
+      "path": [
+        {
+          "x": 2282,
+          "y": 1503
+        },
+        {
+          "x": 2282,
+          "y": 1952
+        }
+      ],
+      "label": {
+        "lines": ["quality signal, not request-scoped"],
+        "x": 2043,
+        "y": 1706,
+        "w": 477,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

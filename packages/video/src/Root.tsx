@@ -1,38 +1,45 @@
 import React from "react";
 import { Composition } from "remotion";
 import { Video, totalFrames } from "./Video.tsx";
-import { withAudio, type AudioManifest } from "./videos/audio.ts";
-import { withTiming, type TimingManifest } from "./videos/timing.ts";
-import mcpTiming from "./videos/06-mcp.timing.json";
-import mcpAudio from "./videos/06-mcp.audio.json";
-import { mcp } from "./videos/mcp.ts";
+import { withAudio } from "./videos/audio.ts";
+import { MANIFESTS } from "./videos/manifests.ts";
+import { scripts } from "./videos/registry.ts";
+import { withTiming } from "./videos/timing.ts";
 import { size } from "./theme.ts";
 
-const narrated = withTiming(withAudio(mcp, mcpAudio as AudioManifest), mcpTiming as TimingManifest);
-
 /**
- * Two compositions per video: the silent cut that renders anywhere from the script alone, and the
- * narrated cut that needs `public/narration/<slug>/` from running `narrate` on the Mac.
+ * Two compositions per video: `module-<slug>`, the silent cut that renders from the script alone,
+ * and `module-<slug>-narrated`, which needs `public/narration/<slug>/` from running `narrate`.
  */
 export const Root: React.FC = () => (
   <>
-    <Composition
-      id="Mcp"
-      component={Video}
-      defaultProps={{ script: mcp }}
-      durationInFrames={totalFrames(mcp, size.fps)}
-      fps={size.fps}
-      width={size.width}
-      height={size.height}
-    />
-    <Composition
-      id="McpNarrated"
-      component={Video}
-      defaultProps={{ script: narrated }}
-      durationInFrames={totalFrames(narrated, size.fps)}
-      fps={size.fps}
-      width={size.width}
-      height={size.height}
-    />
+    {Object.entries(scripts).flatMap(([slug, script]) => {
+      const manifest = MANIFESTS[slug];
+      const narrated = manifest
+        ? withTiming(withAudio(script, manifest.audio), manifest.timing)
+        : script;
+      return [
+        <Composition
+          key={slug}
+          id={`module-${slug}`}
+          component={Video}
+          defaultProps={{ script }}
+          durationInFrames={totalFrames(script, size.fps)}
+          fps={size.fps}
+          width={size.width}
+          height={size.height}
+        />,
+        <Composition
+          key={`${slug}-narrated`}
+          id={`module-${slug}-narrated`}
+          component={Video}
+          defaultProps={{ script: narrated }}
+          durationInFrames={totalFrames(narrated, size.fps)}
+          fps={size.fps}
+          width={size.width}
+          height={size.height}
+        />,
+      ];
+    })}
   </>
 );

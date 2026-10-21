@@ -1,0 +1,573 @@
+{
+  "name": "01-production-python.request-lifecycle",
+  "width": 4099,
+  "height": 1176,
+  "nodes": [
+    {
+      "id": "A",
+      "kind": "node",
+      "label": ["Request arrives"],
+      "parent": null,
+      "shape": "box",
+      "x": 907,
+      "y": 58,
+      "w": 321,
+      "h": 87
+    },
+    {
+      "id": "B",
+      "kind": "node",
+      "label": ["Rate limiter has tokens?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 1453,
+      "y": 40,
+      "w": 524,
+      "h": 123
+    },
+    {
+      "id": "R1",
+      "kind": "node",
+      "label": ["Reject: rate limited"],
+      "parent": null,
+      "shape": "box",
+      "x": 284,
+      "y": 666,
+      "w": 405,
+      "h": 87
+    },
+    {
+      "id": "C",
+      "kind": "node",
+      "label": ["Semaphore has capacity within queue-wait timeout?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 284,
+      "y": 823,
+      "w": 944,
+      "h": 123
+    },
+    {
+      "id": "R2",
+      "kind": "node",
+      "label": ["Reject: gateway overloaded"],
+      "parent": null,
+      "shape": "box",
+      "x": 2174,
+      "y": 704,
+      "w": 505,
+      "h": 87
+    },
+    {
+      "id": "D",
+      "kind": "node",
+      "label": ["asyncio.timeout deadline starts"],
+      "parent": null,
+      "shape": "box",
+      "x": 2208,
+      "y": 861,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "E",
+      "kind": "node",
+      "label": ["Select provider"],
+      "parent": null,
+      "shape": "box",
+      "x": 3000,
+      "y": 562,
+      "w": 321,
+      "h": 87
+    },
+    {
+      "id": "F",
+      "kind": "node",
+      "label": ["Await provider call"],
+      "parent": null,
+      "shape": "box",
+      "x": 3491,
+      "y": 269,
+      "w": 388,
+      "h": 87
+    },
+    {
+      "id": "G",
+      "kind": "node",
+      "label": ["Record success, release capacity"],
+      "parent": null,
+      "shape": "box",
+      "x": 1398,
+      "y": 1049,
+      "w": 606,
+      "h": 87
+    },
+    {
+      "id": "H",
+      "kind": "node",
+      "label": ["Attempts remaining and provider not pinned?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 385,
+      "y": 372,
+      "w": 843,
+      "h": 123
+    },
+    {
+      "id": "I",
+      "kind": "node",
+      "label": ["Jittered exponential backoff, retry"],
+      "parent": null,
+      "shape": "box",
+      "x": 2174,
+      "y": 547,
+      "w": 656,
+      "h": 87
+    },
+    {
+      "id": "J",
+      "kind": "node",
+      "label": ["Record failure, release capacity"],
+      "parent": null,
+      "shape": "box",
+      "x": 2199,
+      "y": 390,
+      "w": 606,
+      "h": 87
+    },
+    {
+      "id": "K",
+      "kind": "node",
+      "label": ["Return response"],
+      "parent": null,
+      "shape": "box",
+      "x": 2174,
+      "y": 1049,
+      "w": 321,
+      "h": 87
+    },
+    {
+      "id": "R3",
+      "kind": "node",
+      "label": ["Raise to caller"],
+      "parent": null,
+      "shape": "box",
+      "x": 3000,
+      "y": 390,
+      "w": 321,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "A",
+      "to": "B",
+      "path": [
+        {
+          "x": 1228,
+          "y": 102
+        },
+        {
+          "x": 1453,
+          "y": 102
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "B",
+      "to": "R1",
+      "path": [
+        {
+          "x": 1977,
+          "y": 81
+        },
+        {
+          "x": 2014,
+          "y": 81
+        },
+        {
+          "x": 2014,
+          "y": 67
+        },
+        {
+          "x": 3395,
+          "y": 67
+        },
+        {
+          "x": 3395,
+          "y": 224
+        },
+        {
+          "x": 104,
+          "y": 224
+        },
+        {
+          "x": 104,
+          "y": 710
+        },
+        {
+          "x": 284,
+          "y": 710
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 2479,
+        "y": 44,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "B",
+      "to": "C",
+      "path": [
+        {
+          "x": 1977,
+          "y": 122
+        },
+        {
+          "x": 3331,
+          "y": 122
+        },
+        {
+          "x": 3331,
+          "y": 213
+        },
+        {
+          "x": 40,
+          "y": 213
+        },
+        {
+          "x": 40,
+          "y": 885
+        },
+        {
+          "x": 284,
+          "y": 885
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 2472,
+        "y": 99,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "C",
+      "to": "R2",
+      "path": [
+        {
+          "x": 1228,
+          "y": 864
+        },
+        {
+          "x": 1238,
+          "y": 864
+        },
+        {
+          "x": 1238,
+          "y": 748
+        },
+        {
+          "x": 2174,
+          "y": 748
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 1678,
+        "y": 725,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "C",
+      "to": "D",
+      "path": [
+        {
+          "x": 1228,
+          "y": 905
+        },
+        {
+          "x": 2208,
+          "y": 905
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 1671,
+        "y": 882,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "D",
+      "to": "E",
+      "path": [
+        {
+          "x": 2797,
+          "y": 905
+        },
+        {
+          "x": 2840,
+          "y": 905
+        },
+        {
+          "x": 2840,
+          "y": 620
+        },
+        {
+          "x": 3000,
+          "y": 620
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "E",
+      "to": "F",
+      "path": [
+        {
+          "x": 3321,
+          "y": 606
+        },
+        {
+          "x": 3331,
+          "y": 606
+        },
+        {
+          "x": 3331,
+          "y": 327
+        },
+        {
+          "x": 3491,
+          "y": 327
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "F",
+      "to": "G",
+      "path": [
+        {
+          "x": 3879,
+          "y": 313
+        },
+        {
+          "x": 4059,
+          "y": 313
+        },
+        {
+          "x": 4059,
+          "y": 998
+        },
+        {
+          "x": 104,
+          "y": 998
+        },
+        {
+          "x": 104,
+          "y": 1093
+        },
+        {
+          "x": 1398,
+          "y": 1093
+        }
+      ],
+      "label": {
+        "lines": ["Success"],
+        "x": 699,
+        "y": 1070,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "F",
+      "to": "H",
+      "path": [
+        {
+          "x": 3491,
+          "y": 298
+        },
+        {
+          "x": 1238,
+          "y": 298
+        },
+        {
+          "x": 1238,
+          "y": 403
+        },
+        {
+          "x": 1228,
+          "y": 403
+        }
+      ],
+      "label": {
+        "lines": ["ConnectionError or TimeoutError"],
+        "x": 2284,
+        "y": 275,
+        "w": 437,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "H",
+      "to": "I",
+      "path": [
+        {
+          "x": 1228,
+          "y": 464
+        },
+        {
+          "x": 1238,
+          "y": 464
+        },
+        {
+          "x": 1238,
+          "y": 591
+        },
+        {
+          "x": 2174,
+          "y": 591
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 1671,
+        "y": 568,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "I",
+      "to": "E",
+      "path": [
+        {
+          "x": 2830,
+          "y": 591
+        },
+        {
+          "x": 3000,
+          "y": 591
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "H",
+      "to": "J",
+      "path": [
+        {
+          "x": 1228,
+          "y": 434
+        },
+        {
+          "x": 2199,
+          "y": 434
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 1678,
+        "y": 411,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e13",
+      "from": "G",
+      "to": "K",
+      "path": [
+        {
+          "x": 2004,
+          "y": 1093
+        },
+        {
+          "x": 2174,
+          "y": 1093
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e14",
+      "from": "J",
+      "to": "R3",
+      "path": [
+        {
+          "x": 2805,
+          "y": 434
+        },
+        {
+          "x": 3000,
+          "y": 434
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

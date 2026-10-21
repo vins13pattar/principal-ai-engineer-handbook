@@ -1,0 +1,356 @@
+{
+  "name": "04-ai-infrastructure.platform-stack",
+  "width": 3164,
+  "height": 481,
+  "nodes": [
+    {
+      "id": "App",
+      "kind": "node",
+      "label": ["Application (prompts, product logic)"],
+      "parent": null,
+      "shape": "box",
+      "x": 1168,
+      "y": 161,
+      "w": 673,
+      "h": 87
+    },
+    {
+      "id": "GW",
+      "kind": "node",
+      "label": ["Gateway: routing, policy, quota"],
+      "parent": null,
+      "shape": "box",
+      "x": 2011,
+      "y": 176,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "P1",
+      "kind": "node",
+      "label": ["Hosted provider A"],
+      "parent": null,
+      "shape": "box",
+      "x": 2770,
+      "y": 40,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "P2",
+      "kind": "node",
+      "label": ["Hosted provider B"],
+      "parent": null,
+      "shape": "box",
+      "x": 2770,
+      "y": 197,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "P3",
+      "kind": "node",
+      "label": ["Self-hosted model"],
+      "parent": null,
+      "shape": "box",
+      "x": 2770,
+      "y": 354,
+      "w": 354,
+      "h": 87
+    },
+    {
+      "id": "Eval",
+      "kind": "node",
+      "label": ["Evaluation and observability", "(quality, cost, latency per request)"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 163,
+      "w": 673,
+      "h": 126
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "App",
+      "to": "GW",
+      "path": [
+        {
+          "x": 1841,
+          "y": 205
+        },
+        {
+          "x": 2011,
+          "y": 205
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "GW",
+      "to": "P1",
+      "path": [
+        {
+          "x": 2600,
+          "y": 198
+        },
+        {
+          "x": 2610,
+          "y": 198
+        },
+        {
+          "x": 2610,
+          "y": 98
+        },
+        {
+          "x": 2770,
+          "y": 98
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "GW",
+      "to": "P2",
+      "path": [
+        {
+          "x": 2600,
+          "y": 220
+        },
+        {
+          "x": 2738,
+          "y": 220
+        },
+        {
+          "x": 2738,
+          "y": 226
+        },
+        {
+          "x": 2770,
+          "y": 226
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "GW",
+      "to": "P3",
+      "path": [
+        {
+          "x": 2600,
+          "y": 241
+        },
+        {
+          "x": 2674,
+          "y": 241
+        },
+        {
+          "x": 2674,
+          "y": 383
+        },
+        {
+          "x": 2770,
+          "y": 383
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Eval",
+      "to": "App",
+      "path": [
+        {
+          "x": 713,
+          "y": 205
+        },
+        {
+          "x": 1168,
+          "y": 205
+        }
+      ],
+      "label": {
+        "lines": ["watches"],
+        "x": 883,
+        "y": 182,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Eval",
+      "to": "GW",
+      "path": [
+        {
+          "x": 713,
+          "y": 226
+        },
+        {
+          "x": 851,
+          "y": 226
+        },
+        {
+          "x": 851,
+          "y": 288
+        },
+        {
+          "x": 1851,
+          "y": 288
+        },
+        {
+          "x": 1851,
+          "y": 234
+        },
+        {
+          "x": 2011,
+          "y": 234
+        }
+      ],
+      "label": {
+        "lines": ["watches"],
+        "x": 883,
+        "y": 265,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Eval",
+      "to": "P1",
+      "path": [
+        {
+          "x": 713,
+          "y": 184
+        },
+        {
+          "x": 723,
+          "y": 184
+        },
+        {
+          "x": 723,
+          "y": 69
+        },
+        {
+          "x": 2770,
+          "y": 69
+        }
+      ],
+      "label": {
+        "lines": ["watches"],
+        "x": 1447,
+        "y": 46,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "Eval",
+      "to": "P2",
+      "path": [
+        {
+          "x": 713,
+          "y": 247
+        },
+        {
+          "x": 787,
+          "y": 247
+        },
+        {
+          "x": 787,
+          "y": 352
+        },
+        {
+          "x": 2738,
+          "y": 352
+        },
+        {
+          "x": 2738,
+          "y": 255
+        },
+        {
+          "x": 2770,
+          "y": 255
+        }
+      ],
+      "label": {
+        "lines": ["watches"],
+        "x": 1447,
+        "y": 329,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "Eval",
+      "to": "P3",
+      "path": [
+        {
+          "x": 713,
+          "y": 268
+        },
+        {
+          "x": 723,
+          "y": 268
+        },
+        {
+          "x": 723,
+          "y": 407
+        },
+        {
+          "x": 2610,
+          "y": 407
+        },
+        {
+          "x": 2610,
+          "y": 412
+        },
+        {
+          "x": 2770,
+          "y": 412
+        }
+      ],
+      "label": {
+        "lines": ["watches"],
+        "x": 1447,
+        "y": 384,
+        "w": 115,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

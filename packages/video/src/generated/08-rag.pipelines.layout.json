@@ -1,0 +1,350 @@
+{
+  "name": "08-rag.pipelines",
+  "width": 1415,
+  "height": 1821,
+  "nodes": [
+    {
+      "id": "Ingestion",
+      "kind": "group",
+      "label": ["Ingestion pipeline (runs", "ahead of time)"],
+      "parent": null,
+      "shape": "box",
+      "x": 424,
+      "y": 40,
+      "w": 780,
+      "h": 631
+    },
+    {
+      "id": "Docs",
+      "kind": "node",
+      "label": ["Source documents"],
+      "parent": "Ingestion",
+      "shape": "box",
+      "x": 823,
+      "y": 197,
+      "w": 337,
+      "h": 87
+    },
+    {
+      "id": "Chunk",
+      "kind": "node",
+      "label": ["Chunk"],
+      "parent": "Ingestion",
+      "shape": "box",
+      "x": 892,
+      "y": 304,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "EmbedIngest",
+      "kind": "node",
+      "label": ["Embed"],
+      "parent": "Ingestion",
+      "shape": "box",
+      "x": 892,
+      "y": 411,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Index",
+      "kind": "node",
+      "label": ["Vector index"],
+      "parent": "Ingestion",
+      "shape": "store",
+      "x": 857,
+      "y": 518,
+      "w": 270,
+      "h": 109
+    },
+    {
+      "id": "Query",
+      "kind": "group",
+      "label": ["Query pipeline (runs per", "request)"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 851,
+      "w": 1335,
+      "h": 930
+    },
+    {
+      "id": "Q",
+      "kind": "node",
+      "label": ["User query"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 660,
+      "y": 1008,
+      "w": 237,
+      "h": 87
+    },
+    {
+      "id": "EmbedQuery",
+      "kind": "node",
+      "label": ["Embed"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 678,
+      "y": 1115,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "ANN",
+      "kind": "node",
+      "label": ["ANN search + access-control filter"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 565,
+      "y": 1222,
+      "w": 640,
+      "h": 87
+    },
+    {
+      "id": "Rerank",
+      "kind": "node",
+      "label": ["Re-rank (optional second stage)"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 591,
+      "y": 1329,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "Prompt",
+      "kind": "node",
+      "label": ["Construct prompt: instructions + retrieved chunks"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 439,
+      "y": 1436,
+      "w": 892,
+      "h": 87
+    },
+    {
+      "id": "Model",
+      "kind": "node",
+      "label": ["Model"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 785,
+      "y": 1543,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Response",
+      "kind": "node",
+      "label": ["Response"],
+      "parent": "Query",
+      "shape": "box",
+      "x": 784,
+      "y": 1650,
+      "w": 203,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Docs",
+      "to": "Chunk",
+      "path": [
+        {
+          "x": 992,
+          "y": 284
+        },
+        {
+          "x": 992,
+          "y": 304
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Chunk",
+      "to": "EmbedIngest",
+      "path": [
+        {
+          "x": 992,
+          "y": 391
+        },
+        {
+          "x": 992,
+          "y": 411
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "EmbedIngest",
+      "to": "Index",
+      "path": [
+        {
+          "x": 992,
+          "y": 498
+        },
+        {
+          "x": 992,
+          "y": 518
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "Q",
+      "to": "EmbedQuery",
+      "path": [
+        {
+          "x": 778,
+          "y": 1095
+        },
+        {
+          "x": 778,
+          "y": 1115
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "EmbedQuery",
+      "to": "ANN",
+      "path": [
+        {
+          "x": 778,
+          "y": 1202
+        },
+        {
+          "x": 778,
+          "y": 1222
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Index",
+      "to": "ANN",
+      "path": [
+        {
+          "x": 992,
+          "y": 627
+        },
+        {
+          "x": 992,
+          "y": 676
+        },
+        {
+          "x": 992,
+          "y": 846
+        },
+        {
+          "x": 992,
+          "y": 1222
+        }
+      ],
+      "label": null,
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "ANN",
+      "to": "Rerank",
+      "path": [
+        {
+          "x": 885,
+          "y": 1309
+        },
+        {
+          "x": 885,
+          "y": 1329
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "Rerank",
+      "to": "Prompt",
+      "path": [
+        {
+          "x": 885,
+          "y": 1416
+        },
+        {
+          "x": 885,
+          "y": 1436
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "Prompt",
+      "to": "Model",
+      "path": [
+        {
+          "x": 885,
+          "y": 1523
+        },
+        {
+          "x": 885,
+          "y": 1543
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "Model",
+      "to": "Response",
+      "path": [
+        {
+          "x": 885,
+          "y": 1630
+        },
+        {
+          "x": 885,
+          "y": 1650
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

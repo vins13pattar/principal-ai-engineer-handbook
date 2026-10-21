@@ -2,106 +2,77 @@ import React from "react";
 import { useCurrentFrame, useVideoConfig } from "remotion";
 import { color, fontStack, size } from "../theme.ts";
 import { enterProgress } from "../motion.ts";
-import type { Beat, Hazard } from "../videos/types.ts";
-import { Box, HazardMark, Land, Link } from "./shapes.tsx";
+import type { Beat, Hazard, MapSpec } from "../videos/types.ts";
+import { MAP_ORIGIN, MiniMap, place } from "./MiniMap.tsx";
+import { HazardMark, type Tone } from "./shapes.tsx";
 import { wrapText } from "./text.ts";
 
-const P = (x: number, y: number) => ({ x, y });
-const CHAIN_Y = 475;
-const ROWS = [
-  { y: 350, text: "tool descriptions" },
-  { y: 450, text: "tools/call handler" },
-  { y: 550, text: "cached session state" },
-];
-/** Where each hazard sits on the map: [marker x, marker y, element it indicts]. */
-const MARKERS: [number, number, "row0" | "row1" | "row2" | "lb"][] = [
-  [1744, 385, "row0"],
-  [1744, 485, "row1"],
-  [855, 396, "lb"],
-  [1744, 585, "row2"],
-];
-
 /** Where each failure lives in the system, as a chart's hazards: marked on the map, explained in the key. */
-export const Hazards: React.FC<{ hazards: Hazard[]; beats: Beat[] }> = ({ hazards, beats }) => {
+export const Hazards: React.FC<{
+  map: MapSpec;
+  hazards: (Hazard & { at: string })[];
+  beats: Beat[];
+}> = ({ map, hazards, beats }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
-  const at = (i: number) =>
-    enterProgress(frame, Math.round((beats[i]?.at ?? 0) * durationInFrames), fps);
-  const ps = hazards.map((_, i) => at(i));
+  const start = (i: number) => Math.round((beats[i]?.at ?? 0) * durationInFrames);
+  const ps = hazards.map((_, i) => enterProgress(frame, start(i), fps));
   const current = ps.reduce((n, p, i) => (p > 0.05 ? i : n), -1);
-  const hit = (target: string) =>
-    MARKERS.some(([, , t], i) => t === target && ps[i]! > 0.05 && i === current);
+  const places = new Map(map.places.map((p) => [p.id, place(p)]));
+
+  const tones: Record<string, Tone> = {};
+  if (current >= 0) tones[hazards[current]!.at] = "fault";
+
+  const cols = hazards.length;
+  const colW = (size.width - size.margin * 2) / cols;
+  const titleSize = colW >= 420 ? 32 : 28;
+  const bodySize = colW >= 420 ? 28 : 26;
+  const titleChars = Math.max(12, Math.floor((colW - 90) / (titleSize * 0.54)));
+  const bodyChars = Math.max(18, Math.floor((colW - 14) / (bodySize * 0.5)));
 
   return (
     <svg width={size.width} height={size.height} style={{ position: "absolute", inset: 0 }}>
-      <Land x={1130} y={286} w={694} h={366} title="Server instance" lit={1} />
-      <Box x={96} y={430} w={210} h={90} lines={["Model"]} lit={1} />
-      <Box x={390} y={430} w={250} h={90} lines={["Host", "with clients"]} lit={1} fontSize={28} />
-      <Box
-        x={740}
-        y={430}
-        w={250}
-        h={90}
-        lines={["Load balancer"]}
-        lit={1}
-        tone={hit("lb") ? "fault" : "normal"}
-      />
-      <Link points={[P(306, CHAIN_Y), P(390, CHAIN_Y)]} draw={1} arrow="both" width={2.6} />
-      <Link points={[P(640, CHAIN_Y), P(740, CHAIN_Y)]} draw={1} arrow="both" width={2.6} />
-      <Link points={[P(990, CHAIN_Y), P(1130, CHAIN_Y)]} draw={1} arrow="both" width={2.6} />
-      {ROWS.map((row, i) => (
-        <Box
-          key={row.text}
-          x={1160}
-          y={row.y}
-          w={634}
-          h={70}
-          lines={[row.text]}
-          lit={1}
-          pin={false}
-          fontSize={28}
-          tone={hit(`row${i}`) ? "fault" : "normal"}
-        />
-      ))}
-      <Link
-        points={[P(1480, 286), P(1480, 244), P(201, 244), P(201, 430)]}
-        draw={ps[0]!}
-        tone="fault"
-        arrow="end"
-        width={3}
-        dashed
-      />
-      <g opacity={ps[0]!}>
-        <rect
-          x={560}
-          y={222}
-          width={560}
-          height={44}
-          rx={9}
-          fill={color.sea}
-          stroke={color.fault}
-          strokeWidth={1.6}
-        />
-        <text
-          x={840}
-          y={252}
-          textAnchor="middle"
-          fontFamily={fontStack.sans}
-          fontWeight={550}
-          fontSize={25}
-          fill={color.fault}
-        >
-          descriptions enter the model&apos;s context
-        </text>
+      <MiniMap map={map} active={current} progress={() => 1} allLit />
+      <g transform={`translate(${MAP_ORIGIN.x} ${MAP_ORIGIN.y})`}>
+        {hazards.map((h, i) => {
+          const p = places.get(h.at);
+          if (!p) throw new Error(`Unknown place for hazard: ${h.at}`);
+          const inside = p.w >= 400;
+          return (
+            <HazardMark
+              key={h.title}
+              x={inside ? p.x + p.w - 44 : p.x + p.w - 22}
+              y={inside ? p.y + p.h / 2 : p.y - 6}
+              n={i + 1}
+              lit={ps[i]!}
+            />
+          );
+        })}
       </g>
-      {MARKERS.map(([x, y], i) => (
-        <HazardMark key={i} x={x} y={y} n={i + 1} lit={ps[i]!} />
-      ))}
-
+      {current >= 0 && (
+        <g transform={`translate(${MAP_ORIGIN.x} ${MAP_ORIGIN.y})`}>
+          {(() => {
+            const p = places.get(hazards[current]!.at)!;
+            return (
+              <rect
+                x={p.x - 6}
+                y={p.y - 6}
+                width={p.w + 12}
+                height={p.h + 12}
+                rx={16}
+                fill="none"
+                stroke={color.fault}
+                strokeWidth={3}
+                opacity={0.9}
+              />
+            );
+          })()}
+        </g>
+      )}
       {hazards.map((h, i) => {
-        const x = 96 + i * 440;
-        const body = wrapText(h.body, 26);
-        const title = wrapText(h.title, 22);
+        const x = size.margin + i * colW;
+        const body = wrapText(h.body, bodyChars);
+        const title = wrapText(h.title, titleChars);
         return (
           <g key={h.title} opacity={0.3 + 0.7 * Math.min(ps[i]! * 1.4, 1)}>
             <HazardMark x={x + 28} y={742} n={i + 1} lit={1} />
@@ -122,10 +93,10 @@ export const Hazards: React.FC<{ hazards: Hazard[]; beats: Beat[] }> = ({ hazard
               <text
                 key={k}
                 x={x + 4}
-                y={742 + 2 * 38 + 14 + k * 36}
+                y={742 + 2 * 38 + 14 + k * 34}
                 fontFamily={fontStack.sans}
                 fontWeight={450}
-                fontSize={29}
+                fontSize={28}
                 fill={color.inkSoft}
                 opacity={Math.min(ps[i]! * 1.4, 1)}
               >

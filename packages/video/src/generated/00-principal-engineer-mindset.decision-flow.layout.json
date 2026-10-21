@@ -1,0 +1,394 @@
+{
+  "name": "00-principal-engineer-mindset.decision-flow",
+  "width": 1382,
+  "height": 2473,
+  "nodes": [
+    {
+      "id": "A",
+      "kind": "node",
+      "label": ["Ambiguous problem surfaces"],
+      "parent": null,
+      "shape": "box",
+      "x": 837,
+      "y": 1575,
+      "w": 505,
+      "h": 87
+    },
+    {
+      "id": "B",
+      "kind": "node",
+      "label": ["Frame the problem and constraints"],
+      "parent": null,
+      "shape": "box",
+      "x": 462,
+      "y": 1832,
+      "w": 623,
+      "h": 87
+    },
+    {
+      "id": "C",
+      "kind": "node",
+      "label": ["Draft options, including a deliberately simple baseline"],
+      "parent": null,
+      "shape": "box",
+      "x": 277,
+      "y": 2089,
+      "w": 993,
+      "h": 87
+    },
+    {
+      "id": "D",
+      "kind": "node",
+      "label": ["Write it down: RFC or ADR draft"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 2346,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "E",
+      "kind": "node",
+      "label": ["Reversible? Type 1 vs Type 2"],
+      "parent": null,
+      "shape": "decision",
+      "x": 184,
+      "y": 40,
+      "w": 591,
+      "h": 123
+    },
+    {
+      "id": "F",
+      "kind": "node",
+      "label": ["Async written review"],
+      "parent": null,
+      "shape": "box",
+      "x": 277,
+      "y": 547,
+      "w": 405,
+      "h": 87
+    },
+    {
+      "id": "G",
+      "kind": "node",
+      "label": ["Synchronous design review"],
+      "parent": null,
+      "shape": "box",
+      "x": 752,
+      "y": 547,
+      "w": 489,
+      "h": 87
+    },
+    {
+      "id": "H",
+      "kind": "node",
+      "label": ["Decision recorded with consequences"],
+      "parent": null,
+      "shape": "box",
+      "x": 342,
+      "y": 804,
+      "w": 656,
+      "h": 87
+    },
+    {
+      "id": "I",
+      "kind": "node",
+      "label": ["Implementation"],
+      "parent": null,
+      "shape": "box",
+      "x": 518,
+      "y": 1061,
+      "w": 304,
+      "h": 87
+    },
+    {
+      "id": "J",
+      "kind": "node",
+      "label": ["Revisit trigger defined up front"],
+      "parent": null,
+      "shape": "box",
+      "x": 367,
+      "y": 1318,
+      "w": 606,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "A",
+      "to": "B",
+      "path": [
+        {
+          "x": 1090,
+          "y": 1662
+        },
+        {
+          "x": 1090,
+          "y": 1672
+        },
+        {
+          "x": 877,
+          "y": 1672
+        },
+        {
+          "x": 877,
+          "y": 1832
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "B",
+      "to": "C",
+      "path": [
+        {
+          "x": 774,
+          "y": 1919
+        },
+        {
+          "x": 774,
+          "y": 2089
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "C",
+      "to": "D",
+      "path": [
+        {
+          "x": 774,
+          "y": 2176
+        },
+        {
+          "x": 774,
+          "y": 2186
+        },
+        {
+          "x": 433,
+          "y": 2186
+        },
+        {
+          "x": 433,
+          "y": 2346
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "D",
+      "to": "E",
+      "path": [
+        {
+          "x": 236,
+          "y": 2346
+        },
+        {
+          "x": 236,
+          "y": 173
+        },
+        {
+          "x": 332,
+          "y": 173
+        },
+        {
+          "x": 332,
+          "y": 163
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "E",
+      "to": "F",
+      "path": [
+        {
+          "x": 480,
+          "y": 163
+        },
+        {
+          "x": 480,
+          "y": 547
+        }
+      ],
+      "label": {
+        "lines": ["Type 2, reversible"],
+        "x": 349,
+        "y": 333,
+        "w": 262,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "E",
+      "to": "G",
+      "path": [
+        {
+          "x": 627,
+          "y": 163
+        },
+        {
+          "x": 627,
+          "y": 173
+        },
+        {
+          "x": 997,
+          "y": 173
+        },
+        {
+          "x": 997,
+          "y": 547
+        }
+      ],
+      "label": {
+        "lines": ["Type 1, hard to reverse"],
+        "x": 832,
+        "y": 333,
+        "w": 330,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "F",
+      "to": "H",
+      "path": [
+        {
+          "x": 480,
+          "y": 634
+        },
+        {
+          "x": 480,
+          "y": 644
+        },
+        {
+          "x": 561,
+          "y": 644
+        },
+        {
+          "x": 561,
+          "y": 804
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "G",
+      "to": "H",
+      "path": [
+        {
+          "x": 997,
+          "y": 634
+        },
+        {
+          "x": 997,
+          "y": 644
+        },
+        {
+          "x": 779,
+          "y": 644
+        },
+        {
+          "x": 779,
+          "y": 804
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "H",
+      "to": "I",
+      "path": [
+        {
+          "x": 670,
+          "y": 891
+        },
+        {
+          "x": 670,
+          "y": 1061
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "I",
+      "to": "J",
+      "path": [
+        {
+          "x": 670,
+          "y": 1148
+        },
+        {
+          "x": 670,
+          "y": 1318
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "J",
+      "to": "B",
+      "path": [
+        {
+          "x": 670,
+          "y": 1405
+        },
+        {
+          "x": 670,
+          "y": 1832
+        }
+      ],
+      "label": {
+        "lines": ["Trigger fires"],
+        "x": 572,
+        "y": 1597,
+        "w": 195,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

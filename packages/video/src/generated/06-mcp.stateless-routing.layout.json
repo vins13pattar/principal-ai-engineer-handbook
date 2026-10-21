@@ -8,6 +8,7 @@
       "kind": "group",
       "label": ["2025-11-25: session-bound"],
       "parent": null,
+      "shape": "box",
       "x": 40,
       "y": 40,
       "w": 1261,
@@ -18,6 +19,7 @@
       "kind": "node",
       "label": ["Client"],
       "parent": "Before",
+      "shape": "box",
       "x": 776,
       "y": 163,
       "w": 200,
@@ -28,6 +30,7 @@
       "kind": "node",
       "label": ["Load balancer"],
       "parent": "Before",
+      "shape": "box",
       "x": 733,
       "y": 334,
       "w": 287,
@@ -38,6 +41,7 @@
       "kind": "node",
       "label": ["Server instance A", "(holds session state)"],
       "parent": "Before",
+      "shape": "box",
       "x": 462,
       "y": 567,
       "w": 421,
@@ -48,6 +52,7 @@
       "kind": "node",
       "label": ["Server instance B"],
       "parent": "Before",
+      "shape": "box",
       "x": 903,
       "y": 567,
       "w": 354,
@@ -58,6 +63,7 @@
       "kind": "group",
       "label": ["2026-07-28: stateless"],
       "parent": null,
+      "shape": "box",
       "x": 2065,
       "y": 45,
       "w": 1502.5,
@@ -68,6 +74,7 @@
       "kind": "node",
       "label": ["Client"],
       "parent": "After",
+      "shape": "box",
       "x": 2871,
       "y": 168,
       "w": 200,
@@ -78,6 +85,7 @@
       "kind": "node",
       "label": ["Load balancer"],
       "parent": "After",
+      "shape": "box",
       "x": 2828,
       "y": 370,
       "w": 287,
@@ -88,6 +96,7 @@
       "kind": "node",
       "label": ["Server instance A"],
       "parent": "After",
+      "shape": "box",
       "x": 2794,
       "y": 601,
       "w": 354,
@@ -98,6 +107,7 @@
       "kind": "node",
       "label": ["Server instance B"],
       "parent": "After",
+      "shape": "box",
       "x": 3168,
       "y": 601,
       "w": 354,
@@ -108,6 +118,7 @@
       "kind": "node",
       "label": ["Server instance C"],
       "parent": "After",
+      "shape": "box",
       "x": 2420,
       "y": 601,
       "w": 354,
@@ -141,7 +152,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e2",
@@ -169,7 +181,8 @@
         "h": 75
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e3",
@@ -201,7 +214,8 @@
         "h": 44
       },
       "dashed": true,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e4",
@@ -229,7 +243,8 @@
         "h": 75
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e5",
@@ -257,7 +272,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e6",
@@ -285,7 +301,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e7",
@@ -313,7 +330,8 @@
         "h": 44
       },
       "dashed": false,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     },
     {
       "id": "e8",
@@ -341,7 +359,8 @@
         "h": 75
       },
       "dashed": true,
-      "bidirectional": false
+      "bidirectional": false,
+      "arrow": true
     }
   ]
 }

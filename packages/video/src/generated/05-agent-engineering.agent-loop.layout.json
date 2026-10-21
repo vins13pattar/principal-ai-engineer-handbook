@@ -1,0 +1,398 @@
+{
+  "name": "05-agent-engineering.agent-loop",
+  "width": 5923,
+  "height": 446,
+  "nodes": [
+    {
+      "id": "Start",
+      "kind": "node",
+      "label": ["Task received"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 2667,
+      "y": 40,
+      "w": 319,
+      "h": 87
+    },
+    {
+      "id": "Budget",
+      "kind": "node",
+      "label": ["Step or cost budget remaining?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 3156,
+      "y": 165,
+      "w": 625,
+      "h": 123
+    },
+    {
+      "id": "Handoff",
+      "kind": "node",
+      "label": ["Stop: hand off to a human, task incomplete"],
+      "parent": null,
+      "shape": "box",
+      "x": 4182,
+      "y": 162,
+      "w": 774,
+      "h": 87
+    },
+    {
+      "id": "Decide",
+      "kind": "node",
+      "label": ["Model decides: call a tool, ask a question, or finish"],
+      "parent": null,
+      "shape": "box",
+      "x": 4182,
+      "y": 319,
+      "w": 959,
+      "h": 87
+    },
+    {
+      "id": "Done",
+      "kind": "node",
+      "label": ["Done"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 5663,
+      "y": 319,
+      "w": 220,
+      "h": 87
+    },
+    {
+      "id": "Perm",
+      "kind": "node",
+      "label": ["Tool call passes permission and schema check?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 40,
+      "y": 232,
+      "w": 877,
+      "h": 123
+    },
+    {
+      "id": "Reject",
+      "kind": "node",
+      "label": ["Reject: error observation appended to context"],
+      "parent": null,
+      "shape": "box",
+      "x": 1360,
+      "y": 93,
+      "w": 825,
+      "h": 87
+    },
+    {
+      "id": "Exec",
+      "kind": "node",
+      "label": ["Execute tool (sandboxed, idempotency key attached)"],
+      "parent": null,
+      "shape": "box",
+      "x": 1318,
+      "y": 250,
+      "w": 909,
+      "h": 87
+    },
+    {
+      "id": "Observe",
+      "kind": "node",
+      "label": ["Observation appended to context"],
+      "parent": null,
+      "shape": "box",
+      "x": 2397,
+      "y": 197,
+      "w": 589,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Start",
+      "to": "Budget",
+      "path": [
+        {
+          "x": 2986,
+          "y": 84
+        },
+        {
+          "x": 2996,
+          "y": 84
+        },
+        {
+          "x": 2996,
+          "y": 206
+        },
+        {
+          "x": 3156,
+          "y": 206
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Budget",
+      "to": "Handoff",
+      "path": [
+        {
+          "x": 3781,
+          "y": 206
+        },
+        {
+          "x": 4182,
+          "y": 206
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 3958,
+        "y": 183,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Budget",
+      "to": "Decide",
+      "path": [
+        {
+          "x": 3781,
+          "y": 247
+        },
+        {
+          "x": 3791,
+          "y": 247
+        },
+        {
+          "x": 3791,
+          "y": 315
+        },
+        {
+          "x": 4022,
+          "y": 315
+        },
+        {
+          "x": 4022,
+          "y": 348
+        },
+        {
+          "x": 4182,
+          "y": 348
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 3951,
+        "y": 292,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "Decide",
+      "to": "Done",
+      "path": [
+        {
+          "x": 5141,
+          "y": 363
+        },
+        {
+          "x": 5663,
+          "y": 363
+        }
+      ],
+      "label": {
+        "lines": ["Final answer"],
+        "x": 5311,
+        "y": 340,
+        "w": 182,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Decide",
+      "to": "Perm",
+      "path": [
+        {
+          "x": 4182,
+          "y": 377
+        },
+        {
+          "x": 927,
+          "y": 377
+        },
+        {
+          "x": 927,
+          "y": 324
+        },
+        {
+          "x": 917,
+          "y": 324
+        }
+      ],
+      "label": {
+        "lines": ["Tool call"],
+        "x": 2621,
+        "y": 354,
+        "w": 141,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Perm",
+      "to": "Reject",
+      "path": [
+        {
+          "x": 917,
+          "y": 263
+        },
+        {
+          "x": 927,
+          "y": 263
+        },
+        {
+          "x": 927,
+          "y": 137
+        },
+        {
+          "x": 1360,
+          "y": 137
+        }
+      ],
+      "label": {
+        "lines": ["No"],
+        "x": 1094,
+        "y": 114,
+        "w": 47,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Perm",
+      "to": "Exec",
+      "path": [
+        {
+          "x": 917,
+          "y": 294
+        },
+        {
+          "x": 1318,
+          "y": 294
+        }
+      ],
+      "label": {
+        "lines": ["Yes"],
+        "x": 1087,
+        "y": 271,
+        "w": 61,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "Exec",
+      "to": "Observe",
+      "path": [
+        {
+          "x": 2227,
+          "y": 294
+        },
+        {
+          "x": 2237,
+          "y": 294
+        },
+        {
+          "x": 2237,
+          "y": 255
+        },
+        {
+          "x": 2397,
+          "y": 255
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "Reject",
+      "to": "Observe",
+      "path": [
+        {
+          "x": 2185,
+          "y": 137
+        },
+        {
+          "x": 2237,
+          "y": 137
+        },
+        {
+          "x": 2237,
+          "y": 226
+        },
+        {
+          "x": 2397,
+          "y": 226
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "Observe",
+      "to": "Budget",
+      "path": [
+        {
+          "x": 2986,
+          "y": 241
+        },
+        {
+          "x": 2996,
+          "y": 241
+        },
+        {
+          "x": 2996,
+          "y": 247
+        },
+        {
+          "x": 3156,
+          "y": 247
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

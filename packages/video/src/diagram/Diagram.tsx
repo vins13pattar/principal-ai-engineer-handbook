@@ -3,12 +3,14 @@ import { interpolate, useCurrentFrame, useVideoConfig } from "remotion";
 import { getLength, getPointAtLength } from "@remotion/paths";
 import { cameraProgress, enterProgress, fadeIn, STAGGER } from "../motion.ts";
 import { color, fontStack, size } from "../theme.ts";
+import { wrapText } from "../scenes/text.ts";
 import type {
   DiagramLayout,
   DiagramStep,
   LaidOutEdge,
   LaidOutNode,
   LegendItem,
+  NodeShape,
   Point,
 } from "./types.ts";
 
@@ -19,7 +21,7 @@ const GROUP_FONT = 30;
 const DIM = 0.38;
 /** How visible an element is before the narration reaches it: the chart is never empty. */
 const GHOST = 0.55;
-/** How visible a not-yet-lit label is: enough to read the shape of the chart, not enough to compete with the narrated part. */
+/** How visible a not-yet-lit label is: enough to read the shape of the chart, not enough to compete. */
 const GHOST_TEXT = 0.34;
 const ARROW = 17;
 /** The whole chart is shown for this long before the first step, so frame zero is never empty. */
@@ -96,21 +98,71 @@ function edgeBox(edge: LaidOutEdge): Rect {
   return edge.label ? boundsOf([box, edge.label]) : box;
 }
 
+/** A node's box including the note that hangs under it. */
+function nodeBox(node: LaidOutNode): Rect {
+  return node.note ? { ...node, h: node.h + 24 + noteHeight(node) } : node;
+}
+
+function noteHeight(node: LaidOutNode): number {
+  return node.note ? wrapText(node.note.lines.join(" "), 34).length * 30 : 0;
+}
+
+interface ResolvedStep extends DiagramStep {
+  /** Everything this step newly reveals, groups first, then nodes, then edges. */
+  show: string[];
+  focus: string[];
+  frame: Rect;
+}
+
+/**
+ * Turns authored steps into what each one reveals and frames. Showing a node also shows the groups
+ * that contain it, and an edge appears as soon as both its ends are on the chart, so a script
+ * names only the places it wants lit. A step with no `focus` frames what it newly revealed.
+ */
 function resolveSteps(layout: DiagramLayout, steps: DiagramStep[]) {
   const nodeById = new Map(layout.nodes.map((n) => [n.id, n]));
   const edgeById = new Map(layout.edges.map((e) => [e.id, e]));
   const boxOf = (id: string): Rect => {
     const node = nodeById.get(id);
-    if (node) return node;
+    if (node) return nodeBox(node);
     const edge = edgeById.get(id);
     if (edge) return edgeBox(edge);
     throw new Error(`Diagram ${layout.name}: unknown element "${id}"`);
   };
-  const whole = boundsOf([...layout.nodes, ...layout.edges.map(edgeBox)]);
-  const resolved = steps.map((step) => {
-    for (const id of [...step.show, ...(step.focus ?? []), ...(step.camera ?? [])]) boxOf(id);
-    const focus = step.focus ?? step.show;
-    return { ...step, focus, frame: boundsOf((step.camera ?? focus).map(boxOf)) };
+  const whole = boundsOf([...layout.nodes.map(nodeBox), ...layout.edges.map(edgeBox)]);
+  const shown = new Set<string>();
+
+  const resolved: ResolvedStep[] = steps.map((step) => {
+    const added: string[] = [];
+    const add = (id: string) => {
+      if (shown.has(id)) return;
+      boxOf(id);
+      shown.add(id);
+      added.push(id);
+    };
+    const withAncestors = (id: string) => {
+      const node = nodeById.get(id);
+      if (node?.parent) withAncestors(node.parent);
+      add(id);
+    };
+    for (const id of step.show) withAncestors(id);
+    for (const edge of layout.edges) {
+      if (!shown.has(edge.id) && shown.has(edge.from) && shown.has(edge.to)) add(edge.id);
+    }
+    for (const id of [...(step.focus ?? []), ...(step.camera ?? [])]) boxOf(id);
+
+    const isGroup = (id: string) => nodeById.get(id)?.kind === "group";
+    const ordered = [
+      ...added.filter(isGroup),
+      ...added.filter((id) => nodeById.has(id) && !isGroup(id)),
+      ...added.filter((id) => edgeById.has(id)),
+    ];
+    const leaves = ordered.filter((id) => !isGroup(id));
+    const focus = step.focus ?? (leaves.length > 0 ? leaves : ordered);
+    // Long routes would stretch the frame; the camera follows the places a step lights, and edges only when it lights none.
+    const lit = focus.filter((id) => nodeById.has(id));
+    const camera = step.camera ?? (lit.length > 0 ? lit : focus);
+    return { ...step, show: ordered, focus, frame: boundsOf(camera.map(boxOf)) };
   });
   return { resolved, whole };
 }
@@ -121,11 +173,25 @@ function fitCamera(rect: Rect, area: Rect, maxScale: number) {
   return { scale, cx: rect.x + rect.w / 2, cy: rect.y + rect.h / 2 };
 }
 
+/** The key, when a script does not write one: the symbols this chart actually uses. */
+function defaultLegend(layout: DiagramLayout, blocked: string[]): LegendItem[] {
+  const shapes = new Set(layout.nodes.filter((n) => n.kind === "node").map((n) => n.shape));
+  const items: LegendItem[] = [{ kind: "place", label: "step" }];
+  if (shapes.has("decision")) items.push({ kind: "decision", label: "decision" });
+  if (shapes.has("store")) items.push({ kind: "store", label: "store" });
+  if (shapes.has("terminal")) items.push({ kind: "terminal", label: "start or end" });
+  items.push({ kind: "route", label: "flow" });
+  if (blocked.length > 0) items.push({ kind: "blocked", label: "cannot happen" });
+  if (layout.nodes.some((n) => n.kind === "group"))
+    items.push({ kind: "region", label: "boundary" });
+  return items.slice(0, 5);
+}
+
 export const Diagram: React.FC<Props> = ({
   layout,
   steps,
   blocked = [],
-  legend = [],
+  legend,
   durationInFrames,
 }) => {
   const frame = useCurrentFrame();
@@ -141,8 +207,13 @@ export const Diagram: React.FC<Props> = ({
   // Camera: the whole chart first, then each step's framing, easing between them.
   let active = -1;
   for (let i = 0; i < resolved.length; i++) if (frame >= startFrames[i]!) active = i;
-  const overview = fitCamera(whole, area, 1.35);
-  const cams = resolved.map((s) => fitCamera(s.frame, area, 1.35));
+  const wholeCamera = fitCamera(whole, area, 1.35);
+  const cams = resolved.map((s) => fitCamera(s.frame, area, 0.85));
+  // A chart too big to read whole opens close on its first step instead, ghosts spreading beyond it.
+  const overview =
+    wholeCamera.scale >= 0.45 || cams.length === 0
+      ? wholeCamera
+      : { ...cams[0]!, scale: Math.min(cams[0]!.scale, 0.8) };
   const cam = (() => {
     if (active < 0) return overview;
     const to = cams[active]!;
@@ -155,7 +226,7 @@ export const Diagram: React.FC<Props> = ({
     };
   })();
 
-  // First step that shows an element decides when it enters.
+  // The step that first shows an element decides when it enters.
   const entry = new Map<string, { step: number; index: number }>();
   resolved.forEach((s, step) =>
     s.show.forEach((id, index) => {
@@ -166,7 +237,7 @@ export const Diagram: React.FC<Props> = ({
   const progress = (id: string): number => {
     const e = entry.get(id);
     if (!e) return 0;
-    return enterProgress(frame, startFrames[e.step]! + e.index * STAGGER, fps);
+    return enterProgress(frame, startFrames[e.step]! + Math.min(e.index, 8) * STAGGER, fps);
   };
   // Brightness once shown: focused in the active step => 1, otherwise dimmed.
   const brightness = (id: string): number => {
@@ -184,40 +255,48 @@ export const Diagram: React.FC<Props> = ({
   const ty = area.y + area.h / 2 - cam.cy * cam.scale;
   const groups = layout.nodes.filter((n) => n.kind === "group");
   const leaves = layout.nodes.filter((n) => n.kind === "node");
+  const key = legend ?? defaultLegend(layout, blocked);
 
   return (
     <>
       <svg width={size.width} height={size.height} style={{ position: "absolute", inset: 0 }}>
-        <g transform={`translate(${tx} ${ty}) scale(${cam.scale})`}>
-          {groups.map((g) => (
-            <Region key={g.id} node={g} brightness={brightness(g.id)} progress={progress(g.id)} />
-          ))}
-          {layout.edges.map((e) => (
-            <Route
-              key={e.id}
-              edge={e}
-              blocked={blocked.includes(e.id)}
-              brightness={brightness(e.id)}
-              progress={progress(e.id)}
-              active={focused(e.id)}
-              frame={frame}
-              fps={fps}
-            />
-          ))}
-          {leaves.map((n) => (
-            <Place
-              key={n.id}
-              node={n}
-              brightness={brightness(n.id)}
-              progress={progress(n.id)}
-              active={focused(n.id)}
-              frame={frame}
-              fps={fps}
-            />
-          ))}
+        <defs>
+          <clipPath id="diagram-area">
+            <rect x={0} y={area.y} width={area.w} height={area.h} />
+          </clipPath>
+        </defs>
+        <g clipPath="url(#diagram-area)">
+          <g transform={`translate(${tx} ${ty}) scale(${cam.scale})`}>
+            {groups.map((g) => (
+              <Region key={g.id} node={g} brightness={brightness(g.id)} progress={progress(g.id)} />
+            ))}
+            {layout.edges.map((e) => (
+              <Route
+                key={e.id}
+                edge={e}
+                blocked={blocked.includes(e.id)}
+                brightness={brightness(e.id)}
+                progress={progress(e.id)}
+                active={focused(e.id)}
+                frame={frame}
+                fps={fps}
+              />
+            ))}
+            {leaves.map((n) => (
+              <Place
+                key={n.id}
+                node={n}
+                brightness={brightness(n.id)}
+                progress={progress(n.id)}
+                active={focused(n.id)}
+                frame={frame}
+                fps={fps}
+              />
+            ))}
+          </g>
         </g>
       </svg>
-      {legend.length > 0 && <Legend items={legend} />}
+      <Legend items={key} />
     </>
   );
 };
@@ -228,6 +307,22 @@ const Region: React.FC<{ node: LaidOutNode; brightness: number; progress: number
   progress,
 }) => {
   const lit = Math.min(progress * 1.3, 1);
+  const title = (opacity: number) =>
+    node.label.map((line, i) => (
+      <text
+        key={i}
+        x={node.x + 32}
+        y={node.y + 52 + i * GROUP_FONT * 1.25}
+        fill={color.brand200}
+        opacity={opacity}
+        fontFamily={fontStack.display}
+        fontStyle="italic"
+        fontWeight={600}
+        fontSize={GROUP_FONT}
+      >
+        {line}
+      </text>
+    ));
   return (
     <g>
       <g opacity={1 - lit}>
@@ -243,21 +338,7 @@ const Region: React.FC<{ node: LaidOutNode; brightness: number; progress: number
           strokeDasharray="3 9"
           opacity={GHOST}
         />
-        {node.label.map((line, i) => (
-          <text
-            key={i}
-            x={node.x + 32}
-            y={node.y + 52 + i * GROUP_FONT * 1.25}
-            fill={color.brand200}
-            opacity={GHOST_TEXT}
-            fontFamily={fontStack.display}
-            fontStyle="italic"
-            fontWeight={600}
-            fontSize={GROUP_FONT}
-          >
-            {line}
-          </text>
-        ))}
+        {title(GHOST_TEXT)}
       </g>
       <g opacity={brightness * lit}>
         <rect
@@ -271,24 +352,69 @@ const Region: React.FC<{ node: LaidOutNode; brightness: number; progress: number
           strokeOpacity={0.75}
           strokeWidth={1.6}
         />
-        {node.label.map((line, i) => (
-          <text
-            key={i}
-            x={node.x + 32}
-            y={node.y + 52 + i * GROUP_FONT * 1.25}
-            fill={color.brand200}
-            fontFamily={fontStack.display}
-            fontStyle="italic"
-            fontWeight={600}
-            fontSize={GROUP_FONT}
-          >
-            {line}
-          </text>
-        ))}
+        {title(1)}
       </g>
     </g>
   );
 };
+
+/** The outline of a place, by shape: chamfered for a decision, a pill for a terminal, and so on. */
+function outline(node: LaidOutNode, props: React.SVGProps<SVGElement>): React.ReactNode {
+  const { x, y, w, h } = node;
+  const shape: NodeShape = node.shape;
+  const common = props as React.SVGProps<SVGPathElement>;
+  switch (shape) {
+    case "decision": {
+      const c = Math.min(h * 0.34, 34);
+      return (
+        <path
+          d={`M ${x + c} ${y} L ${x + w - c} ${y} L ${x + w} ${y + c} L ${x + w} ${y + h - c} L ${x + w - c} ${y + h} L ${x + c} ${y + h} L ${x} ${y + h - c} L ${x} ${y + c} Z`}
+          strokeLinejoin="round"
+          {...common}
+        />
+      );
+    }
+    case "terminal":
+      return (
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={h / 2}
+          {...(props as React.SVGProps<SVGRectElement>)}
+        />
+      );
+    case "circle":
+      return (
+        <ellipse
+          cx={x + w / 2}
+          cy={y + h / 2}
+          rx={w / 2}
+          ry={h / 2}
+          {...(props as React.SVGProps<SVGEllipseElement>)}
+        />
+      );
+    case "store":
+      return (
+        <path
+          d={`M ${x} ${y + 16} Q ${x} ${y} ${x + w / 2} ${y} Q ${x + w} ${y} ${x + w} ${y + 16} L ${x + w} ${y + h - 16} Q ${x + w} ${y + h} ${x + w / 2} ${y + h} Q ${x} ${y + h} ${x} ${y + h - 16} Z M ${x} ${y + 16} Q ${x} ${y + 32} ${x + w / 2} ${y + 32} Q ${x + w} ${y + 32} ${x + w} ${y + 16}`}
+          {...common}
+        />
+      );
+    default:
+      return (
+        <rect
+          x={x}
+          y={y}
+          width={w}
+          height={h}
+          rx={12}
+          {...(props as React.SVGProps<SVGRectElement>)}
+        />
+      );
+  }
+}
 
 const Place: React.FC<{
   node: LaidOutNode;
@@ -300,28 +426,26 @@ const Place: React.FC<{
 }> = ({ node, brightness, progress, active, frame, fps }) => {
   const lift = interpolate(progress, [0, 1], [10, 0]);
   const cx = node.x + node.w / 2;
-  const cy = node.y + node.h / 2;
+  const cy = node.y + node.h / 2 + (node.shape === "store" ? 8 : 0);
   const lit = Math.min(progress * 1.5, 1);
   const pulse = active ? (frame % (fps * 2)) / (fps * 2) : 0;
+  const note = node.note ? wrapText(node.note.lines.join(" "), 34) : [];
+  const labelY = (i: number) =>
+    cy + (i - (node.label.length - 1) / 2) * NODE_FONT * 1.28 + NODE_FONT * 0.34;
   return (
     <g>
       <g opacity={1 - lit}>
-        <rect
-          x={node.x}
-          y={node.y}
-          width={node.w}
-          height={node.h}
-          rx={12}
-          fill="none"
-          stroke={color.brand600}
-          strokeWidth={1.6}
-          opacity={GHOST}
-        />
+        {outline(node, {
+          fill: "none",
+          stroke: color.brand600,
+          strokeWidth: 1.6,
+          opacity: GHOST,
+        } as React.SVGProps<SVGElement>)}
         {node.label.map((line, i) => (
           <text
             key={i}
             x={cx + 4}
-            y={cy + (i - (node.label.length - 1) / 2) * NODE_FONT * 1.28 + NODE_FONT * 0.34}
+            y={labelY(i)}
             textAnchor="middle"
             fill={color.inkSoft}
             opacity={GHOST_TEXT}
@@ -334,32 +458,34 @@ const Place: React.FC<{
         ))}
       </g>
       <g opacity={brightness * lit} transform={`translate(0 ${lift})`}>
-        {active && (
-          <rect
-            x={node.x - pulse * 16}
-            y={node.y - pulse * 16}
-            width={node.w + pulse * 32}
-            height={node.h + pulse * 32}
-            rx={12 + pulse * 10}
-            fill="none"
-            stroke={color.route}
-            strokeWidth={2}
-            opacity={(1 - pulse) * 0.7}
-          />
-        )}
-        <rect
-          x={node.x}
-          y={node.y}
-          width={node.w}
-          height={node.h}
-          rx={12}
-          fill={color.place}
-          stroke={active ? color.route : color.brand300}
-          strokeWidth={active ? 3 : 1.8}
-        />
+        {active &&
+          outline(
+            {
+              ...node,
+              x: node.x - pulse * 14,
+              y: node.y - pulse * 14,
+              w: node.w + pulse * 28,
+              h: node.h + pulse * 28,
+            },
+            {
+              fill: "none",
+              stroke: color.route,
+              strokeWidth: 2,
+              opacity: (1 - pulse) * 0.7,
+            } as React.SVGProps<SVGElement>,
+          )}
+        {outline(node, {
+          fill: color.place,
+          stroke: active
+            ? color.route
+            : node.shape === "decision"
+              ? color.brand200
+              : color.brand300,
+          strokeWidth: active ? 3 : 1.8,
+        } as React.SVGProps<SVGElement>)}
         <circle
           cx={node.x}
-          cy={cy}
+          cy={node.y + node.h / 2}
           r={8}
           fill={active ? color.route : color.sea}
           stroke={active ? color.route : color.brand300}
@@ -369,7 +495,7 @@ const Place: React.FC<{
           <text
             key={i}
             x={cx + 4}
-            y={cy + (i - (node.label.length - 1) / 2) * NODE_FONT * 1.28 + NODE_FONT * 0.34}
+            y={labelY(i)}
             textAnchor="middle"
             fill={i === 0 ? color.ink : color.inkSoft}
             fontFamily={fontStack.sans}
@@ -379,6 +505,33 @@ const Place: React.FC<{
             {line}
           </text>
         ))}
+        {note.length > 0 && (
+          <g opacity={active ? 1 : 0.55}>
+            <line
+              x1={cx}
+              y1={node.y + node.h}
+              x2={cx}
+              y2={node.y + node.h + 16}
+              stroke={node.note?.dashed ? color.fault : color.route}
+              strokeWidth={2}
+            />
+            {note.map((line, i) => (
+              <text
+                key={i}
+                x={cx}
+                y={node.y + node.h + 46 + i * 30}
+                textAnchor="middle"
+                fill={node.note?.dashed ? color.fault : color.route}
+                fontFamily={fontStack.display}
+                fontStyle="italic"
+                fontWeight={600}
+                fontSize={24}
+              >
+                {line}
+              </text>
+            ))}
+          </g>
+        )}
       </g>
     </g>
   );
@@ -402,18 +555,19 @@ const Route: React.FC<{
   const stroke = blocked ? color.fault : active ? color.route : color.brand300;
   const loop = fps * 2.4;
   const pulse =
-    active && !blocked && draw > 0.95
+    active && !blocked && draw > 0.95 && edge.arrow
       ? getPointAtLength(d, ((frame % loop) / loop) * length)
       : null;
   const beforeLast = edge.path.at(-2) ?? first;
+  const dashed = blocked || edge.dashed;
 
   return (
     <g>
       <path
         d={d}
         fill="none"
-        stroke={color.brand600}
-        strokeWidth={1.5}
+        stroke={color.brand500}
+        strokeWidth={2}
         strokeDasharray="3 9"
         opacity={GHOST * (1 - draw)}
       />
@@ -435,10 +589,10 @@ const Route: React.FC<{
             stroke={stroke}
             strokeWidth={active ? 4.5 : 3}
             strokeLinecap="round"
-            strokeDasharray={blocked || edge.dashed ? "11 10" : undefined}
+            strokeDasharray={dashed ? "11 10" : undefined}
           />
         </g>
-        {draw > 0.9 && (
+        {draw > 0.9 && edge.arrow && (
           <g opacity={fadeIn(draw, 0.9, 0.1)}>
             {blocked ? <Cross at={last} /> : <path d={arrowHead(last, beforeLast)} fill={stroke} />}
             {edge.bidirectional && !blocked && (
@@ -502,72 +656,92 @@ const Legend: React.FC<{ items: LegendItem[] }> = ({ items }) => (
       fontSize={24}
       fontWeight={500}
     >
-      {items.map((item, i) => {
-        const x = i * 330;
-        return (
-          <g key={item.label} transform={`translate(${x} 0)`}>
-            {item.kind === "place" && (
-              <>
-                <rect
-                  x={0}
-                  y={-15}
-                  width={44}
-                  height={30}
-                  rx={7}
-                  fill={color.place}
-                  stroke={color.brand300}
-                  strokeWidth={1.6}
-                />
-                <circle
-                  cx={0}
-                  cy={0}
-                  r={5.5}
-                  fill={color.sea}
-                  stroke={color.brand300}
-                  strokeWidth={2}
-                />
-              </>
-            )}
-            {item.kind === "route" && (
-              <path
-                d="M 0 0 L 44 0 M 44 0 L 33 -7 L 33 7 Z"
-                stroke={color.route}
-                strokeWidth={3.5}
-                fill={color.route}
-              />
-            )}
-            {item.kind === "blocked" && (
-              <>
-                <path
-                  d="M 0 0 L 32 0"
-                  stroke={color.fault}
-                  strokeWidth={3.5}
-                  strokeDasharray="8 7"
-                />
-                <g stroke={color.fault} strokeWidth={4} strokeLinecap="round">
-                  <line x1={34} y1={-7} x2={46} y2={7} />
-                  <line x1={34} y1={7} x2={46} y2={-7} />
-                </g>
-              </>
-            )}
-            {item.kind === "region" && (
+      {items.map((item, i) => (
+        <g key={item.label} transform={`translate(${i * 330} 0)`}>
+          {item.kind === "place" && (
+            <>
               <rect
                 x={0}
                 y={-15}
                 width={44}
                 height={30}
-                rx={10}
-                fill="rgba(79,70,229,0.18)"
-                stroke={color.brand400}
+                rx={7}
+                fill={color.place}
+                stroke={color.brand300}
                 strokeWidth={1.6}
               />
-            )}
-            <text x={58} y={8} fill={color.inkSoft}>
-              {item.label}
-            </text>
-          </g>
-        );
-      })}
+              <circle
+                cx={0}
+                cy={0}
+                r={5.5}
+                fill={color.sea}
+                stroke={color.brand300}
+                strokeWidth={2}
+              />
+            </>
+          )}
+          {item.kind === "decision" && (
+            <path
+              d="M 10 -15 L 34 -15 L 44 -5 L 44 5 L 34 15 L 10 15 L 0 5 L 0 -5 Z"
+              fill={color.place}
+              stroke={color.brand200}
+              strokeWidth={1.8}
+            />
+          )}
+          {item.kind === "terminal" && (
+            <rect
+              x={0}
+              y={-15}
+              width={44}
+              height={30}
+              rx={15}
+              fill={color.place}
+              stroke={color.brand300}
+              strokeWidth={1.6}
+            />
+          )}
+          {item.kind === "store" && (
+            <path
+              d="M 0 -8 Q 0 -15 22 -15 Q 44 -15 44 -8 L 44 8 Q 44 15 22 15 Q 0 15 0 8 Z M 0 -8 Q 0 -1 22 -1 Q 44 -1 44 -8"
+              fill={color.place}
+              stroke={color.brand300}
+              strokeWidth={1.6}
+            />
+          )}
+          {item.kind === "route" && (
+            <path
+              d="M 0 0 L 44 0 M 44 0 L 33 -7 L 33 7 Z"
+              stroke={color.route}
+              strokeWidth={3.5}
+              fill={color.route}
+            />
+          )}
+          {item.kind === "blocked" && (
+            <>
+              <path d="M 0 0 L 32 0" stroke={color.fault} strokeWidth={3.5} strokeDasharray="8 7" />
+              <g stroke={color.fault} strokeWidth={4} strokeLinecap="round">
+                <line x1={34} y1={-7} x2={46} y2={7} />
+                <line x1={34} y1={7} x2={46} y2={-7} />
+              </g>
+            </>
+          )}
+          {item.kind === "region" && (
+            <rect
+              x={0}
+              y={-15}
+              width={44}
+              height={30}
+              rx={10}
+              fill="rgba(79,70,229,0.18)"
+              stroke={color.brand400}
+              strokeWidth={1.6}
+            />
+          )}
+          <text x={58} y={8} fill={color.inkSoft}>
+            {item.label}
+          </text>
+        </g>
+      ))}
     </g>
   </svg>
 );

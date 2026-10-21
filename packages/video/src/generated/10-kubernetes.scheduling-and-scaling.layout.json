@@ -1,0 +1,560 @@
+{
+  "name": "10-kubernetes.scheduling-and-scaling",
+  "width": 6452,
+  "height": 809,
+  "nodes": [
+    {
+      "id": "Workloads",
+      "kind": "group",
+      "label": ["Workload objects"],
+      "parent": null,
+      "shape": "box",
+      "x": 514,
+      "y": 56,
+      "w": 2336,
+      "h": 361
+    },
+    {
+      "id": "HPA",
+      "kind": "node",
+      "label": ["HorizontalPodAutoscaler (watches CPU / GPU / custom metrics)"],
+      "parent": "Workloads",
+      "shape": "box",
+      "x": 796,
+      "y": 286,
+      "w": 1077,
+      "h": 87
+    },
+    {
+      "id": "Deploy",
+      "kind": "node",
+      "label": ["Deployment"],
+      "parent": "Workloads",
+      "shape": "box",
+      "x": 1893,
+      "y": 286,
+      "w": 237,
+      "h": 87
+    },
+    {
+      "id": "RS",
+      "kind": "node",
+      "label": ["ReplicaSet"],
+      "parent": "Workloads",
+      "shape": "box",
+      "x": 2429,
+      "y": 286,
+      "w": 237,
+      "h": 87
+    },
+    {
+      "id": "PDB",
+      "kind": "node",
+      "label": ["PodDisruptionBudget (min available)"],
+      "parent": "Workloads",
+      "shape": "box",
+      "x": 2150,
+      "y": 179,
+      "w": 656,
+      "h": 87
+    },
+    {
+      "id": "ControlPlane",
+      "kind": "group",
+      "label": ["Control plane"],
+      "parent": null,
+      "shape": "box",
+      "x": 3503,
+      "y": 428,
+      "w": 1020,
+      "h": 330.5
+    },
+    {
+      "id": "API",
+      "kind": "node",
+      "label": ["API server"],
+      "parent": "ControlPlane",
+      "shape": "box",
+      "x": 3982,
+      "y": 617,
+      "w": 237,
+      "h": 87
+    },
+    {
+      "id": "Etcd",
+      "kind": "node",
+      "label": ["etcd"],
+      "parent": "ControlPlane",
+      "shape": "store",
+      "x": 4239,
+      "y": 606,
+      "w": 240,
+      "h": 109
+    },
+    {
+      "id": "Sched",
+      "kind": "node",
+      "label": ["Scheduler"],
+      "parent": "ControlPlane",
+      "shape": "box",
+      "x": 3742,
+      "y": 551,
+      "w": 220,
+      "h": 87
+    },
+    {
+      "id": "Nodes",
+      "kind": "group",
+      "label": ["Node pools"],
+      "parent": null,
+      "shape": "box",
+      "x": 5525,
+      "y": 40,
+      "w": 887,
+      "h": 729
+    },
+    {
+      "id": "CPUPool",
+      "kind": "group",
+      "label": ["CPU node pool"],
+      "parent": "Nodes",
+      "shape": "box",
+      "x": 5725,
+      "y": 163,
+      "w": 483,
+      "h": 254
+    },
+    {
+      "id": "NodeCPU",
+      "kind": "node",
+      "label": ["Node"],
+      "parent": "CPUPool",
+      "shape": "box",
+      "x": 5964,
+      "y": 286,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "GPUPool",
+      "kind": "group",
+      "label": ["GPU node pool: tainted +", "nodeSelector"],
+      "parent": "Nodes",
+      "shape": "box",
+      "x": 5725,
+      "y": 437,
+      "w": 643,
+      "h": 288
+    },
+    {
+      "id": "NodeGPU",
+      "kind": "node",
+      "label": ["Node"],
+      "parent": "GPUPool",
+      "shape": "box",
+      "x": 6124,
+      "y": 594,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Client",
+      "kind": "node",
+      "label": ["Client request"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 487,
+      "w": 304,
+      "h": 87
+    },
+    {
+      "id": "Ingress",
+      "kind": "node",
+      "label": ["Ingress"],
+      "parent": null,
+      "shape": "box",
+      "x": 1585,
+      "y": 487,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Svc",
+      "kind": "node",
+      "label": ["Service"],
+      "parent": null,
+      "shape": "box",
+      "x": 3077,
+      "y": 487,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Pod1",
+      "kind": "node",
+      "label": ["Pod"],
+      "parent": null,
+      "shape": "box",
+      "x": 3708,
+      "y": 271,
+      "w": 200,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Client",
+      "to": "Ingress",
+      "path": [
+        {
+          "x": 344,
+          "y": 531
+        },
+        {
+          "x": 1585,
+          "y": 531
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Ingress",
+      "to": "Svc",
+      "path": [
+        {
+          "x": 1785,
+          "y": 531
+        },
+        {
+          "x": 3077,
+          "y": 531
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Svc",
+      "to": "Pod1",
+      "path": [
+        {
+          "x": 3277,
+          "y": 531
+        },
+        {
+          "x": 3338,
+          "y": 531
+        },
+        {
+          "x": 3338,
+          "y": 336
+        },
+        {
+          "x": 3708,
+          "y": 336
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "HPA",
+      "to": "Deploy",
+      "path": [
+        {
+          "x": 1873,
+          "y": 330
+        },
+        {
+          "x": 1893,
+          "y": 330
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Deploy",
+      "to": "RS",
+      "path": [
+        {
+          "x": 2130,
+          "y": 330
+        },
+        {
+          "x": 2429,
+          "y": 330
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "RS",
+      "to": "Pod1",
+      "path": [
+        {
+          "x": 2666,
+          "y": 315
+        },
+        {
+          "x": 3708,
+          "y": 315
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "PDB",
+      "to": "Pod1",
+      "path": [
+        {
+          "x": 2806,
+          "y": 223
+        },
+        {
+          "x": 2855,
+          "y": 223
+        },
+        {
+          "x": 3338,
+          "y": 223
+        },
+        {
+          "x": 3338,
+          "y": 293
+        },
+        {
+          "x": 3708,
+          "y": 293
+        }
+      ],
+      "label": {
+        "lines": ["protects during drain"],
+        "x": 3025,
+        "y": 200,
+        "w": 303,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "API",
+      "to": "Etcd",
+      "path": [
+        {
+          "x": 4219,
+          "y": 660
+        },
+        {
+          "x": 4239,
+          "y": 660
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "Sched",
+      "to": "API",
+      "path": [
+        {
+          "x": 3962,
+          "y": 616
+        },
+        {
+          "x": 3972,
+          "y": 616
+        },
+        {
+          "x": 3972,
+          "y": 646
+        },
+        {
+          "x": 3982,
+          "y": 646
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "RS",
+      "to": "API",
+      "path": [
+        {
+          "x": 2666,
+          "y": 344
+        },
+        {
+          "x": 2865,
+          "y": 344
+        },
+        {
+          "x": 2865,
+          "y": 395
+        },
+        {
+          "x": 3402,
+          "y": 395
+        },
+        {
+          "x": 3402,
+          "y": 675
+        },
+        {
+          "x": 3498,
+          "y": 675
+        },
+        {
+          "x": 3982,
+          "y": 675
+        }
+      ],
+      "label": {
+        "lines": ["desired replica count"],
+        "x": 3025,
+        "y": 372,
+        "w": 303,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "Sched",
+      "to": "NodeCPU",
+      "path": [
+        {
+          "x": 3962,
+          "y": 573
+        },
+        {
+          "x": 4528,
+          "y": 573
+        },
+        {
+          "x": 5360,
+          "y": 573
+        },
+        {
+          "x": 5360,
+          "y": 344
+        },
+        {
+          "x": 5964,
+          "y": 344
+        }
+      ],
+      "label": {
+        "lines": ["binds pod, no GPU request"],
+        "x": 4846,
+        "y": 550,
+        "w": 357,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "Sched",
+      "to": "NodeGPU",
+      "path": [
+        {
+          "x": 3962,
+          "y": 595
+        },
+        {
+          "x": 4528,
+          "y": 595
+        },
+        {
+          "x": 4538,
+          "y": 595
+        },
+        {
+          "x": 4538,
+          "y": 638
+        },
+        {
+          "x": 5520,
+          "y": 638
+        },
+        {
+          "x": 6124,
+          "y": 638
+        }
+      ],
+      "label": {
+        "lines": ["binds pod, requests nvidia.com/gpu + toleration"],
+        "x": 4698,
+        "y": 615,
+        "w": 652,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e13",
+      "from": "Pod1",
+      "to": "NodeCPU",
+      "path": [
+        {
+          "x": 3908,
+          "y": 315
+        },
+        {
+          "x": 5964,
+          "y": 315
+        }
+      ],
+      "label": {
+        "lines": ["scheduled onto"],
+        "x": 4920,
+        "y": 292,
+        "w": 209,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

@@ -260,9 +260,15 @@ importers:
       '@handbook/podcast-providers':
         specifier: workspace:*
         version: link:../podcast-providers
+      '@remotion/bundler':
+        specifier: 4.0.537
+        version: 4.0.537(postcss@8.5.25)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@remotion/install-whisper-cpp':
         specifier: 4.0.537
         version: 4.0.537
+      '@remotion/renderer':
+        specifier: 4.0.537
+        version: 4.0.537(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@types/node':
         specifier: 22.20.1
         version: 22.20.1

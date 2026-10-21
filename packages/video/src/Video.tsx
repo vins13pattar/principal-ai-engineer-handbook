@@ -7,24 +7,22 @@ import {
   useCurrentFrame,
   useVideoConfig,
 } from "remotion";
-import hostClientServer from "./generated/06-mcp.host-client-server.layout.json";
-import statelessRouting from "./generated/06-mcp.stateless-routing.layout.json";
-import type { DiagramLayout } from "./diagram/types.ts";
+import { LAYOUTS } from "./generated/layouts.ts";
 import { Anatomy } from "./scenes/Anatomy.tsx";
+import { Axis } from "./scenes/Axis.tsx";
+import { Bars } from "./scenes/Bars.tsx";
 import { Chart } from "./scenes/Chart.tsx";
 import { DiagramBuild } from "./scenes/DiagramBuild.tsx";
 import { Hazards } from "./scenes/Hazards.tsx";
+import { Lanes } from "./scenes/Lanes.tsx";
 import { Bridges } from "./scenes/mcp/Bridges.tsx";
 import { Hook } from "./scenes/mcp/Hook.tsx";
 import { Routes } from "./scenes/mcp/Routes.tsx";
 import { Spectrum } from "./scenes/mcp/Spectrum.tsx";
 import { Recap } from "./scenes/Recap.tsx";
+import { Sequence as SequenceScene } from "./scenes/Sequence.tsx";
+import { Story } from "./scenes/Story.tsx";
 import { sceneSeconds, type Scene, type VideoScript } from "./videos/types.ts";
-
-const LAYOUTS: Record<string, DiagramLayout> = {
-  hostClientServer: hostClientServer as DiagramLayout,
-  statelessRouting: statelessRouting as DiagramLayout,
-};
 
 const FADE = 9;
 
@@ -62,10 +60,56 @@ const Body: React.FC<{ scene: Scene }> = ({ scene }) => {
         />
       );
     }
-    case "anatomy":
-      return <Anatomy lines={scene.lines} notes={scene.notes} beats={scene.beats} />;
+    case "sequence":
+      return <SequenceScene layout={scene.layout} steps={scene.steps} />;
+    case "story":
+      return (
+        <Story
+          map={scene.map}
+          runs={scene.runs}
+          captions={scene.captions}
+          beats={scene.beats}
+          {...(scene.marks ? { marks: scene.marks } : {})}
+          {...(scene.note ? { note: scene.note } : {})}
+        />
+      );
     case "hazards":
-      return <Hazards hazards={scene.hazards} beats={scene.beats} />;
+      return <Hazards map={scene.map} hazards={scene.hazards} beats={scene.beats} />;
+    case "axis":
+      return (
+        <Axis
+          ends={scene.ends}
+          stations={scene.stations}
+          beats={scene.beats}
+          {...(scene.chip ? { chip: scene.chip } : {})}
+        />
+      );
+    case "lanes":
+      return (
+        <Lanes
+          lanes={scene.lanes}
+          beats={scene.beats}
+          {...(scene.takeaway ? { takeaway: scene.takeaway } : {})}
+        />
+      );
+    case "bars":
+      return (
+        <Bars
+          items={scene.items}
+          beats={scene.beats}
+          {...(scene.caption ? { caption: scene.caption } : {})}
+          {...(scene.max ? { max: scene.max } : {})}
+        />
+      );
+    case "anatomy":
+      return (
+        <Anatomy
+          lines={scene.lines}
+          notes={scene.notes}
+          beats={scene.beats}
+          {...(scene.prose ? { prose: true } : {})}
+        />
+      );
     case "recap":
       return <Recap points={scene.points} footer={scene.footer} beats={scene.beats} />;
   }
@@ -92,7 +136,7 @@ const SceneShell: React.FC<{
       <Chart
         plate={script.plate}
         headline={scene.headline}
-        seed={index + 3}
+        seed={index + 3 + Number(script.module) * 11}
         route={{ starts, active: index, progress: (start + frame) / total }}
       >
         <Body scene={scene} />

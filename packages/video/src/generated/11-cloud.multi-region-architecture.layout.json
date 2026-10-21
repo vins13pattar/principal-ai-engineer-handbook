@@ -1,0 +1,480 @@
+{
+  "name": "11-cloud.multi-region-architecture",
+  "width": 2149,
+  "height": 1950,
+  "nodes": [
+    {
+      "id": "RegionA",
+      "kind": "group",
+      "label": ["Region A — primary"],
+      "parent": null,
+      "shape": "box",
+      "x": 1182,
+      "y": 516,
+      "w": 927,
+      "h": 500
+    },
+    {
+      "id": "ALBA",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": "RegionA",
+      "shape": "box",
+      "x": 1767,
+      "y": 639,
+      "w": 287,
+      "h": 87
+    },
+    {
+      "id": "AppA",
+      "kind": "node",
+      "label": ["App tier (private subnet)"],
+      "parent": "RegionA",
+      "shape": "box",
+      "x": 1498,
+      "y": 756,
+      "w": 489,
+      "h": 87
+    },
+    {
+      "id": "DataA",
+      "kind": "node",
+      "label": ["Primary datastore"],
+      "parent": "RegionA",
+      "shape": "store",
+      "x": 1566,
+      "y": 863,
+      "w": 354,
+      "h": 109
+    },
+    {
+      "id": "NATA",
+      "kind": "node",
+      "label": ["NAT gateway"],
+      "parent": "RegionA",
+      "shape": "box",
+      "x": 1494,
+      "y": 639,
+      "w": 253,
+      "h": 87
+    },
+    {
+      "id": "RegionB",
+      "kind": "group",
+      "label": ["Region B — standby / DR"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 1410,
+      "w": 1010,
+      "h": 500
+    },
+    {
+      "id": "ALBB",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": "RegionB",
+      "shape": "box",
+      "x": 697,
+      "y": 1533,
+      "w": 287,
+      "h": 87
+    },
+    {
+      "id": "AppB",
+      "kind": "node",
+      "label": ["App tier (private subnet)"],
+      "parent": "RegionB",
+      "shape": "box",
+      "x": 428,
+      "y": 1650,
+      "w": 489,
+      "h": 87
+    },
+    {
+      "id": "DataB",
+      "kind": "node",
+      "label": ["Replica datastore"],
+      "parent": "RegionB",
+      "shape": "store",
+      "x": 555,
+      "y": 1757,
+      "w": 354,
+      "h": 109
+    },
+    {
+      "id": "NATB",
+      "kind": "node",
+      "label": ["NAT gateway"],
+      "parent": "RegionB",
+      "shape": "box",
+      "x": 424,
+      "y": 1533,
+      "w": 253,
+      "h": 87
+    },
+    {
+      "id": "DNS",
+      "kind": "node",
+      "label": ["Global DNS / traffic manager (health-checked failover)"],
+      "parent": null,
+      "shape": "box",
+      "x": 316,
+      "y": 40,
+      "w": 976,
+      "h": 87
+    },
+    {
+      "id": "IAM",
+      "kind": "node",
+      "label": ["IAM: per-service roles, least privilege"],
+      "parent": null,
+      "shape": "box",
+      "x": 1362,
+      "y": 40,
+      "w": 724,
+      "h": 87
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "ALBA",
+      "to": "AppA",
+      "path": [
+        {
+          "x": 1911,
+          "y": 726
+        },
+        {
+          "x": 1911,
+          "y": 736
+        },
+        {
+          "x": 1743,
+          "y": 736
+        },
+        {
+          "x": 1743,
+          "y": 756
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "AppA",
+      "to": "DataA",
+      "path": [
+        {
+          "x": 1743,
+          "y": 843
+        },
+        {
+          "x": 1743,
+          "y": 863
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "NATA",
+      "to": "AppA",
+      "path": [
+        {
+          "x": 1621,
+          "y": 726
+        },
+        {
+          "x": 1621,
+          "y": 756
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": false
+    },
+    {
+      "id": "e4",
+      "from": "ALBB",
+      "to": "AppB",
+      "path": [
+        {
+          "x": 841,
+          "y": 1620
+        },
+        {
+          "x": 841,
+          "y": 1630
+        },
+        {
+          "x": 673,
+          "y": 1630
+        },
+        {
+          "x": 673,
+          "y": 1650
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "AppB",
+      "to": "DataB",
+      "path": [
+        {
+          "x": 673,
+          "y": 1737
+        },
+        {
+          "x": 673,
+          "y": 1757
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "NATB",
+      "to": "AppB",
+      "path": [
+        {
+          "x": 551,
+          "y": 1620
+        },
+        {
+          "x": 551,
+          "y": 1650
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": false
+    },
+    {
+      "id": "e7",
+      "from": "DNS",
+      "to": "ALBA",
+      "path": [
+        {
+          "x": 967,
+          "y": 127
+        },
+        {
+          "x": 967,
+          "y": 137
+        },
+        {
+          "x": 1086,
+          "y": 137
+        },
+        {
+          "x": 1086,
+          "y": 415
+        },
+        {
+          "x": 1911,
+          "y": 415
+        },
+        {
+          "x": 1911,
+          "y": 511
+        },
+        {
+          "x": 1911,
+          "y": 639
+        }
+      ],
+      "label": {
+        "lines": ["active"],
+        "x": 1035,
+        "y": 297,
+        "w": 101,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "DNS",
+      "to": "ALBB",
+      "path": [
+        {
+          "x": 641,
+          "y": 127
+        },
+        {
+          "x": 641,
+          "y": 1245
+        },
+        {
+          "x": 841,
+          "y": 1245
+        },
+        {
+          "x": 841,
+          "y": 1405
+        },
+        {
+          "x": 841,
+          "y": 1533
+        }
+      ],
+      "label": {
+        "lines": ["failover on health-check failure"],
+        "x": 415,
+        "y": 744,
+        "w": 451,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "DataA",
+      "to": "DataB",
+      "path": [
+        {
+          "x": 1743,
+          "y": 972
+        },
+        {
+          "x": 1743,
+          "y": 1021
+        },
+        {
+          "x": 1743,
+          "y": 1245
+        },
+        {
+          "x": 1005,
+          "y": 1245
+        },
+        {
+          "x": 1005,
+          "y": 1747
+        },
+        {
+          "x": 791,
+          "y": 1747
+        },
+        {
+          "x": 791,
+          "y": 1757
+        }
+      ],
+      "label": {
+        "lines": ["async cross-region replication"],
+        "x": 1531,
+        "y": 1191,
+        "w": 424,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "IAM",
+      "to": "AppA",
+      "path": [
+        {
+          "x": 1845,
+          "y": 127
+        },
+        {
+          "x": 1845,
+          "y": 351
+        },
+        {
+          "x": 2064,
+          "y": 351
+        },
+        {
+          "x": 2064,
+          "y": 746
+        },
+        {
+          "x": 1865,
+          "y": 746
+        },
+        {
+          "x": 1865,
+          "y": 756
+        }
+      ],
+      "label": {
+        "lines": ["scopes access to"],
+        "x": 1727,
+        "y": 297,
+        "w": 236,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "IAM",
+      "to": "AppB",
+      "path": [
+        {
+          "x": 1603,
+          "y": 127
+        },
+        {
+          "x": 1603,
+          "y": 201
+        },
+        {
+          "x": 994,
+          "y": 201
+        },
+        {
+          "x": 994,
+          "y": 1640
+        },
+        {
+          "x": 795,
+          "y": 1640
+        },
+        {
+          "x": 795,
+          "y": 1650
+        }
+      ],
+      "label": {
+        "lines": ["scopes access to"],
+        "x": 876,
+        "y": 744,
+        "w": 236,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

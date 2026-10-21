@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mcp } from "./mcp.ts";
+import { mcp } from "./06-mcp.ts";
 import { chapters, youtubeDescription, youtubeTitle } from "./youtube.ts";
 
 describe("youtube metadata", () => {

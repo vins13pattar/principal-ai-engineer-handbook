@@ -1,0 +1,261 @@
+{
+  "name": "03-networking.streaming-path",
+  "width": 1569,
+  "height": 560,
+  "nodes": [
+    {
+      "id": "Client",
+      "kind": "node",
+      "label": ["Client"],
+      "parent": null,
+      "shape": "box",
+      "x": 127,
+      "y": 83,
+      "w": 200,
+      "h": 87
+    },
+    {
+      "id": "Edge",
+      "kind": "node",
+      "label": ["Edge / CDN"],
+      "parent": null,
+      "shape": "box",
+      "x": 1024,
+      "y": 40,
+      "w": 237,
+      "h": 87,
+      "note": {
+        "lines": [
+          "pitfall: buffering proxy holds",
+          "the full response before forwarding,",
+          "breaking streaming entirely"
+        ],
+        "dashed": true
+      }
+    },
+    {
+      "id": "LB",
+      "kind": "node",
+      "label": ["Load balancer"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 240,
+      "w": 287,
+      "h": 87
+    },
+    {
+      "id": "GW",
+      "kind": "node",
+      "label": ["Gateway: text/event-stream"],
+      "parent": null,
+      "shape": "box",
+      "x": 1024,
+      "y": 346,
+      "w": 505,
+      "h": 87,
+      "note": {
+        "lines": ["is_disconnected() checked every chunk"],
+        "dashed": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "Client",
+      "to": "Edge",
+      "path": [
+        {
+          "x": 327,
+          "y": 112
+        },
+        {
+          "x": 337,
+          "y": 112
+        },
+        {
+          "x": 337,
+          "y": 87
+        },
+        {
+          "x": 1024,
+          "y": 87
+        }
+      ],
+      "label": {
+        "lines": ["TLS 1.3, keep-alive"],
+        "x": 538,
+        "y": 64,
+        "w": 276,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Edge",
+      "to": "LB",
+      "path": [
+        {
+          "x": 1024,
+          "y": 182
+        },
+        {
+          "x": 864,
+          "y": 182
+        },
+        {
+          "x": 864,
+          "y": 213
+        },
+        {
+          "x": 337,
+          "y": 213
+        },
+        {
+          "x": 337,
+          "y": 257
+        },
+        {
+          "x": 327,
+          "y": 257
+        }
+      ],
+      "label": {
+        "lines": ["L7 load balancer"],
+        "x": 558,
+        "y": 190,
+        "w": 236,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "LB",
+      "to": "GW",
+      "path": [
+        {
+          "x": 327,
+          "y": 292
+        },
+        {
+          "x": 864,
+          "y": 292
+        },
+        {
+          "x": 864,
+          "y": 404
+        },
+        {
+          "x": 1024,
+          "y": 404
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "GW",
+      "to": "LB",
+      "path": [
+        {
+          "x": 1024,
+          "y": 462
+        },
+        {
+          "x": 337,
+          "y": 462
+        },
+        {
+          "x": 337,
+          "y": 310
+        },
+        {
+          "x": 327,
+          "y": 310
+        }
+      ],
+      "label": {
+        "lines": ["token-by-token SSE chunks"],
+        "x": 497,
+        "y": 439,
+        "w": 357,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "LB",
+      "to": "Edge",
+      "path": [
+        {
+          "x": 327,
+          "y": 275
+        },
+        {
+          "x": 928,
+          "y": 275
+        },
+        {
+          "x": 928,
+          "y": 229
+        },
+        {
+          "x": 1024,
+          "y": 229
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Edge",
+      "to": "Client",
+      "path": [
+        {
+          "x": 1024,
+          "y": 134
+        },
+        {
+          "x": 864,
+          "y": 134
+        },
+        {
+          "x": 864,
+          "y": 149
+        },
+        {
+          "x": 337,
+          "y": 149
+        },
+        {
+          "x": 337,
+          "y": 141
+        },
+        {
+          "x": 327,
+          "y": 141
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

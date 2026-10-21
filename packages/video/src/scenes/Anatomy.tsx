@@ -9,6 +9,7 @@ import { useBeat } from "./useReveal.ts";
 type Group = "route" | "meta" | "plain";
 
 interface Props {
+  prose?: boolean;
   lines: { text: string; group: Group }[];
   notes: { group: "route" | "meta"; title: string; body: string }[];
   beats: Beat[];
@@ -20,7 +21,7 @@ const TOP = PANEL.y + 82;
 const GROUP_COLOR: Record<"route" | "meta", string> = { route: color.route, meta: color.brand200 };
 
 /** A request laid out as a chart legend: the code on the left, and each part explained on the right. */
-export const Anatomy: React.FC<Props> = ({ lines, notes, beats }) => {
+export const Anatomy: React.FC<Props> = ({ prose = false, lines, notes, beats }) => {
   const frame = useCurrentFrame();
   const { fps, durationInFrames } = useVideoConfig();
   const { active } = useBeat(beats.map((b) => b.at));
@@ -28,6 +29,12 @@ export const Anatomy: React.FC<Props> = ({ lines, notes, beats }) => {
   const activeGroup = active >= 0 ? notes[active]!.group : null;
   const lift = active >= 0 ? cameraProgress(frame, start(active), fps) : 0;
   const height = lines.length * LINE_H + 120;
+  // Each note starts below the one before it, whatever its length.
+  const noteTops: number[] = [];
+  notes.reduce((top, note) => {
+    noteTops.push(top);
+    return top + 56 + wrapText(note.body, 30).length * 44 + 70;
+  }, 300);
 
   const span = (group: "route" | "meta") => {
     const idx = lines.map((l, i) => (l.group === group ? i : -1)).filter((i) => i >= 0);
@@ -58,9 +65,9 @@ export const Anatomy: React.FC<Props> = ({ lines, notes, beats }) => {
             y={TOP + i * LINE_H}
             fill={tint}
             opacity={opacity}
-            fontFamily={fontStack.mono}
-            fontWeight={isActive ? 600 : 500}
-            fontSize={33}
+            fontFamily={prose ? fontStack.sans : fontStack.mono}
+            fontWeight={isActive ? 650 : prose ? 500 : 500}
+            fontSize={prose ? 36 : 33}
             style={{ whiteSpace: "pre" }}
           >
             {line.text}
@@ -84,7 +91,7 @@ export const Anatomy: React.FC<Props> = ({ lines, notes, beats }) => {
         const top = TOP + first * LINE_H - 34;
         const bottom = TOP + last * LINE_H + 14;
         const mid = (top + bottom) / 2;
-        const noteY = 300 + i * 270;
+        const noteY = noteTops[i]!;
         const tint = GROUP_COLOR[note.group];
         const body = wrapText(note.body, 30);
         return (

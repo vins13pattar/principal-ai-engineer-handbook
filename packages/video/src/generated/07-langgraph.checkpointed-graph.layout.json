@@ -1,0 +1,327 @@
+{
+  "name": "07-langgraph.checkpointed-graph",
+  "width": 3218,
+  "height": 463,
+  "nodes": [
+    {
+      "id": "START",
+      "kind": "node",
+      "label": ["START"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 225,
+      "y": 140,
+      "w": 220,
+      "h": 87
+    },
+    {
+      "id": "Decide",
+      "kind": "node",
+      "label": ["decide node", "(calls the model)"],
+      "parent": null,
+      "shape": "box",
+      "x": 615,
+      "y": 173,
+      "w": 354,
+      "h": 126
+    },
+    {
+      "id": "Route",
+      "kind": "node",
+      "label": ["route on state"],
+      "parent": null,
+      "shape": "decision",
+      "x": 1902,
+      "y": 40,
+      "w": 356,
+      "h": 123
+    },
+    {
+      "id": "Tools",
+      "kind": "node",
+      "label": ["tools node", "(executes tool call)"],
+      "parent": null,
+      "shape": "box",
+      "x": 40,
+      "y": 297,
+      "w": 405,
+      "h": 126
+    },
+    {
+      "id": "END",
+      "kind": "node",
+      "label": ["END"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 2958,
+      "y": 58,
+      "w": 220,
+      "h": 87
+    },
+    {
+      "id": "CP",
+      "kind": "node",
+      "label": ["Checkpointer", "(persists state after every node)"],
+      "parent": null,
+      "shape": "store",
+      "x": 1813,
+      "y": 233,
+      "w": 623,
+      "h": 148
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "START",
+      "to": "Decide",
+      "path": [
+        {
+          "x": 445,
+          "y": 184
+        },
+        {
+          "x": 519,
+          "y": 184
+        },
+        {
+          "x": 519,
+          "y": 215
+        },
+        {
+          "x": 615,
+          "y": 215
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "Decide",
+      "to": "Route",
+      "path": [
+        {
+          "x": 969,
+          "y": 205
+        },
+        {
+          "x": 979,
+          "y": 205
+        },
+        {
+          "x": 979,
+          "y": 181
+        },
+        {
+          "x": 1653,
+          "y": 181
+        },
+        {
+          "x": 1653,
+          "y": 122
+        },
+        {
+          "x": 1902,
+          "y": 122
+        }
+      ],
+      "label": {
+        "lines": ["conditional edge"],
+        "x": 1273,
+        "y": 158,
+        "w": 236,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Route",
+      "to": "Tools",
+      "path": [
+        {
+          "x": 1902,
+          "y": 81
+        },
+        {
+          "x": 455,
+          "y": 81
+        },
+        {
+          "x": 455,
+          "y": 329
+        },
+        {
+          "x": 445,
+          "y": 329
+        }
+      ],
+      "label": {
+        "lines": ["tool call requested"],
+        "x": 654,
+        "y": 58,
+        "w": 276,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "Route",
+      "to": "END",
+      "path": [
+        {
+          "x": 2258,
+          "y": 102
+        },
+        {
+          "x": 2958,
+          "y": 102
+        }
+      ],
+      "label": {
+        "lines": ["final answer"],
+        "x": 2606,
+        "y": 79,
+        "w": 182,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Tools",
+      "to": "Decide",
+      "path": [
+        {
+          "x": 445,
+          "y": 360
+        },
+        {
+          "x": 519,
+          "y": 360
+        },
+        {
+          "x": 519,
+          "y": 257
+        },
+        {
+          "x": 615,
+          "y": 257
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Decide",
+      "to": "CP",
+      "path": [
+        {
+          "x": 969,
+          "y": 236
+        },
+        {
+          "x": 1653,
+          "y": 236
+        },
+        {
+          "x": 1653,
+          "y": 270
+        },
+        {
+          "x": 1813,
+          "y": 270
+        }
+      ],
+      "label": {
+        "lines": ["saves state after"],
+        "x": 1267,
+        "y": 213,
+        "w": 249,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Tools",
+      "to": "CP",
+      "path": [
+        {
+          "x": 445,
+          "y": 392
+        },
+        {
+          "x": 1653,
+          "y": 392
+        },
+        {
+          "x": 1653,
+          "y": 344
+        },
+        {
+          "x": 1813,
+          "y": 344
+        }
+      ],
+      "label": {
+        "lines": ["saves state after"],
+        "x": 668,
+        "y": 369,
+        "w": 249,
+        "h": 44
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "CP",
+      "to": "Decide",
+      "path": [
+        {
+          "x": 1813,
+          "y": 307
+        },
+        {
+          "x": 979,
+          "y": 307
+        },
+        {
+          "x": 979,
+          "y": 268
+        },
+        {
+          "x": 969,
+          "y": 268
+        }
+      ],
+      "label": {
+        "lines": ["resume from here after", "a crash or a human-in-the-loop pause"],
+        "x": 1139,
+        "y": 269,
+        "w": 504,
+        "h": 75
+      },
+      "dashed": true,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

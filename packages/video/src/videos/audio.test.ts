@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { EMPTY_AUDIO, withAudio } from "./audio.ts";
-import { mcp } from "./mcp.ts";
+import { mcp } from "./06-mcp.ts";
 import { spokenText, textHash } from "./speech.ts";
 import { sceneSeconds } from "./types.ts";
 

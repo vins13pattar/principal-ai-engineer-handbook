@@ -1,0 +1,468 @@
+{
+  "name": "15-agent-identity.token-exchange",
+  "width": 4337,
+  "height": 1087,
+  "nodes": [
+    {
+      "id": "User",
+      "kind": "node",
+      "label": ["User authenticates via OIDC"],
+      "parent": null,
+      "shape": "terminal",
+      "x": 442,
+      "y": 40,
+      "w": 554,
+      "h": 87
+    },
+    {
+      "id": "UserTok",
+      "kind": "node",
+      "label": ["User token: sub=user, aud=host"],
+      "parent": null,
+      "shape": "box",
+      "x": 1166,
+      "y": 40,
+      "w": 573,
+      "h": 87
+    },
+    {
+      "id": "Host",
+      "kind": "node",
+      "label": ["Agent host holds the user token"],
+      "parent": null,
+      "shape": "box",
+      "x": 2035,
+      "y": 40,
+      "w": 589,
+      "h": 87
+    },
+    {
+      "id": "Choice",
+      "kind": "node",
+      "label": ["How does the agent call the MCP server?"],
+      "parent": null,
+      "shape": "decision",
+      "x": 220,
+      "y": 424,
+      "w": 776,
+      "h": 123
+    },
+    {
+      "id": "Pass",
+      "kind": "node",
+      "label": ["Forward the user token unchanged"],
+      "parent": null,
+      "shape": "box",
+      "x": 2027,
+      "y": 247,
+      "w": 606,
+      "h": 87
+    },
+    {
+      "id": "Deputy",
+      "kind": "node",
+      "label": ["Server sees aud=host, not itself", "MUST reject — confused deputy"],
+      "parent": null,
+      "shape": "box",
+      "x": 2920,
+      "y": 228,
+      "w": 606,
+      "h": 126
+    },
+    {
+      "id": "Exchange",
+      "kind": "node",
+      "label": [
+        "POST /token (RFC 8693)",
+        "subject_token = user token",
+        "resource = canonical MCP server URI (RFC 8707)",
+        "scope = only what this task needs"
+      ],
+      "parent": null,
+      "shape": "box",
+      "x": 1909,
+      "y": 404,
+      "w": 841,
+      "h": 204
+    },
+    {
+      "id": "AS",
+      "kind": "node",
+      "label": ["Authorization server"],
+      "parent": null,
+      "shape": "box",
+      "x": 3021,
+      "y": 462,
+      "w": 405,
+      "h": 87
+    },
+    {
+      "id": "AgentTok",
+      "kind": "node",
+      "label": [
+        "Agent token",
+        "aud = that MCP server",
+        "scope = narrowed",
+        "act = agent identity",
+        "exp = minutes"
+      ],
+      "parent": null,
+      "shape": "box",
+      "x": 3696,
+      "y": 384,
+      "w": 421,
+      "h": 243
+    },
+    {
+      "id": "Call",
+      "kind": "node",
+      "label": ["Call MCP server", "Authorization: Bearer"],
+      "parent": null,
+      "shape": "box",
+      "x": 398,
+      "y": 785,
+      "w": 421,
+      "h": 126
+    },
+    {
+      "id": "Validate",
+      "kind": "node",
+      "label": [
+        "Server validates:",
+        "signature, issuer, exp,",
+        "aud names this server,",
+        "scope covers this tool"
+      ],
+      "parent": null,
+      "shape": "decision",
+      "x": 1210,
+      "y": 728,
+      "w": 507,
+      "h": 240
+    },
+    {
+      "id": "Deny",
+      "kind": "node",
+      "label": ["401 / 403 — no tool runs"],
+      "parent": null,
+      "shape": "box",
+      "x": 2920,
+      "y": 764,
+      "w": 472,
+      "h": 87
+    },
+    {
+      "id": "Tool",
+      "kind": "node",
+      "label": ["Execute tool", "audit logs agent + user"],
+      "parent": null,
+      "shape": "box",
+      "x": 2920,
+      "y": 921,
+      "w": 455,
+      "h": 126
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": "User",
+      "to": "UserTok",
+      "path": [
+        {
+          "x": 996,
+          "y": 84
+        },
+        {
+          "x": 1166,
+          "y": 84
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e2",
+      "from": "UserTok",
+      "to": "Host",
+      "path": [
+        {
+          "x": 1739,
+          "y": 84
+        },
+        {
+          "x": 2035,
+          "y": 84
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e3",
+      "from": "Host",
+      "to": "Choice",
+      "path": [
+        {
+          "x": 2624,
+          "y": 84
+        },
+        {
+          "x": 3536,
+          "y": 84
+        },
+        {
+          "x": 3536,
+          "y": 177
+        },
+        {
+          "x": 40,
+          "y": 177
+        },
+        {
+          "x": 40,
+          "y": 486
+        },
+        {
+          "x": 220,
+          "y": 486
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e4",
+      "from": "Choice",
+      "to": "Pass",
+      "path": [
+        {
+          "x": 996,
+          "y": 465
+        },
+        {
+          "x": 1006,
+          "y": 465
+        },
+        {
+          "x": 1006,
+          "y": 291
+        },
+        {
+          "x": 2027,
+          "y": 291
+        }
+      ],
+      "label": {
+        "lines": ["Passthrough (forbidden)"],
+        "x": 1288,
+        "y": 268,
+        "w": 330,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e5",
+      "from": "Pass",
+      "to": "Deputy",
+      "path": [
+        {
+          "x": 2633,
+          "y": 291
+        },
+        {
+          "x": 2920,
+          "y": 291
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e6",
+      "from": "Choice",
+      "to": "Exchange",
+      "path": [
+        {
+          "x": 996,
+          "y": 506
+        },
+        {
+          "x": 1909,
+          "y": 506
+        }
+      ],
+      "label": {
+        "lines": ["Token exchange"],
+        "x": 1348,
+        "y": 483,
+        "w": 209,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e7",
+      "from": "Exchange",
+      "to": "AS",
+      "path": [
+        {
+          "x": 2750,
+          "y": 506
+        },
+        {
+          "x": 3021,
+          "y": 506
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e8",
+      "from": "AS",
+      "to": "AgentTok",
+      "path": [
+        {
+          "x": 3426,
+          "y": 506
+        },
+        {
+          "x": 3696,
+          "y": 506
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e9",
+      "from": "AgentTok",
+      "to": "Call",
+      "path": [
+        {
+          "x": 4117,
+          "y": 506
+        },
+        {
+          "x": 4297,
+          "y": 506
+        },
+        {
+          "x": 4297,
+          "y": 677
+        },
+        {
+          "x": 40,
+          "y": 677
+        },
+        {
+          "x": 40,
+          "y": 848
+        },
+        {
+          "x": 398,
+          "y": 848
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e10",
+      "from": "Call",
+      "to": "Validate",
+      "path": [
+        {
+          "x": 819,
+          "y": 848
+        },
+        {
+          "x": 1210,
+          "y": 848
+        }
+      ],
+      "label": null,
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e11",
+      "from": "Validate",
+      "to": "Deny",
+      "path": [
+        {
+          "x": 1717,
+          "y": 808
+        },
+        {
+          "x": 2920,
+          "y": 808
+        }
+      ],
+      "label": {
+        "lines": ["Any check fails"],
+        "x": 2219,
+        "y": 785,
+        "w": 222,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    },
+    {
+      "id": "e12",
+      "from": "Validate",
+      "to": "Tool",
+      "path": [
+        {
+          "x": 1717,
+          "y": 888
+        },
+        {
+          "x": 2760,
+          "y": 888
+        },
+        {
+          "x": 2760,
+          "y": 984
+        },
+        {
+          "x": 2920,
+          "y": 984
+        }
+      ],
+      "label": {
+        "lines": ["All pass"],
+        "x": 2266,
+        "y": 865,
+        "w": 128,
+        "h": 44
+      },
+      "dashed": false,
+      "bidirectional": false,
+      "arrow": true
+    }
+  ]
+}

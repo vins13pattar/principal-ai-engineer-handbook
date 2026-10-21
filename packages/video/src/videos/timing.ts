@@ -37,7 +37,7 @@ export function tokens(text: string): string[] {
 export function findPhrase(words: Word[], phrase: string): number | null {
   const want = tokens(phrase);
   if (want.length === 0) return null;
-  const heard = words.map((w) => tokens(w.text).join(""));
+  const heard = words.map((w) => tokens(w.text).join("").replace(/'/g, ""));
   let best = { score: 0, index: -1 };
   for (let i = 0; i + want.length <= heard.length; i++) {
     let hits = 0;
@@ -65,11 +65,11 @@ function cueScene(scene: Scene, words: Word[], missed: string[]): Scene {
     }
     return toFraction(at, scene);
   };
-  if (scene.kind === "diagram") {
+  if (scene.kind === "diagram" || scene.kind === "sequence") {
     return {
       ...scene,
       steps: scene.steps.map((step) => ({ ...step, at: resolve(step.cue, step.at) })),
-    };
+    } as Scene;
   }
   return {
     ...scene,

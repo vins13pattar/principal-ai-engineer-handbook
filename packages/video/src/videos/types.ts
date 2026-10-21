@@ -10,11 +10,102 @@ export interface Beat {
 export interface Hazard {
   title: string;
   body: string;
+  /** Where on the map it sits (hazards scene only). */
+  at?: string;
 }
 
 export interface Point {
   statement: string;
   support: string;
+  glyph?: Glyph;
+}
+
+export type Glyph = "chain" | "axis" | "fan" | "loop" | "stack" | "gate" | "split" | "tick";
+
+/** A place on a hand-placed mini map. Coordinates are in the 1728 by 740 content area, origin at its top left. */
+export interface MapPlace {
+  id: string;
+  label: string[];
+  x: number;
+  y: number;
+  w?: number;
+  h?: number;
+  /** The beat from which this place is lit. Before it, it shows as a ghost. */
+  beat?: number;
+  tone?: "normal" | "route" | "fault" | "ok";
+}
+
+export interface MapLink {
+  from: string;
+  to: string;
+  beat?: number;
+  tone?: "normal" | "route" | "fault";
+  dashed?: boolean;
+  arrow?: "end" | "both" | "none";
+  label?: string;
+}
+
+export interface MapRegion {
+  title: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  beat?: number;
+}
+
+export interface MapSpec {
+  places: MapPlace[];
+  links: MapLink[];
+  regions?: MapRegion[];
+}
+
+/** Something that travels the map: a request, a message, a token. */
+export interface Run {
+  /** The beat at which it starts, repeating until the next beat. */
+  beat: number;
+  /** Routes taken in turn, as place ids. */
+  paths: string[][];
+  /** The outcome for each path, in turn. */
+  results: ("ok" | "fail" | "stall")[];
+  /** A label shown at the end place when a path fails or stalls. */
+  mark?: string;
+  /** Labels per path, in turn; overrides `mark`. */
+  marks?: (string | undefined)[];
+}
+
+export interface Mark {
+  beat: number;
+  at: string;
+  text: string;
+  tone?: "fault" | "ok" | "route";
+}
+
+export interface Station {
+  name: string;
+  line: string;
+  detail: string;
+}
+
+export interface Lane {
+  title: string;
+  subtitle?: string[];
+  /** A region the chain sits inside, such as "One machine". */
+  region?: string;
+  chain: string[];
+  /** A gate drawn on the route after the chain item at this index. */
+  gate?: { after: number; label: string };
+  routeLabel?: string;
+  tone?: "normal" | "fault";
+}
+
+export interface BarItem {
+  label: string;
+  value: number;
+  /** Shown beside the bar, e.g. "ms" or "tokens". */
+  unit?: string;
+  note?: string;
+  tone?: "normal" | "route" | "fault";
 }
 
 interface Base {
@@ -37,20 +128,49 @@ export type Scene =
     })
   | (Base & {
       kind: "diagram";
-      layout: "hostClientServer" | "statelessRouting";
+      /** The layout's name, such as "06-mcp.host-client-server". */
+      layout: string;
       steps: DiagramStep[];
       /** Edge ids drawn as a route that cannot be taken. */
       blocked?: string[];
       legend?: LegendItem[];
     })
   | (Base & {
+      kind: "sequence";
+      layout: string;
+      /** Each step reveals messages up to and including item `upTo`. */
+      steps: { at: number; upTo: number; cue?: string }[];
+    })
+  | (Base & {
+      kind: "story";
+      map: MapSpec;
+      runs: Run[];
+      marks?: Mark[];
+      /** One caption per beat, shown large at the foot of the plate. */
+      captions: string[];
+      note?: string;
+      beats: Beat[];
+    })
+  | (Base & { kind: "hazards"; map: MapSpec; hazards: (Hazard & { at: string })[]; beats: Beat[] })
+  | (Base & {
+      kind: "axis";
+      ends: [string, string];
+      stations: Station[];
+      chip?: { label: string; from: number; to: number; captions: [string, string] };
+      /** One beat per station, then one for the chip appearing and one for it moving. */
+      beats: Beat[];
+    })
+  | (Base & { kind: "lanes"; lanes: Lane[]; takeaway?: string; beats: Beat[] })
+  | (Base & { kind: "bars"; items: BarItem[]; caption?: string; max?: number; beats: Beat[] })
+  | (Base & {
       kind: "anatomy";
+      /** Set the lines in the text face instead of the code face, for a document rather than code. */
+      prose?: boolean;
       lines: { text: string; group: "route" | "meta" | "plain" }[];
       notes: { group: "route" | "meta"; title: string; body: string }[];
       /** One beat per note, in order. */
       beats: Beat[];
     })
-  | (Base & { kind: "hazards"; hazards: Hazard[]; beats: Beat[] })
   | (Base & { kind: "recap"; points: Point[]; footer: string; beats: Beat[] });
 
 /** What the YouTube page for a video needs beyond its scenes. */

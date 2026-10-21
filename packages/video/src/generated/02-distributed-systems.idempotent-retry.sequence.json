@@ -1,0 +1,138 @@
+{
+  "participants": [
+    {
+      "id": "Client",
+      "label": "Client"
+    },
+    {
+      "id": "Gateway",
+      "label": "Gateway"
+    },
+    {
+      "id": "IdempotencyStore",
+      "label": "Idempotency store"
+    },
+    {
+      "id": "Worker",
+      "label": "Worker"
+    }
+  ],
+  "items": [
+    {
+      "type": "message",
+      "from": "Client",
+      "to": "Gateway",
+      "text": "POST /tasks (Idempotency-Key: abc123)",
+      "dashed": false,
+      "depth": 0
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "IdempotencyStore",
+      "text": "CAS insert abc123 -> PENDING",
+      "dashed": false,
+      "depth": 0
+    },
+    {
+      "type": "alt",
+      "label": "Key already PENDING or COMPLETE",
+      "depth": 0
+    },
+    {
+      "type": "message",
+      "from": "IdempotencyStore",
+      "to": "Gateway",
+      "text": "existing record",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "Client",
+      "text": "cached result or 409 in-progress",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "else",
+      "label": "Key newly inserted",
+      "depth": 0
+    },
+    {
+      "type": "message",
+      "from": "IdempotencyStore",
+      "to": "Gateway",
+      "text": "inserted",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "Worker",
+      "text": "execute task",
+      "dashed": false,
+      "depth": 1
+    },
+    {
+      "type": "note",
+      "over": ["Worker"],
+      "text": "Network drops before response reaches Gateway",
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Client",
+      "to": "Gateway",
+      "text": "retry POST /tasks (same Idempotency-Key)",
+      "dashed": false,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "IdempotencyStore",
+      "text": "CAS insert abc123 -> PENDING",
+      "dashed": false,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "IdempotencyStore",
+      "to": "Gateway",
+      "text": "already PENDING, wait/return in-progress",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Worker",
+      "to": "Gateway",
+      "text": "task result",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "IdempotencyStore",
+      "text": "abc123 -> COMPLETE, store result",
+      "dashed": false,
+      "depth": 1
+    },
+    {
+      "type": "message",
+      "from": "Gateway",
+      "to": "Client",
+      "text": "result (from the original request's retry)",
+      "dashed": true,
+      "depth": 1
+    },
+    {
+      "type": "end",
+      "depth": 0
+    }
+  ]
+}

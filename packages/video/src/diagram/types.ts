@@ -12,11 +12,16 @@ export interface Box {
   h: number;
 }
 
+export type NodeShape = "box" | "decision" | "terminal" | "store" | "circle";
+
 export interface LaidOutNode extends Box {
   id: string;
   kind: "node" | "group";
   label: string[];
   parent: string | null;
+  shape: NodeShape;
+  /** A self-referencing edge in the source becomes a note on its node, with its tone. */
+  note?: { lines: string[]; dashed: boolean };
 }
 
 export interface LaidOutEdge {
@@ -27,6 +32,8 @@ export interface LaidOutEdge {
   label: (Box & { lines: string[] }) | null;
   dashed: boolean;
   bidirectional: boolean;
+  /** False for a plain line with no arrowhead. */
+  arrow: boolean;
 }
 
 export interface DiagramLayout {
@@ -53,6 +60,6 @@ export interface DiagramStep {
 
 /** One entry in a plate's key, naming a symbol the plate uses. */
 export interface LegendItem {
-  kind: "place" | "route" | "blocked" | "region";
+  kind: "place" | "decision" | "terminal" | "store" | "route" | "blocked" | "region";
   label: string;
 }
