@@ -5,13 +5,25 @@ import type { Scene } from "./types.ts";
  * only; captions and the transcript keep the written form. Longer keys are listed first so
  * `Mcp-Method` is not caught by `MCP`.
  */
-const LEXICON: [RegExp, string][] = [
+const LEXICON: [RegExp, string | ((match: string, word: string) => string)][] = [
   [/\bMcp-Method\b/g, "M C P method"],
   [/\bMcp-Name\b/g, "M C P name"],
   [/\bJSON-RPC\b/g, "JSON R P C"],
   [/\bHTTP\+SSE\b/g, "H T T P plus S S E"],
   [/\bstdio\b/g, "standard I O"],
   [/_meta\b/g, "underscore meta"],
+  [/\bgRPC\b/g, "g R P C"],
+  [/\bOAuth\b/g, "oh auth"],
+  [/\bOIDC\b/g, "O I D C"],
+  [/\bK8s\b/g, "Kubernetes"],
+  [/\bp99\b/g, "P ninety-nine"],
+  [/\bp95\b/g, "P ninety-five"],
+  [/\bp50\b/g, "P fifty"],
+  [/\bTTFT\b/g, "T T F T"],
+  [
+    /\b(GPU|CPU|LLM|API|KV|SLO|SLA|IAM|VPC|JWT|TLS|DNS|CDN|ADR|RFC|SQL|TTL|SDK|CI|CD|QPS|RPS|HPA|SSO|RBAC|PII|URL|UI|AI|ML|HTTPS|TCP|UDP|IP|VM|AWS|GCP|OOM)\b/g,
+    (_: string, word: string) => word.split("").join(" "),
+  ],
   [/\bMCP\b/g, "M C P"],
   [/\bHTTP\b/g, "H T T P"],
   [/\bSSE\b/g, "S S E"],
@@ -20,7 +32,10 @@ const LEXICON: [RegExp, string][] = [
 ];
 
 export function spokenText(scene: Scene): string {
-  return LEXICON.reduce((text, [pattern, say]) => text.replace(pattern, say), scene.narration);
+  return LEXICON.reduce(
+    (text, [pattern, say]) => text.replace(pattern, say as never),
+    scene.narration,
+  );
 }
 
 /**
