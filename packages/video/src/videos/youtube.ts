@@ -22,7 +22,7 @@ export function chapters(script: VideoScript): { at: string; title: string }[] {
 }
 
 export function youtubeTitle(script: VideoScript): string {
-  return `${script.tag.replace("MODULE", "Module")}: ${script.youtube.titleSuffix}`;
+  return `Module ${script.module}: ${script.youtube.titleSuffix}`;
 }
 
 /** The description to paste into YouTube: summary, links, chapters, and the standing disclosure. */

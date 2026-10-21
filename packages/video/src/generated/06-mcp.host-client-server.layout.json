@@ -1,6 +1,6 @@
 {
   "name": "06-mcp.host-client-server",
-  "width": 1905,
+  "width": 2005,
   "height": 608,
   "nodes": [
     {
@@ -38,7 +38,7 @@
       "kind": "node",
       "label": ["Server: filesystem", "(exposes Resources)"],
       "parent": null,
-      "x": 1477,
+      "x": 1577,
       "y": 89,
       "w": 388,
       "h": 126
@@ -48,7 +48,7 @@
       "kind": "node",
       "label": ["Server: GitHub", "(exposes Tools)"],
       "parent": null,
-      "x": 1477,
+      "x": 1577,
       "y": 285,
       "w": 321,
       "h": 126
@@ -58,7 +58,7 @@
       "kind": "node",
       "label": ["Model"],
       "parent": null,
-      "x": 1477,
+      "x": 1577,
       "y": 481,
       "w": 200,
       "h": 87
@@ -87,13 +87,13 @@
           "y": 152
         },
         {
-          "x": 1477,
+          "x": 1577,
           "y": 152
         }
       ],
       "label": {
         "lines": ["JSON-RPC over stdio"],
-        "x": 954,
+        "x": 1004,
         "y": 129,
         "w": 276,
         "h": 44
@@ -115,13 +115,13 @@
           "y": 348
         },
         {
-          "x": 1477,
+          "x": 1577,
           "y": 348
         }
       ],
       "label": {
         "lines": ["JSON-RPC over Streamable HTTP"],
-        "x": 887,
+        "x": 937,
         "y": 325,
         "w": 410,
         "h": 44
@@ -147,13 +147,13 @@
           "y": 525
         },
         {
-          "x": 1477,
+          "x": 1577,
           "y": 525
         }
       ],
       "label": {
         "lines": ["aggregated tools + resources + prompts"],
-        "x": 826,
+        "x": 876,
         "y": 502,
         "w": 531,
         "h": 44

@@ -65,28 +65,16 @@ function cueScene(scene: Scene, words: Word[], missed: string[]): Scene {
     }
     return toFraction(at, scene);
   };
-  switch (scene.kind) {
-    case "diagram":
-      return {
-        ...scene,
-        steps: scene.steps.map((step) => ({ ...step, at: resolve(step.cue, step.at) })),
-      };
-    case "cards":
-      return {
-        ...scene,
-        at: scene.at.map((at, i) => resolve(scene.cues?.[i], at)),
-        ...(scene.footerCue ? { footerAt: resolve(scene.footerCue, scene.footerAt ?? 0.88) } : {}),
-      };
-    case "anatomy":
-      return {
-        ...scene,
-        notes: scene.notes.map((note) => ({ ...note, at: resolve(note.cue, note.at) })),
-      };
-    case "compare":
-      return { ...scene, at: scene.at.map((at, i) => resolve(scene.cues?.[i], at)) };
-    default:
-      return scene;
+  if (scene.kind === "diagram") {
+    return {
+      ...scene,
+      steps: scene.steps.map((step) => ({ ...step, at: resolve(step.cue, step.at) })),
+    };
   }
+  return {
+    ...scene,
+    beats: scene.beats.map((beat) => ({ ...beat, at: resolve(beat.cue, beat.at) })),
+  };
 }
 
 /**

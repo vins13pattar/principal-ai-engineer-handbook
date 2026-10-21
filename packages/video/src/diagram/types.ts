@@ -50,3 +50,9 @@ export interface DiagramStep {
   camera?: string[];
   cue?: string;
 }
+
+/** One entry in a plate's key, naming a symbol the plate uses. */
+export interface LegendItem {
+  kind: "place" | "route" | "blocked" | "region";
+  label: string;
+}

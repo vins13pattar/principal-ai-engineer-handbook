@@ -18,7 +18,7 @@ describe("youtube metadata", () => {
   it("puts the links, chapters and AI-narration disclosure in the description", () => {
     const text = youtubeDescription(mcp);
     expect(text).toContain("https://handbook.vinodspattar.in/learn/modules/06-mcp/");
-    expect(text).toContain("0:00 Every app, every tool");
+    expect(text).toContain("0:00 Fine on one replica");
     expect(text.trim().endsWith("Narration is AI-generated.")).toBe(true);
   });
 });

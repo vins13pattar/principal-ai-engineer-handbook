@@ -1,5 +1,7 @@
 # @handbook/video
 
+Design: [`DESIGN.md`](DESIGN.md) (the Atlas world). Product context: [`PRODUCT.md`](PRODUCT.md).
+
 Remotion project that renders the Learn module videos from the handbook's own pages and diagrams.
 The plan and its status live in
 [`docs/superpowers/plans/2026-10-20-module-videos-remotion.md`](../../docs/superpowers/plans/2026-10-20-module-videos-remotion.md).

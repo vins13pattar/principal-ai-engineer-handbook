@@ -34,3 +34,6 @@ apps/handbook/src/transcripts/*.md
 # `.json` is written by `archive-episode.ts` byte-for-byte so a re-run produces
 # no diff -- a formatter owning that file would fight the script that generates it.
 episodes/
+
+# Vendored third-party agent skills
+.claude/skills/

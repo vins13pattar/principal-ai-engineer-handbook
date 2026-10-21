@@ -127,17 +127,11 @@ the fallback is hand-built scenes for the modules that need them, which costs mo
 
 ### Scene library
 
-A small set of reusable scenes, so sixteen videos look like one series:
-
-| Scene          | Use                                                              |
-| -------------- | ---------------------------------------------------------------- |
-| Cold open      | The problem in one sentence over a stripped-down visual          |
-| Diagram build  | The main scene: step-by-step reveal, camera, highlighted path    |
-| Failure replay | A request or message animated along the diagram until it fails   |
-| Trade-off      | Two options side by side with the deciding constraint called out |
-| Code focus     | Syntax-highlighted excerpt with line-range emphasis              |
-| Lab screencast | A recorded terminal run, trimmed and captioned                   |
-| Recap          | Three takeaways and the link to the lab and interview questions  |
+The look is the **Atlas** world (see `packages/video/DESIGN.md`): each module is a chart plate, and
+every scene opens with its full map already drawn in ghost, so no frame is a title over empty space.
+Generic scenes: diagram build, request anatomy, hazards map, recap. Module-specific scenes live in
+`src/scenes/mcp/`. Every video opens on a short **failure story** before any explanation; the
+module 6 cut opens with a replayed load-balancer failure.
 
 Lab screencasts are recorded deterministically with a terminal-recording tool (VHS or asciinema)
 from a script, so they can be regenerated, then embedded with Remotion's video components.
@@ -231,6 +225,9 @@ Timing, captions, and YouTube metadata are built and unit-tested without audio:
 - **4K render speed, measured:** about 1.1 frames per second here at 3840×2160 against about 8 at
   1080p, so roughly two hours versus twenty minutes for the module 6 cut in this container. An
   Apple-silicon Mac should differ; measure there before planning a batch.
+
+Redesigned on 2026-10-21 after review: the first look (indigo template with card grids and
+title-only frames) was replaced by the Atlas world, with a hook scene and no empty frames.
 
 Not built yet: running `transcribe` against real narration (whisper.cpp needs a build step and
 could not be installed in the cloud container), the VoiceStudio adapter for the author's own

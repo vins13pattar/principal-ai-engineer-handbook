@@ -22,9 +22,13 @@ const DEFAULTS = ["06-mcp.host-client-server", "06-mcp.stateless-routing"];
  * The page diagrams are drawn for a column of text. A 16:9 frame wants a different shape for some,
  * so a diagram can override the root direction and how ELK treats its subgraphs.
  */
-const OVERRIDES: Record<string, { direction?: Direction; separateGroups?: boolean }> = {
+const OVERRIDES: Record<
+  string,
+  { direction?: Direction; separateGroups?: boolean; routing?: "ORTHOGONAL" | "POLYLINE" }
+> = {
   // Two stacked panels become a side-by-side before/after, each panel still reading top-down.
-  "06-mcp.stateless-routing": { direction: "LR", separateGroups: true },
+  // Straight fan-out lines keep three replicas from sharing one bend corridor.
+  "06-mcp.stateless-routing": { direction: "LR", separateGroups: true, routing: "POLYLINE" },
 };
 
 // Text metrics for the rendered diagram. They only size boxes; the renderer draws text itself.
@@ -107,6 +111,7 @@ async function layout(name: string): Promise<DiagramLayout> {
         "elk.padding": "[top=84,left=44,bottom=44,right=44]",
         "elk.direction": ELK_DIRECTION[group.direction ?? chart.direction],
         "elk.nodeLabels.placement": "[H_LEFT, V_TOP, INSIDE]",
+        "elk.edgeRouting": override.routing ?? "ORTHOGONAL",
       },
     });
   }
@@ -127,12 +132,12 @@ async function layout(name: string): Promise<DiagramLayout> {
       "elk.algorithm": "layered",
       "elk.direction": ELK_DIRECTION[rootDirection],
       "elk.hierarchyHandling": override.separateGroups ? "SEPARATE_CHILDREN" : "INCLUDE_CHILDREN",
-      "elk.edgeRouting": "ORTHOGONAL",
+      "elk.edgeRouting": override.routing ?? "ORTHOGONAL",
       "elk.spacing.nodeNode": "70",
-      "elk.layered.spacing.nodeNodeBetweenLayers": "150",
+      "elk.layered.spacing.nodeNodeBetweenLayers": "170",
       "elk.spacing.edgeNode": "40",
       "elk.spacing.edgeLabel": "12",
-      "elk.layered.spacing.edgeEdgeBetweenLayers": "44",
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "64",
       "elk.padding": "[top=40,left=40,bottom=40,right=40]",
       "elk.layered.nodePlacement.strategy": "NETWORK_SIMPLEX",
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",

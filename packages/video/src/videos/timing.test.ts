@@ -23,18 +23,8 @@ function spoken(scene: Scene): Word[] {
 }
 
 function cuesOf(scene: Scene): string[] {
-  switch (scene.kind) {
-    case "diagram":
-      return scene.steps.flatMap((s) => (s.cue ? [s.cue] : []));
-    case "cards":
-      return [...(scene.cues ?? []), ...(scene.footerCue ? [scene.footerCue] : [])];
-    case "anatomy":
-      return scene.notes.flatMap((n) => (n.cue ? [n.cue] : []));
-    case "compare":
-      return scene.cues ?? [];
-    default:
-      return [];
-  }
+  if (scene.kind === "diagram") return scene.steps.flatMap((s) => (s.cue ? [s.cue] : []));
+  return scene.beats.flatMap((b) => (b.cue ? [b.cue] : []));
 }
 
 describe("findPhrase", () => {

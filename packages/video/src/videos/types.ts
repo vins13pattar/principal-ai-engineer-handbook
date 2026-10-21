@@ -1,16 +1,20 @@
-import type { DiagramStep } from "../diagram/types.ts";
+import type { DiagramStep, LegendItem } from "../diagram/types.ts";
 
-export interface Card {
-  title: string;
-  /** A short second line, usually the deciding question or owner. */
-  kicker?: string;
-  body?: string;
-  tone?: "default" | "danger" | "success";
+/** A reveal in a scene: the fraction of the scene it starts at, and the spoken phrase that cues it. */
+export interface Beat {
+  at: number;
+  /** A phrase from the narration. Once word timings exist it replaces the estimated `at`. */
+  cue?: string;
 }
 
-export interface Row {
-  label: string;
-  value: string;
+export interface Hazard {
+  title: string;
+  body: string;
+}
+
+export interface Point {
+  statement: string;
+  support: string;
 }
 
 interface Base {
@@ -25,37 +29,29 @@ interface Base {
 }
 
 export type Scene =
-  | (Base & { kind: "fanout" })
+  /** A scene drawn by a module-specific component in `src/scenes/mcp/`. */
+  | (Base & {
+      kind: "custom";
+      component: "mcp-hook" | "mcp-bridges" | "mcp-spectrum" | "mcp-routes";
+      beats: Beat[];
+    })
   | (Base & {
       kind: "diagram";
       layout: "hostClientServer" | "statelessRouting";
       steps: DiagramStep[];
-    })
-  | (Base & {
-      kind: "cards";
-      cards: Card[];
-      columns: number;
-      at: number[];
-      /** Phrases from the narration that each card enters on, parallel to `cards`. */
-      cues?: string[];
-      footer?: string;
-      footerAt?: number;
-      footerCue?: string;
+      /** Edge ids drawn as a route that cannot be taken. */
+      blocked?: string[];
+      legend?: LegendItem[];
     })
   | (Base & {
       kind: "anatomy";
       lines: { text: string; group: "route" | "meta" | "plain" }[];
-      notes: { group: "route" | "meta"; title: string; body: string; at: number; cue?: string }[];
+      notes: { group: "route" | "meta"; title: string; body: string }[];
+      /** One beat per note, in order. */
+      beats: Beat[];
     })
-  | (Base & {
-      kind: "compare";
-      left: { title: string; rows: Row[] };
-      right: { title: string; rows: Row[] };
-      footer: string;
-      at: number[];
-      /** Phrases for the left column, the right column, and the footer, in that order. */
-      cues?: string[];
-    });
+  | (Base & { kind: "hazards"; hazards: Hazard[]; beats: Beat[] })
+  | (Base & { kind: "recap"; points: Point[]; footer: string; beats: Beat[] });
 
 /** What the YouTube page for a video needs beyond its scenes. */
 export interface YouTubeMeta {
@@ -69,7 +65,10 @@ export interface YouTubeMeta {
 
 export interface VideoScript {
   slug: string;
-  tag: string;
+  /** The module number, e.g. "06". */
+  module: string;
+  /** The plate number printed on every frame, e.g. "PLATE 06 · MCP". */
+  plate: string;
   chapter: string;
   title: string;
   youtube: YouTubeMeta;
