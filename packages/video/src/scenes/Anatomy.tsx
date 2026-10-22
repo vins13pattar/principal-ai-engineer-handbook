@@ -115,7 +115,7 @@ export const Anatomy: React.FC<Props> = ({ prose = false, lines, notes, beats })
               y={noteY}
               fontFamily={fontStack.display}
               fontWeight={800}
-              fontSize={54}
+              fontSize={Math.max(32, Math.min(54, Math.floor(580 / (note.title.length * 0.54))))}
               fill={tint}
               opacity={0.3 + 0.7 * Math.min(p * 1.4, 1)}
             >

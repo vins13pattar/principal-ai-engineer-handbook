@@ -49,10 +49,10 @@ export const Lanes: React.FC<{ lanes: Lane[]; takeaway?: string; beats: Beat[] }
                   y={mid - 40 + (lane.region ? 18 : 0)}
                   w={boxW}
                   h={80}
-                  lines={[label]}
+                  lines={wrapText(label, Math.max(8, Math.floor(boxW / 15)))}
                   lit={lit}
                   tone={tone}
-                  fontSize={28}
+                  fontSize={label.length > Math.floor(boxW / 15) * 2 ? 24 : 28}
                 />
               ))}
               {lane.chain.slice(1).map((_, k) => (
