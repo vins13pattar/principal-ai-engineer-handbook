@@ -6,7 +6,9 @@
     {
       "id": "Before",
       "kind": "group",
-      "label": ["2025-11-25: session-bound"],
+      "label": [
+        "2025-11-25: session-bound"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -17,7 +19,9 @@
     {
       "id": "BC",
       "kind": "node",
-      "label": ["Client"],
+      "label": [
+        "Client"
+      ],
       "parent": "Before",
       "shape": "box",
       "x": 776,
@@ -28,7 +32,9 @@
     {
       "id": "BLB",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": "Before",
       "shape": "box",
       "x": 733,
@@ -39,7 +45,10 @@
     {
       "id": "BS1",
       "kind": "node",
-      "label": ["Server instance A", "(holds session state)"],
+      "label": [
+        "Server instance A",
+        "(holds session state)"
+      ],
       "parent": "Before",
       "shape": "box",
       "x": 462,
@@ -50,7 +59,9 @@
     {
       "id": "BS2",
       "kind": "node",
-      "label": ["Server instance B"],
+      "label": [
+        "Server instance B"
+      ],
       "parent": "Before",
       "shape": "box",
       "x": 903,
@@ -61,7 +72,9 @@
     {
       "id": "After",
       "kind": "group",
-      "label": ["2026-07-28: stateless"],
+      "label": [
+        "2026-07-28: stateless"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2065,
@@ -72,7 +85,9 @@
     {
       "id": "AC",
       "kind": "node",
-      "label": ["Client"],
+      "label": [
+        "Client"
+      ],
       "parent": "After",
       "shape": "box",
       "x": 2871,
@@ -83,7 +98,9 @@
     {
       "id": "ALB",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": "After",
       "shape": "box",
       "x": 2828,
@@ -94,7 +111,9 @@
     {
       "id": "AS1",
       "kind": "node",
-      "label": ["Server instance A"],
+      "label": [
+        "Server instance A"
+      ],
       "parent": "After",
       "shape": "box",
       "x": 2794,
@@ -105,7 +124,9 @@
     {
       "id": "AS2",
       "kind": "node",
-      "label": ["Server instance B"],
+      "label": [
+        "Server instance B"
+      ],
       "parent": "After",
       "shape": "box",
       "x": 3168,
@@ -116,7 +137,9 @@
     {
       "id": "AS3",
       "kind": "node",
-      "label": ["Server instance C"],
+      "label": [
+        "Server instance C"
+      ],
       "parent": "After",
       "shape": "box",
       "x": 2420,
@@ -145,7 +168,9 @@
         }
       ],
       "label": {
-        "lines": ["initialize → session id"],
+        "lines": [
+          "initialize → session id"
+        ],
         "x": 711,
         "y": 270,
         "w": 330,
@@ -174,7 +199,10 @@
         }
       ],
       "label": {
-        "lines": ["every later request must return", "to the same instance"],
+        "lines": [
+          "every later request must return",
+          "to the same instance"
+        ],
         "x": 454,
         "y": 472,
         "w": 437,
@@ -207,7 +235,9 @@
         }
       ],
       "label": {
-        "lines": ["cannot route here"],
+        "lines": [
+          "cannot route here"
+        ],
         "x": 956,
         "y": 488,
         "w": 249,
@@ -236,7 +266,10 @@
         }
       ],
       "label": {
-        "lines": ["Mcp-Method + Mcp-Name headers", "_meta: version + capabilities"],
+        "lines": [
+          "Mcp-Method + Mcp-Name headers",
+          "_meta: version + capabilities"
+        ],
         "x": 2766,
         "y": 275,
         "w": 410,
@@ -265,7 +298,9 @@
         }
       ],
       "label": {
-        "lines": ["routes on headers alone"],
+        "lines": [
+          "routes on headers alone"
+        ],
         "x": 2806,
         "y": 537,
         "w": 330,
@@ -294,7 +329,9 @@
         }
       ],
       "label": {
-        "lines": ["any instance can serve it"],
+        "lines": [
+          "any instance can serve it"
+        ],
         "x": 3167,
         "y": 537,
         "w": 357,
@@ -323,7 +360,9 @@
         }
       ],
       "label": {
-        "lines": ["no affinity required"],
+        "lines": [
+          "no affinity required"
+        ],
         "x": 2453,
         "y": 537,
         "w": 289,
@@ -352,7 +391,10 @@
         }
       ],
       "label": {
-        "lines": ["removing the handshake removes", "the affinity requirement"],
+        "lines": [
+          "removing the handshake removes",
+          "the affinity requirement"
+        ],
         "x": 1471,
         "y": 351,
         "w": 424,

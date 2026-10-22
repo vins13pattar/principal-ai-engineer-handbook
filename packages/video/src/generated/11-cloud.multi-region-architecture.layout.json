@@ -6,7 +6,9 @@
     {
       "id": "RegionA",
       "kind": "group",
-      "label": ["Region A — primary"],
+      "label": [
+        "Region A — primary"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1182,
@@ -17,7 +19,9 @@
     {
       "id": "ALBA",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": "RegionA",
       "shape": "box",
       "x": 1767,
@@ -28,7 +32,9 @@
     {
       "id": "AppA",
       "kind": "node",
-      "label": ["App tier (private subnet)"],
+      "label": [
+        "App tier (private subnet)"
+      ],
       "parent": "RegionA",
       "shape": "box",
       "x": 1498,
@@ -39,7 +45,9 @@
     {
       "id": "DataA",
       "kind": "node",
-      "label": ["Primary datastore"],
+      "label": [
+        "Primary datastore"
+      ],
       "parent": "RegionA",
       "shape": "store",
       "x": 1566,
@@ -50,7 +58,9 @@
     {
       "id": "NATA",
       "kind": "node",
-      "label": ["NAT gateway"],
+      "label": [
+        "NAT gateway"
+      ],
       "parent": "RegionA",
       "shape": "box",
       "x": 1494,
@@ -61,7 +71,9 @@
     {
       "id": "RegionB",
       "kind": "group",
-      "label": ["Region B — standby / DR"],
+      "label": [
+        "Region B — standby / DR"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -72,7 +84,9 @@
     {
       "id": "ALBB",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": "RegionB",
       "shape": "box",
       "x": 697,
@@ -83,7 +97,9 @@
     {
       "id": "AppB",
       "kind": "node",
-      "label": ["App tier (private subnet)"],
+      "label": [
+        "App tier (private subnet)"
+      ],
       "parent": "RegionB",
       "shape": "box",
       "x": 428,
@@ -94,7 +110,9 @@
     {
       "id": "DataB",
       "kind": "node",
-      "label": ["Replica datastore"],
+      "label": [
+        "Replica datastore"
+      ],
       "parent": "RegionB",
       "shape": "store",
       "x": 555,
@@ -105,7 +123,9 @@
     {
       "id": "NATB",
       "kind": "node",
-      "label": ["NAT gateway"],
+      "label": [
+        "NAT gateway"
+      ],
       "parent": "RegionB",
       "shape": "box",
       "x": 424,
@@ -116,7 +136,9 @@
     {
       "id": "DNS",
       "kind": "node",
-      "label": ["Global DNS / traffic manager (health-checked failover)"],
+      "label": [
+        "Global DNS / traffic manager (health-checked failover)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 316,
@@ -127,7 +149,9 @@
     {
       "id": "IAM",
       "kind": "node",
-      "label": ["IAM: per-service roles, least privilege"],
+      "label": [
+        "IAM: per-service roles, least privilege"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1362,
@@ -302,7 +326,9 @@
         }
       ],
       "label": {
-        "lines": ["active"],
+        "lines": [
+          "active"
+        ],
         "x": 1035,
         "y": 297,
         "w": 101,
@@ -339,7 +365,9 @@
         }
       ],
       "label": {
-        "lines": ["failover on health-check failure"],
+        "lines": [
+          "failover on health-check failure"
+        ],
         "x": 415,
         "y": 744,
         "w": 451,
@@ -384,7 +412,9 @@
         }
       ],
       "label": {
-        "lines": ["async cross-region replication"],
+        "lines": [
+          "async cross-region replication"
+        ],
         "x": 1531,
         "y": 1191,
         "w": 424,
@@ -425,7 +455,9 @@
         }
       ],
       "label": {
-        "lines": ["scopes access to"],
+        "lines": [
+          "scopes access to"
+        ],
         "x": 1727,
         "y": 297,
         "w": 236,
@@ -466,7 +498,9 @@
         }
       ],
       "label": {
-        "lines": ["scopes access to"],
+        "lines": [
+          "scopes access to"
+        ],
         "x": 876,
         "y": 744,
         "w": 236,

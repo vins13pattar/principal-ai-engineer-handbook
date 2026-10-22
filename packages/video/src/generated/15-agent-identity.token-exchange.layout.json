@@ -6,7 +6,9 @@
     {
       "id": "User",
       "kind": "node",
-      "label": ["User authenticates via OIDC"],
+      "label": [
+        "User authenticates via OIDC"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 442,
@@ -17,7 +19,9 @@
     {
       "id": "UserTok",
       "kind": "node",
-      "label": ["User token: sub=user, aud=host"],
+      "label": [
+        "User token: sub=user, aud=host"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1166,
@@ -28,7 +32,9 @@
     {
       "id": "Host",
       "kind": "node",
-      "label": ["Agent host holds the user token"],
+      "label": [
+        "Agent host holds the user token"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2035,
@@ -39,7 +45,9 @@
     {
       "id": "Choice",
       "kind": "node",
-      "label": ["How does the agent call the MCP server?"],
+      "label": [
+        "How does the agent call the MCP server?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 220,
@@ -50,7 +58,9 @@
     {
       "id": "Pass",
       "kind": "node",
-      "label": ["Forward the user token unchanged"],
+      "label": [
+        "Forward the user token unchanged"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2027,
@@ -61,7 +71,10 @@
     {
       "id": "Deputy",
       "kind": "node",
-      "label": ["Server sees aud=host, not itself", "MUST reject — confused deputy"],
+      "label": [
+        "Server sees aud=host, not itself",
+        "MUST reject — confused deputy"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2920,
@@ -88,7 +101,9 @@
     {
       "id": "AS",
       "kind": "node",
-      "label": ["Authorization server"],
+      "label": [
+        "Authorization server"
+      ],
       "parent": null,
       "shape": "box",
       "x": 3021,
@@ -116,7 +131,10 @@
     {
       "id": "Call",
       "kind": "node",
-      "label": ["Call MCP server", "Authorization: Bearer"],
+      "label": [
+        "Call MCP server",
+        "Authorization: Bearer"
+      ],
       "parent": null,
       "shape": "box",
       "x": 398,
@@ -143,7 +161,9 @@
     {
       "id": "Deny",
       "kind": "node",
-      "label": ["401 / 403 — no tool runs"],
+      "label": [
+        "401 / 403 — no tool runs"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2920,
@@ -154,7 +174,10 @@
     {
       "id": "Tool",
       "kind": "node",
-      "label": ["Execute tool", "audit logs agent + user"],
+      "label": [
+        "Execute tool",
+        "audit logs agent + user"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2920,
@@ -260,7 +283,9 @@
         }
       ],
       "label": {
-        "lines": ["Passthrough (forbidden)"],
+        "lines": [
+          "Passthrough (forbidden)"
+        ],
         "x": 1288,
         "y": 268,
         "w": 330,
@@ -304,7 +329,9 @@
         }
       ],
       "label": {
-        "lines": ["Token exchange"],
+        "lines": [
+          "Token exchange"
+        ],
         "x": 1348,
         "y": 483,
         "w": 209,
@@ -421,7 +448,9 @@
         }
       ],
       "label": {
-        "lines": ["Any check fails"],
+        "lines": [
+          "Any check fails"
+        ],
         "x": 2219,
         "y": 785,
         "w": 222,
@@ -454,7 +483,9 @@
         }
       ],
       "label": {
-        "lines": ["All pass"],
+        "lines": [
+          "All pass"
+        ],
         "x": 2266,
         "y": 865,
         "w": 128,

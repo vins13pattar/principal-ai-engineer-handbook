@@ -6,7 +6,9 @@
     {
       "id": "Fleet",
       "kind": "group",
-      "label": ["Autoscaled fleet"],
+      "label": [
+        "Autoscaled fleet"
+      ],
       "parent": null,
       "shape": "box",
       "x": 80,
@@ -17,7 +19,10 @@
     {
       "id": "GPU",
       "kind": "group",
-      "label": ["Model server (single GPU /", "replica)"],
+      "label": [
+        "Model server (single GPU /",
+        "replica)"
+      ],
       "parent": "Fleet",
       "shape": "box",
       "x": 362,
@@ -28,7 +33,9 @@
     {
       "id": "Prefill",
       "kind": "node",
-      "label": ["Prefill: process full prompt (compute-bound)"],
+      "label": [
+        "Prefill: process full prompt (compute-bound)"
+      ],
       "parent": "GPU",
       "shape": "box",
       "x": 973,
@@ -39,7 +46,9 @@
     {
       "id": "KV",
       "kind": "node",
-      "label": ["KV cache"],
+      "label": [
+        "KV cache"
+      ],
       "parent": "GPU",
       "shape": "store",
       "x": 1257,
@@ -50,7 +59,9 @@
     {
       "id": "Decode",
       "kind": "node",
-      "label": ["Decode: generate one token at a time (memory-bandwidth-bound)"],
+      "label": [
+        "Decode: generate one token at a time (memory-bandwidth-bound)"
+      ],
       "parent": "GPU",
       "shape": "box",
       "x": 790,
@@ -61,7 +72,9 @@
     {
       "id": "Out",
       "kind": "node",
-      "label": ["Stream tokens to caller"],
+      "label": [
+        "Stream tokens to caller"
+      ],
       "parent": "GPU",
       "shape": "box",
       "x": 1291,
@@ -72,7 +85,9 @@
     {
       "id": "GPU2",
       "kind": "node",
-      "label": ["Model server (replica 2)"],
+      "label": [
+        "Model server (replica 2)"
+      ],
       "parent": "Fleet",
       "shape": "box",
       "x": 2450,
@@ -83,7 +98,9 @@
     {
       "id": "GPUN",
       "kind": "node",
-      "label": ["Model server (replica N)"],
+      "label": [
+        "Model server (replica N)"
+      ],
       "parent": "Fleet",
       "shape": "box",
       "x": 1958,
@@ -94,7 +111,9 @@
     {
       "id": "Req",
       "kind": "node",
-      "label": ["Incoming requests"],
+      "label": [
+        "Incoming requests"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1958,
@@ -105,7 +124,9 @@
     {
       "id": "Sched",
       "kind": "node",
-      "label": ["Continuous batching scheduler"],
+      "label": [
+        "Continuous batching scheduler"
+      ],
       "parent": null,
       "shape": "box",
       "x": 964,
@@ -116,7 +137,9 @@
     {
       "id": "Evict",
       "kind": "node",
-      "label": ["Preempt / reject"],
+      "label": [
+        "Preempt / reject"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1724,
@@ -127,7 +150,9 @@
     {
       "id": "LB",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2050,
@@ -310,7 +335,9 @@
         }
       ],
       "label": {
-        "lines": ["new request joins mid-batch"],
+        "lines": [
+          "new request joins mid-batch"
+        ],
         "x": 1319,
         "y": 576,
         "w": 383,
@@ -343,7 +370,9 @@
         }
       ],
       "label": {
-        "lines": ["evicted under memory pressure"],
+        "lines": [
+          "evicted under memory pressure"
+        ],
         "x": 1688,
         "y": 1799,
         "w": 410,

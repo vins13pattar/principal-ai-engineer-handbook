@@ -78,7 +78,9 @@
     },
     {
       "type": "note",
-      "over": ["Worker"],
+      "over": [
+        "Worker"
+      ],
       "text": "Network drops before response reaches Gateway",
       "depth": 1
     },

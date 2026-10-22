@@ -6,7 +6,9 @@
     {
       "id": "Signals",
       "kind": "group",
-      "label": ["Three signals, one request"],
+      "label": [
+        "Three signals, one request"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -17,7 +19,9 @@
     {
       "id": "Logs",
       "kind": "node",
-      "label": ["Log lines: request_id, tenant_id, ..."],
+      "label": [
+        "Log lines: request_id, tenant_id, ..."
+      ],
       "parent": "Signals",
       "shape": "box",
       "x": 468,
@@ -28,7 +32,9 @@
     {
       "id": "Metrics",
       "kind": "node",
-      "label": ["Rate / Errors / Duration counters"],
+      "label": [
+        "Rate / Errors / Duration counters"
+      ],
       "parent": "Signals",
       "shape": "box",
       "x": 1178,
@@ -39,7 +45,9 @@
     {
       "id": "SpanRoot",
       "kind": "node",
-      "label": ["Span: handle_request"],
+      "label": [
+        "Span: handle_request"
+      ],
       "parent": "Signals",
       "shape": "box",
       "x": 1821,
@@ -50,7 +58,9 @@
     {
       "id": "SpanLLM",
       "kind": "node",
-      "label": ["Span: llm.call (tokens, cost, model)"],
+      "label": [
+        "Span: llm.call (tokens, cost, model)"
+      ],
       "parent": "Signals",
       "shape": "box",
       "x": 1755,
@@ -61,7 +71,9 @@
     {
       "id": "SpanTool",
       "kind": "node",
-      "label": ["Span: tool.call (name, latency)"],
+      "label": [
+        "Span: tool.call (name, latency)"
+      ],
       "parent": "Signals",
       "shape": "box",
       "x": 1797,
@@ -72,7 +84,9 @@
     {
       "id": "Req",
       "kind": "node",
-      "label": ["Incoming request"],
+      "label": [
+        "Incoming request"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1321,
@@ -83,7 +97,9 @@
     {
       "id": "Svc",
       "kind": "node",
-      "label": ["Instrumented service"],
+      "label": [
+        "Instrumented service"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1287,
@@ -94,7 +110,9 @@
     {
       "id": "Collector",
       "kind": "node",
-      "label": ["Collector"],
+      "label": [
+        "Collector"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1380,
@@ -105,7 +123,9 @@
     {
       "id": "LogStore",
       "kind": "node",
-      "label": ["Log store"],
+      "label": [
+        "Log store"
+      ],
       "parent": null,
       "shape": "store",
       "x": 1053,
@@ -116,7 +136,9 @@
     {
       "id": "MetricStore",
       "kind": "node",
-      "label": ["Metrics store"],
+      "label": [
+        "Metrics store"
+      ],
       "parent": null,
       "shape": "store",
       "x": 1686,
@@ -127,7 +149,9 @@
     {
       "id": "TraceStore",
       "kind": "node",
-      "label": ["Trace store"],
+      "label": [
+        "Trace store"
+      ],
       "parent": null,
       "shape": "store",
       "x": 1363,
@@ -138,7 +162,9 @@
     {
       "id": "SLO",
       "kind": "node",
-      "label": ["SLO burn-rate alerting"],
+      "label": [
+        "SLO burn-rate alerting"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1990,
@@ -149,7 +175,9 @@
     {
       "id": "Debug",
       "kind": "node",
-      "label": ["Trace-based debugging: one request_id, every span"],
+      "label": [
+        "Trace-based debugging: one request_id, every span"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1028,
@@ -160,7 +188,9 @@
     {
       "id": "EvalHarness",
       "kind": "node",
-      "label": ["Eval harness (Module 4)"],
+      "label": [
+        "Eval harness (Module 4)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2054,
@@ -212,7 +242,9 @@
         }
       ],
       "label": {
-        "lines": ["structured logs"],
+        "lines": [
+          "structured logs"
+        ],
         "x": 702,
         "y": 554,
         "w": 222,
@@ -241,7 +273,9 @@
         }
       ],
       "label": {
-        "lines": ["RED metrics"],
+        "lines": [
+          "RED metrics"
+        ],
         "x": 1406,
         "y": 554,
         "w": 168,
@@ -278,7 +312,9 @@
         }
       ],
       "label": {
-        "lines": ["spans, one trace"],
+        "lines": [
+          "spans, one trace"
+        ],
         "x": 1906,
         "y": 554,
         "w": 236,
@@ -557,7 +593,9 @@
         }
       ],
       "label": {
-        "lines": ["quality signal, not request-scoped"],
+        "lines": [
+          "quality signal, not request-scoped"
+        ],
         "x": 2043,
         "y": 1706,
         "w": 477,

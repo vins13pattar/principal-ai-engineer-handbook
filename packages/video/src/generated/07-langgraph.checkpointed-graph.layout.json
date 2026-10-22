@@ -6,7 +6,9 @@
     {
       "id": "START",
       "kind": "node",
-      "label": ["START"],
+      "label": [
+        "START"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 225,
@@ -17,7 +19,10 @@
     {
       "id": "Decide",
       "kind": "node",
-      "label": ["decide node", "(calls the model)"],
+      "label": [
+        "decide node",
+        "(calls the model)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 615,
@@ -28,7 +33,9 @@
     {
       "id": "Route",
       "kind": "node",
-      "label": ["route on state"],
+      "label": [
+        "route on state"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 1902,
@@ -39,7 +46,10 @@
     {
       "id": "Tools",
       "kind": "node",
-      "label": ["tools node", "(executes tool call)"],
+      "label": [
+        "tools node",
+        "(executes tool call)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -50,7 +60,9 @@
     {
       "id": "END",
       "kind": "node",
-      "label": ["END"],
+      "label": [
+        "END"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 2958,
@@ -61,7 +73,10 @@
     {
       "id": "CP",
       "kind": "node",
-      "label": ["Checkpointer", "(persists state after every node)"],
+      "label": [
+        "Checkpointer",
+        "(persists state after every node)"
+      ],
       "parent": null,
       "shape": "store",
       "x": 1813,
@@ -129,7 +144,9 @@
         }
       ],
       "label": {
-        "lines": ["conditional edge"],
+        "lines": [
+          "conditional edge"
+        ],
         "x": 1273,
         "y": 158,
         "w": 236,
@@ -162,7 +179,9 @@
         }
       ],
       "label": {
-        "lines": ["tool call requested"],
+        "lines": [
+          "tool call requested"
+        ],
         "x": 654,
         "y": 58,
         "w": 276,
@@ -187,7 +206,9 @@
         }
       ],
       "label": {
-        "lines": ["final answer"],
+        "lines": [
+          "final answer"
+        ],
         "x": 2606,
         "y": 79,
         "w": 182,
@@ -247,7 +268,9 @@
         }
       ],
       "label": {
-        "lines": ["saves state after"],
+        "lines": [
+          "saves state after"
+        ],
         "x": 1267,
         "y": 213,
         "w": 249,
@@ -280,7 +303,9 @@
         }
       ],
       "label": {
-        "lines": ["saves state after"],
+        "lines": [
+          "saves state after"
+        ],
         "x": 668,
         "y": 369,
         "w": 249,
@@ -313,7 +338,10 @@
         }
       ],
       "label": {
-        "lines": ["resume from here after", "a crash or a human-in-the-loop pause"],
+        "lines": [
+          "resume from here after",
+          "a crash or a human-in-the-loop pause"
+        ],
         "x": 1139,
         "y": 269,
         "w": 504,

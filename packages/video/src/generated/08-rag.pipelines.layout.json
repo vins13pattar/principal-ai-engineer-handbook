@@ -6,7 +6,10 @@
     {
       "id": "Ingestion",
       "kind": "group",
-      "label": ["Ingestion pipeline (runs", "ahead of time)"],
+      "label": [
+        "Ingestion pipeline (runs",
+        "ahead of time)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 424,
@@ -17,7 +20,9 @@
     {
       "id": "Docs",
       "kind": "node",
-      "label": ["Source documents"],
+      "label": [
+        "Source documents"
+      ],
       "parent": "Ingestion",
       "shape": "box",
       "x": 823,
@@ -28,7 +33,9 @@
     {
       "id": "Chunk",
       "kind": "node",
-      "label": ["Chunk"],
+      "label": [
+        "Chunk"
+      ],
       "parent": "Ingestion",
       "shape": "box",
       "x": 892,
@@ -39,7 +46,9 @@
     {
       "id": "EmbedIngest",
       "kind": "node",
-      "label": ["Embed"],
+      "label": [
+        "Embed"
+      ],
       "parent": "Ingestion",
       "shape": "box",
       "x": 892,
@@ -50,7 +59,9 @@
     {
       "id": "Index",
       "kind": "node",
-      "label": ["Vector index"],
+      "label": [
+        "Vector index"
+      ],
       "parent": "Ingestion",
       "shape": "store",
       "x": 857,
@@ -61,7 +72,10 @@
     {
       "id": "Query",
       "kind": "group",
-      "label": ["Query pipeline (runs per", "request)"],
+      "label": [
+        "Query pipeline (runs per",
+        "request)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -72,7 +86,9 @@
     {
       "id": "Q",
       "kind": "node",
-      "label": ["User query"],
+      "label": [
+        "User query"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 660,
@@ -83,7 +99,9 @@
     {
       "id": "EmbedQuery",
       "kind": "node",
-      "label": ["Embed"],
+      "label": [
+        "Embed"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 678,
@@ -94,7 +112,9 @@
     {
       "id": "ANN",
       "kind": "node",
-      "label": ["ANN search + access-control filter"],
+      "label": [
+        "ANN search + access-control filter"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 565,
@@ -105,7 +125,9 @@
     {
       "id": "Rerank",
       "kind": "node",
-      "label": ["Re-rank (optional second stage)"],
+      "label": [
+        "Re-rank (optional second stage)"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 591,
@@ -116,7 +138,9 @@
     {
       "id": "Prompt",
       "kind": "node",
-      "label": ["Construct prompt: instructions + retrieved chunks"],
+      "label": [
+        "Construct prompt: instructions + retrieved chunks"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 439,
@@ -127,7 +151,9 @@
     {
       "id": "Model",
       "kind": "node",
-      "label": ["Model"],
+      "label": [
+        "Model"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 785,
@@ -138,7 +164,9 @@
     {
       "id": "Response",
       "kind": "node",
-      "label": ["Response"],
+      "label": [
+        "Response"
+      ],
       "parent": "Query",
       "shape": "box",
       "x": 784,

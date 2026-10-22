@@ -3,13 +3,52 @@ import type { AudioManifest } from "./audio.ts";
 import type { TimingManifest } from "./timing.ts";
 import m_00_principal_engineer_mindset_audio from "./00-principal-engineer-mindset.audio.json";
 import m_00_principal_engineer_mindset_timing from "./00-principal-engineer-mindset.timing.json";
+import m_01_production_python_audio from "./01-production-python.audio.json";
+import m_01_production_python_timing from "./01-production-python.timing.json";
+import m_02_distributed_systems_audio from "./02-distributed-systems.audio.json";
+import m_02_distributed_systems_timing from "./02-distributed-systems.timing.json";
+import m_03_networking_audio from "./03-networking.audio.json";
+import m_03_networking_timing from "./03-networking.timing.json";
+import m_04_ai_infrastructure_audio from "./04-ai-infrastructure.audio.json";
+import m_04_ai_infrastructure_timing from "./04-ai-infrastructure.timing.json";
+import m_05_agent_engineering_audio from "./05-agent-engineering.audio.json";
+import m_05_agent_engineering_timing from "./05-agent-engineering.timing.json";
 import m_06_mcp_audio from "./06-mcp.audio.json";
 import m_06_mcp_timing from "./06-mcp.timing.json";
+import m_07_langgraph_audio from "./07-langgraph.audio.json";
+import m_07_langgraph_timing from "./07-langgraph.timing.json";
+import m_08_rag_audio from "./08-rag.audio.json";
+import m_08_rag_timing from "./08-rag.timing.json";
+import m_09_model_serving_audio from "./09-model-serving.audio.json";
+import m_09_model_serving_timing from "./09-model-serving.timing.json";
+import m_10_kubernetes_audio from "./10-kubernetes.audio.json";
+import m_10_kubernetes_timing from "./10-kubernetes.timing.json";
+import m_11_cloud_audio from "./11-cloud.audio.json";
+import m_11_cloud_timing from "./11-cloud.timing.json";
+import m_12_observability_audio from "./12-observability.audio.json";
+import m_12_observability_timing from "./12-observability.timing.json";
+import m_13_system_design_audio from "./13-system-design.audio.json";
+import m_13_system_design_timing from "./13-system-design.timing.json";
+import m_14_leadership_audio from "./14-leadership.audio.json";
+import m_14_leadership_timing from "./14-leadership.timing.json";
+import m_15_agent_identity_audio from "./15-agent-identity.audio.json";
+import m_15_agent_identity_timing from "./15-agent-identity.timing.json";
 
 export const MANIFESTS: Record<string, { audio: AudioManifest; timing: TimingManifest }> = {
-  "00-principal-engineer-mindset": {
-    audio: m_00_principal_engineer_mindset_audio as AudioManifest,
-    timing: m_00_principal_engineer_mindset_timing as TimingManifest,
-  },
+  "00-principal-engineer-mindset": { audio: m_00_principal_engineer_mindset_audio as AudioManifest, timing: m_00_principal_engineer_mindset_timing as TimingManifest },
+  "01-production-python": { audio: m_01_production_python_audio as AudioManifest, timing: m_01_production_python_timing as TimingManifest },
+  "02-distributed-systems": { audio: m_02_distributed_systems_audio as AudioManifest, timing: m_02_distributed_systems_timing as TimingManifest },
+  "03-networking": { audio: m_03_networking_audio as AudioManifest, timing: m_03_networking_timing as TimingManifest },
+  "04-ai-infrastructure": { audio: m_04_ai_infrastructure_audio as AudioManifest, timing: m_04_ai_infrastructure_timing as TimingManifest },
+  "05-agent-engineering": { audio: m_05_agent_engineering_audio as AudioManifest, timing: m_05_agent_engineering_timing as TimingManifest },
   "06-mcp": { audio: m_06_mcp_audio as AudioManifest, timing: m_06_mcp_timing as TimingManifest },
+  "07-langgraph": { audio: m_07_langgraph_audio as AudioManifest, timing: m_07_langgraph_timing as TimingManifest },
+  "08-rag": { audio: m_08_rag_audio as AudioManifest, timing: m_08_rag_timing as TimingManifest },
+  "09-model-serving": { audio: m_09_model_serving_audio as AudioManifest, timing: m_09_model_serving_timing as TimingManifest },
+  "10-kubernetes": { audio: m_10_kubernetes_audio as AudioManifest, timing: m_10_kubernetes_timing as TimingManifest },
+  "11-cloud": { audio: m_11_cloud_audio as AudioManifest, timing: m_11_cloud_timing as TimingManifest },
+  "12-observability": { audio: m_12_observability_audio as AudioManifest, timing: m_12_observability_timing as TimingManifest },
+  "13-system-design": { audio: m_13_system_design_audio as AudioManifest, timing: m_13_system_design_timing as TimingManifest },
+  "14-leadership": { audio: m_14_leadership_audio as AudioManifest, timing: m_14_leadership_timing as TimingManifest },
+  "15-agent-identity": { audio: m_15_agent_identity_audio as AudioManifest, timing: m_15_agent_identity_timing as TimingManifest },
 };

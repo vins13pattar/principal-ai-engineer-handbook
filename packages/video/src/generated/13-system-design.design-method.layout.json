@@ -6,7 +6,9 @@
     {
       "id": "START",
       "kind": "node",
-      "label": ["New AI system"],
+      "label": [
+        "New AI system"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 2734,
@@ -47,7 +49,11 @@
     {
       "id": "CAPACITY",
       "kind": "node",
-      "label": ["Model capacity and cost", "Little's Law, tokens per call,", "dominant cost line"],
+      "label": [
+        "Model capacity and cost",
+        "Little's Law, tokens per call,",
+        "dominant cost line"
+      ],
       "parent": null,
       "shape": "box",
       "x": 3180,
@@ -58,7 +64,10 @@
     {
       "id": "HARD",
       "kind": "node",
-      "label": ["Which decision is", "hardest to reverse?"],
+      "label": [
+        "Which decision is",
+        "hardest to reverse?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 108,
@@ -69,7 +78,10 @@
     {
       "id": "DATA",
       "kind": "node",
-      "label": ["Data boundary", "and permission model"],
+      "label": [
+        "Data boundary",
+        "and permission model"
+      ],
       "parent": null,
       "shape": "box",
       "x": 81,
@@ -80,7 +92,10 @@
     {
       "id": "STATE",
       "kind": "node",
-      "label": ["State ownership", "and durability"],
+      "label": [
+        "State ownership",
+        "and durability"
+      ],
       "parent": null,
       "shape": "box",
       "x": 556,
@@ -91,7 +106,10 @@
     {
       "id": "CONTRACT",
       "kind": "node",
-      "label": ["External contract", "and versioning"],
+      "label": [
+        "External contract",
+        "and versioning"
+      ],
       "parent": null,
       "shape": "box",
       "x": 947,
@@ -102,7 +120,10 @@
     {
       "id": "DECOMPOSE",
       "kind": "node",
-      "label": ["Decompose into components", "with one owner each"],
+      "label": [
+        "Decompose into components",
+        "with one owner each"
+      ],
       "parent": null,
       "shape": "box",
       "x": 472,
@@ -113,7 +134,11 @@
     {
       "id": "EVAL",
       "kind": "node",
-      "label": ["Define the quality signal", "eval set, thresholds,", "regression gate"],
+      "label": [
+        "Define the quality signal",
+        "eval set, thresholds,",
+        "regression gate"
+      ],
       "parent": null,
       "shape": "box",
       "x": 472,
@@ -124,7 +149,10 @@
     {
       "id": "OBSERVE",
       "kind": "node",
-      "label": ["Define the operational signal", "SLOs, burn rate, cost per request"],
+      "label": [
+        "Define the operational signal",
+        "SLOs, burn rate, cost per request"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1413,
@@ -135,7 +163,10 @@
     {
       "id": "REVERSIBLE",
       "kind": "node",
-      "label": ["Reversible", "within one deploy?"],
+      "label": [
+        "Reversible",
+        "within one deploy?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 1513,
@@ -146,7 +177,10 @@
     {
       "id": "SHIP",
       "kind": "node",
-      "label": ["Ship behind a flag", "and measure"],
+      "label": [
+        "Ship behind a flag",
+        "and measure"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2181,
@@ -157,7 +191,10 @@
     {
       "id": "EVIDENCE",
       "kind": "node",
-      "label": ["Name the evidence that", "would change the decision"],
+      "label": [
+        "Name the evidence that",
+        "would change the decision"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1550,
@@ -168,7 +205,10 @@
     {
       "id": "MEASURE",
       "kind": "node",
-      "label": ["Compare against the", "declared thresholds"],
+      "label": [
+        "Compare against the",
+        "declared thresholds"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2173,
@@ -179,7 +219,9 @@
     {
       "id": "DONE",
       "kind": "node",
-      "label": ["Design holds"],
+      "label": [
+        "Design holds"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 2151,
@@ -555,7 +597,9 @@
         }
       ],
       "label": {
-        "lines": ["Yes"],
+        "lines": [
+          "Yes"
+        ],
         "x": 1478,
         "y": 1059,
         "w": 61,
@@ -580,7 +624,9 @@
         }
       ],
       "label": {
-        "lines": ["No"],
+        "lines": [
+          "No"
+        ],
         "x": 1771,
         "y": 1059,
         "w": 47,
@@ -659,7 +705,9 @@
         }
       ],
       "label": {
-        "lines": ["Within budget"],
+        "lines": [
+          "Within budget"
+        ],
         "x": 2204,
         "y": 1059,
         "w": 195,
@@ -700,7 +748,9 @@
         }
       ],
       "label": {
-        "lines": ["Outside budget"],
+        "lines": [
+          "Outside budget"
+        ],
         "x": 2409,
         "y": 1059,
         "w": 209,

@@ -6,7 +6,10 @@
     {
       "id": "SIGNAL",
       "kind": "node",
-      "label": ["A problem surfaces", "incident, cost spike, blocked team"],
+      "label": [
+        "A problem surfaces",
+        "incident, cost spike, blocked team"
+      ],
       "parent": null,
       "shape": "box",
       "x": 583,
@@ -17,7 +20,10 @@
     {
       "id": "FRAME",
       "kind": "node",
-      "label": ["Frame it as a decision", "what question needs answering"],
+      "label": [
+        "Frame it as a decision",
+        "what question needs answering"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1393,
@@ -28,7 +34,10 @@
     {
       "id": "REVERSIBLE",
       "kind": "node",
-      "label": ["Reversible in", "one deploy?"],
+      "label": [
+        "Reversible in",
+        "one deploy?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 2119,
@@ -39,7 +48,10 @@
     {
       "id": "OWNER",
       "kind": "node",
-      "label": ["The team closest to it decides", "no review, no meeting"],
+      "label": [
+        "The team closest to it decides",
+        "no review, no meeting"
+      ],
       "parent": null,
       "shape": "box",
       "x": 3320,
@@ -50,7 +62,9 @@
     {
       "id": "SHIP",
       "kind": "node",
-      "label": ["Ship and measure"],
+      "label": [
+        "Ship and measure"
+      ],
       "parent": null,
       "shape": "box",
       "x": 4063,
@@ -61,7 +75,10 @@
     {
       "id": "WRITE",
       "kind": "node",
-      "label": ["Write it down", "context, options, cost of each"],
+      "label": [
+        "Write it down",
+        "context, options, cost of each"
+      ],
       "parent": null,
       "shape": "box",
       "x": 5510,
@@ -72,7 +89,10 @@
     {
       "id": "CIRCULATE",
       "kind": "node",
-      "label": ["Circulate for written objection", "async, timeboxed"],
+      "label": [
+        "Circulate for written objection",
+        "async, timeboxed"
+      ],
       "parent": null,
       "shape": "box",
       "x": 6253,
@@ -83,7 +103,11 @@
     {
       "id": "DISAGREE",
       "kind": "node",
-      "label": ["Objection", "on constraints", "or conclusions?"],
+      "label": [
+        "Objection",
+        "on constraints",
+        "or conclusions?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 40,
@@ -94,7 +118,10 @@
     {
       "id": "RESOLVE",
       "kind": "node",
-      "label": ["Resolve the constraint first", "most arguments end here"],
+      "label": [
+        "Resolve the constraint first",
+        "most arguments end here"
+      ],
       "parent": null,
       "shape": "box",
       "x": 4570,
@@ -105,7 +132,10 @@
     {
       "id": "EVIDENCE",
       "kind": "node",
-      "label": ["Name the evidence that", "would settle it, and its cost"],
+      "label": [
+        "Name the evidence that",
+        "would settle it, and its cost"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1393,
@@ -116,7 +146,10 @@
     {
       "id": "DECIDE",
       "kind": "node",
-      "label": ["Decide and record", "including what was rejected"],
+      "label": [
+        "Decide and record",
+        "including what was rejected"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2628,
@@ -127,7 +160,9 @@
     {
       "id": "SPIKE",
       "kind": "node",
-      "label": ["Timeboxed spike"],
+      "label": [
+        "Timeboxed spike"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2128,
@@ -138,7 +173,10 @@
     {
       "id": "ENFORCE",
       "kind": "node",
-      "label": ["Encode it in a mechanism", "linter, test, review gate"],
+      "label": [
+        "Encode it in a mechanism",
+        "linter, test, review gate"
+      ],
       "parent": null,
       "shape": "box",
       "x": 3362,
@@ -149,7 +187,10 @@
     {
       "id": "REVISIT",
       "kind": "node",
-      "label": ["Evidence contradicts", "the record?"],
+      "label": [
+        "Evidence contradicts",
+        "the record?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 4625,
@@ -160,7 +201,9 @@
     {
       "id": "HOLD",
       "kind": "node",
-      "label": ["Decision holds"],
+      "label": [
+        "Decision holds"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 5510,
@@ -239,7 +282,9 @@
         }
       ],
       "label": {
-        "lines": ["Yes"],
+        "lines": [
+          "Yes"
+        ],
         "x": 2859,
         "y": 476,
         "w": 61,
@@ -307,7 +352,9 @@
         }
       ],
       "label": {
-        "lines": ["No"],
+        "lines": [
+          "No"
+        ],
         "x": 4208,
         "y": 579,
         "w": 47,
@@ -402,7 +449,9 @@
         }
       ],
       "label": {
-        "lines": ["Constraints"],
+        "lines": [
+          "Constraints"
+        ],
         "x": 2205,
         "y": 123,
         "w": 168,
@@ -427,7 +476,9 @@
         }
       ],
       "label": {
-        "lines": ["Conclusions"],
+        "lines": [
+          "Conclusions"
+        ],
         "x": 819,
         "y": 259,
         "w": 168,
@@ -468,7 +519,9 @@
         }
       ],
       "label": {
-        "lines": ["Neither"],
+        "lines": [
+          "Neither"
+        ],
         "x": 1614,
         "y": 415,
         "w": 115,
@@ -639,7 +692,9 @@
         }
       ],
       "label": {
-        "lines": ["Yes"],
+        "lines": [
+          "Yes"
+        ],
         "x": 5279,
         "y": 326,
         "w": 61,
@@ -664,7 +719,9 @@
         }
       ],
       "label": {
-        "lines": ["No"],
+        "lines": [
+          "No"
+        ],
         "x": 5286,
         "y": 470,
         "w": 47,

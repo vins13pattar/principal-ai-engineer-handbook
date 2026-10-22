@@ -3,6 +3,5 @@ import type { ParsedSequence } from "../../scripts/mermaid-sequence.ts";
 import l_02_distributed_systems_idempotent_retry_seq from "./02-distributed-systems.idempotent-retry.sequence.json";
 
 export const SEQUENCES: Record<string, ParsedSequence> = {
-  "02-distributed-systems.idempotent-retry":
-    l_02_distributed_systems_idempotent_retry_seq as ParsedSequence,
+  "02-distributed-systems.idempotent-retry": l_02_distributed_systems_idempotent_retry_seq as ParsedSequence,
 };

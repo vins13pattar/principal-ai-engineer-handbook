@@ -6,7 +6,9 @@
     {
       "id": "A",
       "kind": "node",
-      "label": ["Ambiguous problem surfaces"],
+      "label": [
+        "Ambiguous problem surfaces"
+      ],
       "parent": null,
       "shape": "box",
       "x": 837,
@@ -17,7 +19,9 @@
     {
       "id": "B",
       "kind": "node",
-      "label": ["Frame the problem and constraints"],
+      "label": [
+        "Frame the problem and constraints"
+      ],
       "parent": null,
       "shape": "box",
       "x": 462,
@@ -28,7 +32,9 @@
     {
       "id": "C",
       "kind": "node",
-      "label": ["Draft options, including a deliberately simple baseline"],
+      "label": [
+        "Draft options, including a deliberately simple baseline"
+      ],
       "parent": null,
       "shape": "box",
       "x": 277,
@@ -39,7 +45,9 @@
     {
       "id": "D",
       "kind": "node",
-      "label": ["Write it down: RFC or ADR draft"],
+      "label": [
+        "Write it down: RFC or ADR draft"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -50,7 +58,9 @@
     {
       "id": "E",
       "kind": "node",
-      "label": ["Reversible? Type 1 vs Type 2"],
+      "label": [
+        "Reversible? Type 1 vs Type 2"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 184,
@@ -61,7 +71,9 @@
     {
       "id": "F",
       "kind": "node",
-      "label": ["Async written review"],
+      "label": [
+        "Async written review"
+      ],
       "parent": null,
       "shape": "box",
       "x": 277,
@@ -72,7 +84,9 @@
     {
       "id": "G",
       "kind": "node",
-      "label": ["Synchronous design review"],
+      "label": [
+        "Synchronous design review"
+      ],
       "parent": null,
       "shape": "box",
       "x": 752,
@@ -83,7 +97,9 @@
     {
       "id": "H",
       "kind": "node",
-      "label": ["Decision recorded with consequences"],
+      "label": [
+        "Decision recorded with consequences"
+      ],
       "parent": null,
       "shape": "box",
       "x": 342,
@@ -94,7 +110,9 @@
     {
       "id": "I",
       "kind": "node",
-      "label": ["Implementation"],
+      "label": [
+        "Implementation"
+      ],
       "parent": null,
       "shape": "box",
       "x": 518,
@@ -105,7 +123,9 @@
     {
       "id": "J",
       "kind": "node",
-      "label": ["Revisit trigger defined up front"],
+      "label": [
+        "Revisit trigger defined up front"
+      ],
       "parent": null,
       "shape": "box",
       "x": 367,
@@ -230,7 +250,9 @@
         }
       ],
       "label": {
-        "lines": ["Type 2, reversible"],
+        "lines": [
+          "Type 2, reversible"
+        ],
         "x": 349,
         "y": 333,
         "w": 262,
@@ -263,7 +285,9 @@
         }
       ],
       "label": {
-        "lines": ["Type 1, hard to reverse"],
+        "lines": [
+          "Type 1, hard to reverse"
+        ],
         "x": 832,
         "y": 333,
         "w": 330,
@@ -380,7 +404,9 @@
         }
       ],
       "label": {
-        "lines": ["Trigger fires"],
+        "lines": [
+          "Trigger fires"
+        ],
         "x": 572,
         "y": 1597,
         "w": 195,

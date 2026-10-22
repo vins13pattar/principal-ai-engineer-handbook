@@ -6,7 +6,9 @@
     {
       "id": "App",
       "kind": "node",
-      "label": ["Application (prompts, product logic)"],
+      "label": [
+        "Application (prompts, product logic)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1168,
@@ -17,7 +19,9 @@
     {
       "id": "GW",
       "kind": "node",
-      "label": ["Gateway: routing, policy, quota"],
+      "label": [
+        "Gateway: routing, policy, quota"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2011,
@@ -28,7 +32,9 @@
     {
       "id": "P1",
       "kind": "node",
-      "label": ["Hosted provider A"],
+      "label": [
+        "Hosted provider A"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2770,
@@ -39,7 +45,9 @@
     {
       "id": "P2",
       "kind": "node",
-      "label": ["Hosted provider B"],
+      "label": [
+        "Hosted provider B"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2770,
@@ -50,7 +58,9 @@
     {
       "id": "P3",
       "kind": "node",
-      "label": ["Self-hosted model"],
+      "label": [
+        "Self-hosted model"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2770,
@@ -61,7 +71,10 @@
     {
       "id": "Eval",
       "kind": "node",
-      "label": ["Evaluation and observability", "(quality, cost, latency per request)"],
+      "label": [
+        "Evaluation and observability",
+        "(quality, cost, latency per request)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -186,7 +199,9 @@
         }
       ],
       "label": {
-        "lines": ["watches"],
+        "lines": [
+          "watches"
+        ],
         "x": 883,
         "y": 182,
         "w": 115,
@@ -227,7 +242,9 @@
         }
       ],
       "label": {
-        "lines": ["watches"],
+        "lines": [
+          "watches"
+        ],
         "x": 883,
         "y": 265,
         "w": 115,
@@ -260,7 +277,9 @@
         }
       ],
       "label": {
-        "lines": ["watches"],
+        "lines": [
+          "watches"
+        ],
         "x": 1447,
         "y": 46,
         "w": 115,
@@ -301,7 +320,9 @@
         }
       ],
       "label": {
-        "lines": ["watches"],
+        "lines": [
+          "watches"
+        ],
         "x": 1447,
         "y": 329,
         "w": 115,
@@ -342,7 +363,9 @@
         }
       ],
       "label": {
-        "lines": ["watches"],
+        "lines": [
+          "watches"
+        ],
         "x": 1447,
         "y": 384,
         "w": 115,

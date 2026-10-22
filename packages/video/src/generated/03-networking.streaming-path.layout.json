@@ -6,7 +6,9 @@
     {
       "id": "Client",
       "kind": "node",
-      "label": ["Client"],
+      "label": [
+        "Client"
+      ],
       "parent": null,
       "shape": "box",
       "x": 127,
@@ -17,7 +19,9 @@
     {
       "id": "Edge",
       "kind": "node",
-      "label": ["Edge / CDN"],
+      "label": [
+        "Edge / CDN"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1024,
@@ -36,7 +40,9 @@
     {
       "id": "LB",
       "kind": "node",
-      "label": ["Load balancer"],
+      "label": [
+        "Load balancer"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -47,7 +53,9 @@
     {
       "id": "GW",
       "kind": "node",
-      "label": ["Gateway: text/event-stream"],
+      "label": [
+        "Gateway: text/event-stream"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1024,
@@ -55,7 +63,9 @@
       "w": 505,
       "h": 87,
       "note": {
-        "lines": ["is_disconnected() checked every chunk"],
+        "lines": [
+          "is_disconnected() checked every chunk"
+        ],
         "dashed": true
       }
     }
@@ -84,7 +94,9 @@
         }
       ],
       "label": {
-        "lines": ["TLS 1.3, keep-alive"],
+        "lines": [
+          "TLS 1.3, keep-alive"
+        ],
         "x": 538,
         "y": 64,
         "w": 276,
@@ -125,7 +137,9 @@
         }
       ],
       "label": {
-        "lines": ["L7 load balancer"],
+        "lines": [
+          "L7 load balancer"
+        ],
         "x": 558,
         "y": 190,
         "w": 236,
@@ -185,7 +199,9 @@
         }
       ],
       "label": {
-        "lines": ["token-by-token SSE chunks"],
+        "lines": [
+          "token-by-token SSE chunks"
+        ],
         "x": 497,
         "y": 439,
         "w": 357,

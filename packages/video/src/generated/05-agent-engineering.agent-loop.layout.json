@@ -6,7 +6,9 @@
     {
       "id": "Start",
       "kind": "node",
-      "label": ["Task received"],
+      "label": [
+        "Task received"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 2667,
@@ -17,7 +19,9 @@
     {
       "id": "Budget",
       "kind": "node",
-      "label": ["Step or cost budget remaining?"],
+      "label": [
+        "Step or cost budget remaining?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 3156,
@@ -28,7 +32,9 @@
     {
       "id": "Handoff",
       "kind": "node",
-      "label": ["Stop: hand off to a human, task incomplete"],
+      "label": [
+        "Stop: hand off to a human, task incomplete"
+      ],
       "parent": null,
       "shape": "box",
       "x": 4182,
@@ -39,7 +45,9 @@
     {
       "id": "Decide",
       "kind": "node",
-      "label": ["Model decides: call a tool, ask a question, or finish"],
+      "label": [
+        "Model decides: call a tool, ask a question, or finish"
+      ],
       "parent": null,
       "shape": "box",
       "x": 4182,
@@ -50,7 +58,9 @@
     {
       "id": "Done",
       "kind": "node",
-      "label": ["Done"],
+      "label": [
+        "Done"
+      ],
       "parent": null,
       "shape": "terminal",
       "x": 5663,
@@ -61,7 +71,9 @@
     {
       "id": "Perm",
       "kind": "node",
-      "label": ["Tool call passes permission and schema check?"],
+      "label": [
+        "Tool call passes permission and schema check?"
+      ],
       "parent": null,
       "shape": "decision",
       "x": 40,
@@ -72,7 +84,9 @@
     {
       "id": "Reject",
       "kind": "node",
-      "label": ["Reject: error observation appended to context"],
+      "label": [
+        "Reject: error observation appended to context"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1360,
@@ -83,7 +97,9 @@
     {
       "id": "Exec",
       "kind": "node",
-      "label": ["Execute tool (sandboxed, idempotency key attached)"],
+      "label": [
+        "Execute tool (sandboxed, idempotency key attached)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1318,
@@ -94,7 +110,9 @@
     {
       "id": "Observe",
       "kind": "node",
-      "label": ["Observation appended to context"],
+      "label": [
+        "Observation appended to context"
+      ],
       "parent": null,
       "shape": "box",
       "x": 2397,
@@ -146,7 +164,9 @@
         }
       ],
       "label": {
-        "lines": ["No"],
+        "lines": [
+          "No"
+        ],
         "x": 3958,
         "y": 183,
         "w": 47,
@@ -187,7 +207,9 @@
         }
       ],
       "label": {
-        "lines": ["Yes"],
+        "lines": [
+          "Yes"
+        ],
         "x": 3951,
         "y": 292,
         "w": 61,
@@ -212,7 +234,9 @@
         }
       ],
       "label": {
-        "lines": ["Final answer"],
+        "lines": [
+          "Final answer"
+        ],
         "x": 5311,
         "y": 340,
         "w": 182,
@@ -245,7 +269,9 @@
         }
       ],
       "label": {
-        "lines": ["Tool call"],
+        "lines": [
+          "Tool call"
+        ],
         "x": 2621,
         "y": 354,
         "w": 141,
@@ -278,7 +304,9 @@
         }
       ],
       "label": {
-        "lines": ["No"],
+        "lines": [
+          "No"
+        ],
         "x": 1094,
         "y": 114,
         "w": 47,
@@ -303,7 +331,9 @@
         }
       ],
       "label": {
-        "lines": ["Yes"],
+        "lines": [
+          "Yes"
+        ],
         "x": 1087,
         "y": 271,
         "w": 61,

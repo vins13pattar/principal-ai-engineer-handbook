@@ -6,7 +6,10 @@
     {
       "id": "Host",
       "kind": "group",
-      "label": ["Host application (e.g. an", "IDE or chat client)"],
+      "label": [
+        "Host application (e.g. an",
+        "IDE or chat client)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 40,
@@ -17,7 +20,9 @@
     {
       "id": "C1",
       "kind": "node",
-      "label": ["Client 1"],
+      "label": [
+        "Client 1"
+      ],
       "parent": "Host",
       "shape": "box",
       "x": 454,
@@ -28,7 +33,9 @@
     {
       "id": "C2",
       "kind": "node",
-      "label": ["Client 2"],
+      "label": [
+        "Client 2"
+      ],
       "parent": "Host",
       "shape": "box",
       "x": 454,
@@ -39,7 +46,10 @@
     {
       "id": "S1",
       "kind": "node",
-      "label": ["Server: filesystem", "(exposes Resources)"],
+      "label": [
+        "Server: filesystem",
+        "(exposes Resources)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1577,
@@ -50,7 +60,10 @@
     {
       "id": "S2",
       "kind": "node",
-      "label": ["Server: GitHub", "(exposes Tools)"],
+      "label": [
+        "Server: GitHub",
+        "(exposes Tools)"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1577,
@@ -61,7 +74,9 @@
     {
       "id": "Model",
       "kind": "node",
-      "label": ["Model"],
+      "label": [
+        "Model"
+      ],
       "parent": null,
       "shape": "box",
       "x": 1577,
@@ -98,7 +113,9 @@
         }
       ],
       "label": {
-        "lines": ["JSON-RPC over stdio"],
+        "lines": [
+          "JSON-RPC over stdio"
+        ],
         "x": 1004,
         "y": 129,
         "w": 276,
@@ -127,7 +144,9 @@
         }
       ],
       "label": {
-        "lines": ["JSON-RPC over Streamable HTTP"],
+        "lines": [
+          "JSON-RPC over Streamable HTTP"
+        ],
         "x": 937,
         "y": 325,
         "w": 410,
@@ -160,7 +179,9 @@
         }
       ],
       "label": {
-        "lines": ["aggregated tools + resources + prompts"],
+        "lines": [
+          "aggregated tools + resources + prompts"
+        ],
         "x": 876,
         "y": 502,
         "w": 531,

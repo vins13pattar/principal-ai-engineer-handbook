@@ -18,10 +18,8 @@ import l_14_leadership_decision_path from "./14-leadership.decision-path.layout.
 import l_15_agent_identity_token_exchange from "./15-agent-identity.token-exchange.layout.json";
 
 export const LAYOUTS: Record<string, DiagramLayout> = {
-  "00-principal-engineer-mindset.decision-flow":
-    l_00_principal_engineer_mindset_decision_flow as DiagramLayout,
-  "01-production-python.request-lifecycle":
-    l_01_production_python_request_lifecycle as DiagramLayout,
+  "00-principal-engineer-mindset.decision-flow": l_00_principal_engineer_mindset_decision_flow as DiagramLayout,
+  "01-production-python.request-lifecycle": l_01_production_python_request_lifecycle as DiagramLayout,
   "03-networking.streaming-path": l_03_networking_streaming_path as DiagramLayout,
   "04-ai-infrastructure.platform-stack": l_04_ai_infrastructure_platform_stack as DiagramLayout,
   "05-agent-engineering.agent-loop": l_05_agent_engineering_agent_loop as DiagramLayout,
