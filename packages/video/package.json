@@ -18,6 +18,7 @@
     "sync": "node --experimental-strip-types scripts/sync-videos.ts",
     "render:module": "node --experimental-strip-types scripts/render-module.ts",
     "status": "node --experimental-strip-types scripts/status.ts",
+    "make": "node --experimental-strip-types scripts/make-all.ts",
     "sheet": "node --experimental-strip-types scripts/sheet.ts"
   },
   "dependencies": {

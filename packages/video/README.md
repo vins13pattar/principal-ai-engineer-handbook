@@ -50,3 +50,19 @@ pnpm --filter @handbook/video youtube 06-mcp      # out/06-mcp.youtube.md: title
 `src/videos/<slug>.timing.json`. In a script, give a reveal a `cue` phrase taken from the narration
 and it lands on that word. Avoid words the speech lexicon rewrites (HTTP, MCP, stdio) in a cue.
 Run `youtube` after `narrate` so chapter times use the real lengths.
+
+## Make everything
+
+All 16 modules have scripts (about 6 minutes each by estimate). On the Mac with Kokoro and ffmpeg set up:
+
+```bash
+pnpm --filter @handbook/video make                       # every video, in order
+pnpm --filter @handbook/video make 08-rag 09-model-serving   # chosen ones
+pnpm --filter @handbook/video make --skip-render         # audio, timings, captions, YouTube text only
+```
+
+For each video it runs `narrate` (voice `am_michael`, change with `--voice`), `transcribe`,
+`captions`, `youtube`, then the narrated render to `out/`. A failure stops that video, continues
+with the next, and is listed at the end. Re-running is safe: unchanged scenes are skipped. A cue
+reported by `transcribe` as not found keeps its estimated time; reword the cue in the script.
+Listen to each video before uploading, since the narration is AI-generated and must be disclosed.
