@@ -59,9 +59,16 @@ const previous: TimingManifest = existsSync(timingPath)
   ? (JSON.parse(readFileSync(timingPath, "utf8")) as TimingManifest)
   : EMPTY_TIMING;
 
+// The installer clones into this folder, so it must not exist yet. A folder without the built
+// executable is a failed earlier install, and the installer would skip it without saying so.
 const whisperPath = resolve(pkg, ".whisper");
-mkdirSync(whisperPath, { recursive: true });
-await installWhisperCpp({ to: whisperPath, version: WHISPER_VERSION, printOutput: false });
+if (existsSync(whisperPath) && !existsSync(resolve(whisperPath, "main"))) {
+  process.stderr.write(
+    `${whisperPath} exists but whisper.cpp is not built there. Delete it and run again:\n  rm -rf "${whisperPath}"\n`,
+  );
+  process.exit(2);
+}
+await installWhisperCpp({ to: whisperPath, version: WHISPER_VERSION, printOutput: true });
 await downloadWhisperModel({
   model: values.model as Model,
   folder: whisperPath,

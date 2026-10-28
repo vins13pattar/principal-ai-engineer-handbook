@@ -34,6 +34,8 @@ const run = (script: string, args: string[]): boolean => {
 };
 
 const failed: string[] = [];
+let lastStep = "";
+let streak = 0;
 for (const slug of slugs) {
   process.stdout.write(`\n=== ${slug} ===\n`);
   const steps: [string, string[]][] = [
@@ -45,11 +47,23 @@ for (const slug of slugs) {
       ? []
       : ([["render-module", [slug, "--narrated"]]] as [string, string[]][])),
   ];
+  let ok = true;
   for (const [script, args] of steps) {
     if (!run(script, args)) {
       failed.push(`${slug}: ${script}`);
+      // The same step failing on consecutive videos is a setup problem, not a script problem.
+      streak = script === lastStep ? streak + 1 : 1;
+      lastStep = script;
+      ok = false;
       break;
     }
+  }
+  if (ok) streak = 0;
+  if (streak >= 2) {
+    process.stderr.write(
+      `\n"${lastStep}" failed on ${streak} videos in a row; stopping. Fix the setup and re-run.\n`,
+    );
+    break;
   }
 }
 process.stdout.write(
