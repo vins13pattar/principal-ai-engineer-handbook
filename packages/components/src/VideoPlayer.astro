@@ -1,0 +1,54 @@
+---
+/**
+ * The YouTube video for the module a page sits on.
+ *
+ * Uses the privacy-enhanced `youtube-nocookie.com` host and `loading="lazy"`,
+ * so a reader who never scrolls to the video sends nothing to YouTube.
+ */
+interface Props {
+  /** The YouTube video id, e.g. `tAudDul_hsA`. */
+  id: string;
+  /** Accessible title for the embedded player. */
+  title: string;
+}
+
+const { id, title } = Astro.props;
+---
+
+<figure class="handbook-video">
+  <div class="handbook-video__frame">
+    <iframe
+      src={`https://www.youtube-nocookie.com/embed/${id}`}
+      title={title}
+      loading="lazy"
+      allow="accelerometer; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+      allowfullscreen
+      referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+  <figcaption class="handbook-video__caption">
+    <a href={`https://www.youtube.com/watch?v=${id}`} rel="noopener">Watch on YouTube</a>
+  </figcaption>
+</figure>
+
+<style>
+  .handbook-video {
+    margin: 1.5rem 0;
+  }
+  .handbook-video__frame {
+    aspect-ratio: 16 / 9;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.5rem;
+    overflow: hidden;
+    background: var(--sl-color-gray-6);
+  }
+  .handbook-video__frame iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+  }
+  .handbook-video__caption {
+    margin-top: 0.4rem;
+    font-size: 0.85em;
+    color: var(--sl-color-gray-3);
+  }
+</style>
