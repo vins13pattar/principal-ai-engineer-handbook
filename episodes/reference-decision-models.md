@@ -29,7 +29,7 @@ _A decision model trades generation for a typed, probability-weighted answer —
 
 **Host:** So this didn't trickle out — you said it landed like a landmark. What actually happened in September?
 
-**Guest:** Sixteen days, four products. TypeSafe AI's Jev came first, September 15th, early access, closed weights, hosted — but it set the API shape everyone else used. Three days later Convai released Laya, Apache-2.0, a 421M open encoder that scores options at mask tokens. Then OpenAI announced a Decisions API at DevDay on the 29th, in limited preview, built on GPT-6 Luna, with no public reference yet. And October 1st, Cloudflare ships Clef and Clef-flash, 27B and 9B, frozen Qwen backbones, images accepted, and explicitly Jev-API compatible — meaning a Jev client can switch by changing the endpoint, though the probabilities that come back are a different model's. Four teams, one shared request shape, inside two and a half weeks.
+**Guest:** Sixteen days, four products. TypeSafe AI's Jev came first, September 15th, early access, closed weights, hosted — but it set the API shape everyone else used. Three days later Convai released Laya, Apache-2.0, a 421M open encoder that scores options at mask tokens. Then OpenAI announced a Decisions API at DevDay on the 29th, built on GPT-6 Luna — public beta a week later, and generally available since, with its own documented API. And October 1st, Cloudflare ships Clef and Clef-flash, 27B and 9B, frozen Qwen backbones, images accepted, and explicitly Jev-API compatible — meaning a Jev client can switch by changing the endpoint, though the probabilities that come back are a different model's. Four teams, one shared request shape, inside two and a half weeks.
 
 ---
 
@@ -37,7 +37,7 @@ _A decision model trades generation for a typed, probability-weighted answer —
 
 **Host:** Okay, so let's actually put the numbers next to each other — Clef at 209 milliseconds median, Clef-flash at 39, Jev at 524. OpenAI's Decisions API supposedly at 150 milliseconds against a 1.6 second baseline call. Who's actually standing behind these?
 
-**Guest:** That's the thing you have to ask before you believe any of them. The Clef numbers are Cloudflare's own benchmark, comparing itself to Jev — a competitor it has every incentive to beat. The OpenAI figure isn't even from documentation, it's from a DevDay slide, and the baseline it's compared against is OpenAI's own model. Laya's 39.5 milliseconds per question is Convai measuring Convai on a T4. There's no independent benchmark in this entire category yet — every number is a vendor grading its own homework, or grading a rival's without the rival's cooperation.
+**Guest:** That's the thing you have to ask before you believe any of them. The Clef numbers are Cloudflare's own benchmark, comparing itself to Jev — a competitor it has every incentive to beat. The OpenAI figure came from a DevDay slide, not a benchmark anyone can rerun, and the baseline it's compared against is OpenAI's own model. Laya's 39.5 milliseconds per question is Convai measuring Convai on a T4. There's no independent benchmark in this entire category yet — every number is a vendor grading its own homework, or grading a rival's without the rival's cooperation.
 
 **Host:** And the one that actually stopped me — Laya's zero-shot accuracy is 0.362, which is below its own 0.461 majority-class baseline. That's in Convai's own model card.
 
