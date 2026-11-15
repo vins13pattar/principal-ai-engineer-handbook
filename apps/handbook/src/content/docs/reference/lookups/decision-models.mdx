@@ -1,8 +1,8 @@
 ---
 title: Decision Models
 description: Models that answer typed questions about a state with probabilities instead of generating text — Jev, Laya, Clef, and OpenAI's Decisions API — what the category is for, and why the number they return is not yet the number you should act on.
-version: 1.1.0
-lastUpdated: 2026-10-10
+version: 1.2.0
+lastUpdated: 2026-11-12
 revisionHistory:
   - version: 1.0.0
     date: 2026-10-08
@@ -17,10 +17,20 @@ revisionHistory:
       Linked the Decision Tier Calibration lab and its design review: the independent
       calibration measurement this page said did not exist now exists, for Laya.
     author: vinod
+  - version: 1.2.0
+    date: 2026-11-12
+    change: >-
+      Re-verified. OpenAI's Decisions API went to public beta on 2026-10-06 and is now generally
+      available, with a public reference and a published price, so the "not documented yet"
+      gotcha and the "not published" row are replaced with what the docs say. TypeSafe's API
+      reference sets only an upper bound on `score` levels, so the row now says up to 10. Jev,
+      Laya and Clef figures re-checked against their sources; unchanged. Still no independent
+      calibration figure for Clef or Jev.
+    author: vinod
 freshness:
   classification: fast-moving
-  verifiedAgainst: "TypeSafe Jev API reference and confidence docs; Cloudflare Clef launch post and Workers AI model page (2026-10-01); Laya model card (convaiinnovations/laya); OpenAI Decisions API — limited preview, no public reference as of 2026-10-08"
-  verifiedOn: 2026-10-08
+  verifiedAgainst: "TypeSafe Jev API reference and confidence docs; Cloudflare Workers AI Clef model page; Laya model card (convaiinnovations/laya, laya 0.3.20); OpenAI Decisions API guide (GA) and public-beta announcement (2026-10-06)"
+  verifiedOn: 2026-11-12
   reviewAfterDays: 30
 category: Model category
 ---
@@ -56,13 +66,13 @@ and cost for a bounded answer, and get back text that has to be parsed into one.
 state + { name: question, … } → one forward pass → { name: answer + probabilities, … }
 ```
 
-Four products in sixteen days:
+Four products in sixteen days (status as of 2026-11-12):
 
 | Product | From | Released | Weights | Shape |
 | --- | --- | --- | --- | --- |
 | Jev | TypeSafe AI | 2026-09-15, early access | Closed, hosted | Text in; the API the others copied |
 | Laya | Convai Innovations | 2026-09-18 | Apache-2.0 | A 421M encoder; options scored at `[MASK]` tokens |
-| Decisions API | OpenAI | 2026-09-29, limited preview | Closed, hosted | Built on GPT-6 Luna. No public reference yet |
+| Decisions API | OpenAI | 2026-09-29 preview; public beta 2026-10-06; now GA | Closed, hosted | `POST /v1/decisions` on GPT-6 Luna only. Its own question types: predicate, choice, score |
 | Clef, Clef-flash | Cloudflare | 2026-10-01 | Apache-2.0 | 27B and 9B on frozen Qwen backbones; images accepted; Jev-API compatible |
 
 ## Key Concepts
@@ -89,8 +99,8 @@ a competitor.
 | Quantity | Value | Who measured or stated it |
 | --- | --- | --- |
 | `choice` options | Up to 255 | TypeSafe API reference |
-| `score` levels | 2 to 10 | TypeSafe API reference |
-| Questions per request, Clef | Up to 64 | Cloudflare model page |
+| `score` levels | Up to 10 (Jev); 2 to 10 (OpenAI) | TypeSafe API reference; OpenAI Decisions guide |
+| Questions per request | Clef up to 64; OpenAI up to 400 (200 during the beta) | Cloudflare model page; OpenAI Decisions guide |
 | Context window | Clef 65,536 tokens; Jev 32k | Cloudflare (the Jev figure is Cloudflare's statement about a competitor) |
 | Median latency over 43 benchmarks | Clef 209 ms, Clef-flash 39 ms, Jev 524 ms | **Cloudflare**, comparing itself to a competitor |
 | Decisions API latency | About 150 ms, against 1.6 s for a standard Luna call | Reported from OpenAI's DevDay slide, not from documentation. The baseline is OpenAI's own model |
@@ -99,7 +109,7 @@ a competitor.
 | Laya accuracy, fine-tuned | 0.766, against Jev 1.13.0 at 0.727 | Convai; the Jev number is third-party and not reproduced by Convai |
 | Laya calibration error (ECE) | 0.466 as shipped, 0.081 after per-type temperature fitting | Convai |
 | Clef price | $0.24 per million input tokens | Cloudflare model page |
-| Decisions API schema, price, rate limits | Not published | As of 2026-10-08 |
+| Decisions API price | $0.10 per million uncached input tokens; output not charged; cache hits discounted, cache writes charged | OpenAI Decisions guide |
 
 ## Common Gotchas
 
@@ -128,9 +138,11 @@ a competitor.
 - **API compatibility is not behavioural compatibility.** Clef accepts Jev's request shape, so
   switching is an endpoint change. The probabilities that come back are a different model's, and
   every threshold fitted on the old one has to be fitted again.
-- **The OpenAI API is not documented yet.** As of 2026-10-08 there is no public request schema,
-  endpoint reference, or price, and access is limited. Anything specific you read about it is
-  coverage, not documentation.
+- **The OpenAI API changed shape between beta and GA.** It is documented now, but GA added prompt
+  caching (with charged cache writes), doubled the question limit to 400, and added JSON input and
+  conversation history. Beta-era write-ups, including its "no caching, no charges beyond input"
+  pricing, describe a different product. Its latency claim is still OpenAI comparing itself with
+  its own model through the Responses API.
 
 ## Where to Go Deeper
 
@@ -150,4 +162,5 @@ a competitor.
   [confidence](https://docs.typesafe.ai/confidence) docs; Cloudflare's
   [launch post](https://blog.cloudflare.com/clef-decision-models/) and
   [model page](https://developers.cloudflare.com/workers-ai/models/clef/); the
-  [Laya model card](https://huggingface.co/convaiinnovations/laya).
+  [Laya model card](https://huggingface.co/convaiinnovations/laya); OpenAI's
+  [Decisions API guide](https://developers.openai.com/api/docs/guides/decisions).
