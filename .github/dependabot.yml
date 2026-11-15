@@ -1,0 +1,11 @@
+version: 2
+updates:
+  # Keep workflow actions on supported majors (the Node 20 runtime
+  # deprecation went unnoticed until every run carried a warning).
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      github-actions:
+        patterns: ["*"]
