@@ -6,6 +6,12 @@
 [![Async AI Gateway CI](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/lab-async-ai-gateway-ci.yml/badge.svg)](https://github.com/vins13pattar/principal-ai-engineer-handbook/actions/workflows/lab-async-ai-gateway-ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+<p>
+  <a href="https://trendshift.io/repositories/139230" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/139230/daily?language=MDX" alt="#1 MDX Repository Of The Day" width="250" height="55"/></a>
+  <a href="https://trendshift.io/repositories/139230" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/139230/weekly?language=MDX" alt="#6 MDX Repository Of The Week" width="250" height="55"/></a>
+  <a href="https://trendshift.io/repositories/139230" target="_blank"><img src="https://trendshift.io/api/badge/trendshift/repositories/139230/monthly?language=MDX" alt="#16 MDX Repository Of The Month" width="250" height="55"/></a>
+</p>
+
 A reference for engineers working on production AI systems — reference architectures, labs you can
 run, and interview material grounded in both. Written for Principal and Staff AI Engineers, AI
 Platform Engineers, AI Architects, and Founding AI Engineers.
