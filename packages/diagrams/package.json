@@ -10,7 +10,7 @@
     "check": "echo '@handbook/diagrams has no standalone type-check: its .astro component is checked by apps/handbook via astro check'"
   },
   "dependencies": {
-    "mermaid": "11.16.0"
+    "mermaid": "11.17.2"
   },
   "peerDependencies": {
     "astro": ">=5.0.0"

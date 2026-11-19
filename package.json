@@ -44,7 +44,7 @@
     "prettier": "3.9.6",
     "prettier-plugin-astro": "0.14.1",
     "typescript": "6.0.3",
-    "vitest": "4.1.10",
+    "vitest": "4.1.12",
     "wrangler": "4.118.0"
   }
 }
