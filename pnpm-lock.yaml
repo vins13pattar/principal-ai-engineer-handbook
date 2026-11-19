@@ -195,8 +195,8 @@ importers:
         specifier: 7.0.66
         version: 7.0.66(zod@4.6.7)
       undici:
-        specifier: ^7.30.1
-        version: 7.30.2
+        specifier: 7.30.1
+        version: 7.30.1
       workers-ai-provider:
         specifier: 4.0.0
         version: 4.0.0(@ai-sdk/anthropic@4.0.39(zod@4.6.7))(@ai-sdk/openai@4.0.42(zod@4.6.7))(@ai-sdk/provider@4.0.7)(ai@7.0.66(zod@4.6.7))
@@ -3742,8 +3742,8 @@ packages:
   undici-types@7.18.2:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
 
-  undici@7.30.2:
-    resolution: {integrity: sha512-mLyPQnHwUxaM/rideoK/+KL8DaAJLRl4aBCfmX444aCSLnIaomqPLtNRe2jdCYcsk5wZzXrDIQC8ZeYNRAYyIA==}
+  undici@7.30.1:
+    resolution: {integrity: sha512-03KrMbjIFDWQR5RNPrSw3bd1r12JpyFQl9/yxjUbJtqkjmllqC5lFjZh6ujeuJCKr8EOQvRW872Oy/az+nLYxg==}
     engines: {node: '>=20.18.1'}
 
   undici@8.12.4:
@@ -4102,6 +4102,9 @@ packages:
 
   workers-ai-provider@4.0.0:
     resolution: {integrity: sha512-FkhwMP1EP/MKXR8Jv1o7wLVKfTqu0h/PUaEmhZ7gyDiioib5Wsh3oPAKhG+7+SWfU3roTDHaEWlJpkJjpXu+fQ==}
+    deprecated: |-
+      Deprecated. Use createAI from agents/models/ai-sdk, or
+       ai-search-provider for AI Search: https://developers.cloudflare.com/agents/models/ai-sdk/
     peerDependencies:
       '@ai-sdk/anthropic': ^4.0.0
       '@ai-sdk/google': ^4.0.0
@@ -4229,7 +4232,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       '@workflow/serde': 4.1.0
       eventsource-parser: 3.1.1
-      undici: 7.30.2
+      undici: 7.30.1
       zod: 4.6.7
 
   '@ai-sdk/provider@4.0.7':
@@ -7581,7 +7584,7 @@ snapshots:
     dependencies:
       '@cspotcode/source-map-support': 0.8.1
       sharp: 0.35.5(@types/node@24.13.3)
-      undici: 7.30.2
+      undici: 7.30.1
       workerd: 1.20260730.1
       ws: 8.21.0
       youch: 4.1.0-beta.10
@@ -8283,7 +8286,7 @@ snapshots:
 
   undici-types@7.18.2: {}
 
-  undici@7.30.2: {}
+  undici@7.30.1: {}
 
   undici@8.12.4: {}
 
